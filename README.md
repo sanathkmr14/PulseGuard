@@ -33,22 +33,6 @@
 *   MongoDB
 *   Redis
 
-### Quick Start (Docker)
-
-The easiest way to run PulseGuard is using Docker Compose.
-
-\`\`\`bash
-# 1. Clone the repository
-git clone https://github.com/sanathkmr14/PulseGuard.git
-cd PulseGuard
-
-# 2. Configure Environment
-# Rename .env.example to .env and fill in your details (MongoDB, Redis, Email API)
-
-# 3. Start Services
-docker-compose up -d --build
-\`\`\`
-
 Your app will be running at `http://localhost:80` (Frontend) and `http://localhost:5000` (Backend).
 
 ### Manual Setup
@@ -67,30 +51,6 @@ npm install
 npm run dev
 \`\`\`
 
-## 📂 Project Structure
-
-\`\`\`
-/
-├── backend/      # Node.js API & Workers
-│   ├── src/
-│   ├── tests/
-│   └── Dockerfile
-├── frontend/     # React Application
-│   ├── src/
-│   └── Dockerfile
-└── docker-compose.yml
-\`\`\`
-
-## ☁️ Deployment
-
-PulseGuard is optimized for deployment on platforms like **Railway** and **DigitalOcean**. 
-
-See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions.
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please fork the repository and submit a pull request.
-
-## 📄 License
-
-MIT License.
