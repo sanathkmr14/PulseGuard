@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/* Typography */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Base */
+body {
+  background: #0a0a0f;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-heading {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Glassmorphism Design System */
+.glass-panel {
+  background: rgba(18, 18, 26, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-card {
+  background: rgba(30, 30, 45, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  /* GPU optimization to prevent black box artifacts during scroll */
+  transform: translateZ(0);
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+}
+
+.glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(30, 30, 45, 0.6);
+  z-index: 2;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.15),
+    0 10px 40px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Glow Effects */
+.glow-primary:hover {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.glow-emerald:hover {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.glow-red:hover {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3b3b4f;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+
+  50% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}

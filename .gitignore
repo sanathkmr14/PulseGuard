@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build Output
+dist
+build
+coverage
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs
+*.log
+
+# Editor Directories
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Docker
+docker-compose.override.yml
+
+# Kluster/Agent artifacts (if any local ones)
+.kluster
+.agent
+.cursor
+.gemini
