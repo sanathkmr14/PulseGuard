@@ -5,7 +5,7 @@
 ## 🚀 Key Features
 
 *   **Real-Time Monitoring:** Instant updates via WebSockets and Redis Streams.
-*   **Multi-Protocol Support:** Monitor HTTP/HTTPS, TCP, UDP, DNS, PING and SSL Certificates.
+*   **Multi-Protocol Support:** Monitor HTTP/HTTPS, TCP, UDP, DNS, PING, SMTP and SSL Certificates.
 *   **Instant Alerts:** Get notified immediately via Email (Brevo/Nodemailer) when a service goes down.
 *   **Detailed Analytics:** Track uptime percentages, response times, and incident history.
 *   **Status Pages:** (Optional) Public pages to showcase your system health.
@@ -19,7 +19,7 @@
 *   **Redis:** Caching, Pub/Sub, and Job Queues.
 *   **Socket.IO:** Real-time bi-directional communication.
 *   **BullMQ:** Robust background job processing.
-*   **Docker:** Containerized for easy deployment.
+*   **Docker:** Containerised for easy deployment.
 
 ### Frontend
 *   **React:** Dynamic and responsive user interface.
