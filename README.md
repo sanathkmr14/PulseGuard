@@ -6,9 +6,8 @@
 
 *   **Real-Time Monitoring:** Instant updates via WebSockets and Redis Streams.
 *   **Multi-Protocol Support:** Monitor HTTP/HTTPS, TCP, UDP, DNS, PING, SMTP and SSL Certificates.
-*   **Instant Alerts:** Get notified immediately via Email (Brevo/Nodemailer) when a service goes down.
+*   **Instant Alerts:** Get notified immediately via Email (Brevo/Nodemailer) when a service goes down/degraded.
 *   **Detailed Analytics:** Track uptime percentages, response times, and incident history.
-*   **Status Pages:** (Optional) Public pages to showcase your system health.
 *   **Background Workers:** Scalable job processing powered by BullMQ and Redis.
 
 ## 🛠 Tech Stack
