@@ -4,7 +4,17 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext();
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5010';
+// Fallback logic: Use VITE_SOCKET_URL if provided, else strip /api from VITE_API_URL if possible, else default
+const getSocketUrl = () => {
+    if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+    if (import.meta.env.VITE_API_URL) {
+        // Strip /api or /api/ from the end of the URL for socket connection
+        return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
+    }
+    return 'http://localhost:5010';
+};
+
+const SOCKET_URL = getSocketUrl();
 
 export const useSocketContext = () => {
     const context = useContext(SocketContext);

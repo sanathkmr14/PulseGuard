@@ -68,6 +68,7 @@ const lockConnection = new Redis(env.REDIS_URL, { ...redisOptions, maxRetriesPer
 class SchedulerService {
     constructor() {
         // Shared state
+        this.nodeId = Math.random().toString(36).substring(2, 6).toUpperCase();
         this.redis = lockConnection; // Master lock operations
         this.queue = new Queue(QUEUE_NAME, { connection: queueConnection });
         this.worker = null;
@@ -76,6 +77,7 @@ class SchedulerService {
         this.lockInterval = null;
         this.io = null;
         this.isReady = false; // Add readiness indicator
+        console.log(`📡 Scheduler instance created [Node: ${this.nodeId}]`);
     }
 
     async initialize() {
@@ -113,7 +115,7 @@ class SchedulerService {
         // 3. Start Lock Refresh Loop
         this.lockInterval = setInterval(() => this.tryAcquireLock(), LOCK_TTL / 2);
 
-        console.log(`✅ Scheduler Initialized. Is Master? ${this.isMaster}`);
+        console.log(`✅ [Node: ${this.nodeId}] Scheduler Initialized. Is Master? ${this.isMaster}`);
 
         // Consolidate initialization and sync logic to prevent race conditions
         // In local/dev environments, we often want to become master immediately
@@ -142,8 +144,9 @@ class SchedulerService {
                 }
 
                 if (this.isMaster && !this.hasInitialSync) {
-                    console.log('👑 Became Master - Performing initial sync');
-                    this.hasInitialSync = true;
+                    console.log(`👑 [Node: ${this.nodeId}] Became Master - Performing initial sync`);
+                    // IMPORTANT: Fixed. Don't set hasInitialSync here, let syncMonitors do it
+                    // this.hasInitialSync = true; 
                     await this.cleanQueue();
                     await this.syncMonitors();
                     this.isReady = true;
@@ -190,7 +193,7 @@ class SchedulerService {
 
             if (res === 'OK') {
                 if (!this.isMaster) {
-                    console.log(`👑 Acquired Master Lock [${this.lockId}] - This node is now the Scheduler.`);
+                    console.log(`👑 [Node: ${this.nodeId}] Acquired Master Lock [${this.lockId}] - This node is now the Scheduler.`);
                     this.isMaster = true;
                     // Trigger sync on promotion (but not during initialize - it handles sync separately)
                     if (!skipSync) {
@@ -214,7 +217,7 @@ class SchedulerService {
                 } else {
                     // We don't own the lock
                     if (this.isMaster) {
-                        console.warn('⚠️ Lost Master Status (Lock stolen or expired)');
+                        console.log(`ℹ️ [Node: ${this.nodeId}] Standby Mode: Master status transferred to another instance (Lock owned by: ${currentLockValue})`);
                         this.isMaster = false;
                     } else if (currentLockValue) {
                         // Periodic log only if lock is held by another instance
