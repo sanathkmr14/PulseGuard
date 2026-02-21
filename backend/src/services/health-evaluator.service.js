@@ -422,8 +422,12 @@ class HealthStateService {
                 }
                 // Other HTTP errors
                 else {
-                    if (!analysis.isCompletelyUp) analysis.severity = 0.7;
-                    analysis.issues.push(`Application error: ${analysis.errorType} (${analysis.statusCode})`);
+                    if (analysis.errorType !== 'HTTP_SUCCESS') {
+                        if (!analysis.isCompletelyUp) analysis.severity = 0.7;
+                        if (!analysis.issues.includes(`Application error: ${analysis.errorType} (${analysis.statusCode})`)) {
+                            analysis.issues.push(`Application error: ${analysis.errorType} (${analysis.statusCode})`);
+                        }
+                    }
                 }
             }
             // Other failures (Generic Protocol Errors)
@@ -795,7 +799,26 @@ class HealthStateService {
         }
 
         // UP -> DEGRADED: Check threshold
-        if (previousState === 'up' && targetState === 'degraded' && consecutiveCount < confirmedThreshold) {
+        if (previousState === 'up' && targetState === 'degraded') {
+            // BYPASS HYSTERESIS for critical protocol/SSL errors
+            // These aren't transient "glitches", they are persistent configuration/security issues
+            const isCriticalDegradation = currentCheck.issues.some(issue =>
+                issue.toLowerCase().includes('ssl') ||
+                issue.toLowerCase().includes('cert') ||
+                issue.toLowerCase().includes('chain') ||
+                issue.toLowerCase().includes('protocol')
+            );
+
+            if (isCriticalDegradation || consecutiveCount >= confirmedThreshold) {
+                return {
+                    status: targetState,
+                    reasons: currentCheck.issues,
+                    confidence: 0.9,
+                    transitionReason: isCriticalDegradation ? 'Critical protocol/SSL issue detected - bypassing hysteresis' : 'Hysteresis confirmation met',
+                    preventedFlapping: false
+                };
+            }
+
             return {
                 status: previousState, // Stay UP
                 reasons: [`Potential degradation detected, awaiting confirmation (${consecutiveCount + 1}/${confirmedThreshold})`],
