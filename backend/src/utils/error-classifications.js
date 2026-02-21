@@ -128,7 +128,14 @@ export const HTTP_ERROR_TYPES = {
         severity: 0.9,
         healthState: 'DOWN',
         description: 'SSL certificate chain verification failed',
-        examples: ['UNABLE_TO_GET_ISSUER_CERT', 'certificate chain error'],
+        examples: ['UNABLE_TO_GET_ISSUER_CERT', 'certificate chain error', 'SSL_CHAIN_ERROR'],
+        protocols: ['HTTPS', 'SSL']
+    },
+    'SSL_CHAIN_ERROR': {
+        severity: 0.9,
+        healthState: 'DOWN',
+        description: 'SSL certificate chain verification failed',
+        examples: ['SSL_CHAIN_ERROR'],
         protocols: ['HTTPS', 'SSL']
     },
     'CERT_REVOKED': {

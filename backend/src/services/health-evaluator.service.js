@@ -385,7 +385,7 @@ class HealthStateService {
                     analysis.issues.push(`Network failure: ${analysis.errorType}`);
                 }
                 // SSL/TLS failures
-                else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE'].includes(analysis.errorType)) {
+                else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE', 'CERT_CHAIN_ERROR', 'SSL_CHAIN_ERROR'].includes(analysis.errorType)) {
                     analysis.severity = 0.9;
                     // Use the detailed error message from the worker if available
                     const issueMsg = analysis.errorMessage || `SSL/TLS failure: ${analysis.errorType}`;
@@ -1078,14 +1078,13 @@ class HealthStateService {
 
         const verificationId = `${monitor._id}-${Date.now()}`;
 
-        // Track this verification to prevent duplicates
-        this.verificationQueue = this.verificationQueue || new Map();
-        this.verificationQueue.set(verificationId, {
-            monitorId: monitor._id,
-            createdAt: Date.now(),
-            originalResult: healthResult,
-            attempts: []
-        });
+        // Deduplicate: If another verification for same monitor is already in progress, wait or join
+        this.activeVerifications = this.activeVerifications || new Set();
+        if (this.activeVerifications.has(monitor._id.toString())) {
+            console.log(`ℹ️ Verification already in progress for ${monitor.name}, skipping secondary trigger`);
+            return;
+        }
+        this.activeVerifications.add(monitor._id.toString());
 
         const monitorType = (monitor.type || 'HTTPS').toUpperCase();
 
@@ -1208,91 +1207,60 @@ class HealthStateService {
             }
 
             // PERSIST: Save verification results to the ongoing incident
-            try {
-                let ongoingIncident = null;
-                let retries = 0;
-                while (!ongoingIncident && retries < 6) {
-                    ongoingIncident = await Incident.findOne({ monitor: monitor._id, status: 'ongoing' });
-                    if (!ongoingIncident) {
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        retries++;
+            // FIX: Use findOneAndUpdate to avoid VersionError race conditions
+            const verifications = globalResults.map(r => ({
+                location: r.location,
+                country: r.country,
+                isUp: r.isUp,
+                responseTime: r.responseTime,
+                statusCode: r.statusCode,
+                timestamp: new Date(),
+                errorMessage: r.error || null
+            }));
+
+            const updatedIncident = await Incident.findOneAndUpdate(
+                { monitor: monitor._id, status: 'ongoing' },
+                { $set: { verifications } },
+                { new: true }
+            );
+
+            if (updatedIncident) {
+                console.log(`✅ Saved ${verifications.length} global verification results to incident ${updatedIncident._id}`);
+            }
+
+            // PERSIST to Check document if provided
+            if (checkId) {
+                const checkDoc = await Check.findById(checkId);
+                if (checkDoc) {
+                    checkDoc.verifications = verifications;
+                    await checkDoc.save();
+                    console.log(`✅ Saved global verification results to check ${checkId}`);
+
+                    // NEW: Redis Streams (Reliable Delivery)
+                    try {
+                        await this.redis.xadd(
+                            'monitor_updates_stream',
+                            'MAXLEN', '~', 10000,
+                            '*',
+                            'userId', monitor.user._id.toString(),
+                            'monitorId', monitor._id.toString(),
+                            'data', JSON.stringify({
+                                monitorId: monitor._id,
+                                status: monitor.status,
+                                check: checkDoc.toObject()
+                            })
+                        );
+                    } catch (streamErr) {
+                        console.error('Failed to add to Redis Stream:', streamErr.message);
                     }
                 }
-
-                if (ongoingIncident) {
-                    ongoingIncident.verifications = globalResults.map(r => ({
-                        location: r.location,
-                        country: r.country,
-                        isUp: r.isUp,
-                        responseTime: r.responseTime,
-                        statusCode: r.statusCode,
-                        timestamp: new Date(),
-                        errorMessage: r.error || null
-                    }));
-                    await ongoingIncident.save();
-                    console.log(`✅ Saved ${ongoingIncident.verifications.length} global verification results to incident ${ongoingIncident._id}`);
-                }
-
-                // PERSIST to Check document if provided
-                if (checkId) {
-                    const checkDoc = await Check.findById(checkId);
-                    if (checkDoc) {
-                        checkDoc.verifications = globalResults.map(r => ({
-                            location: r.location,
-                            country: r.country,
-                            isUp: r.isUp,
-                            responseTime: r.responseTime,
-                            statusCode: r.statusCode,
-                            errorMessage: r.error || null
-                        }));
-                        await checkDoc.save();
-                        console.log(`✅ Saved global verification results to check ${checkId}`);
-
-                        // Emit socket event to update UI in real-time
-                        // OLD: Pub/Sub (Fire and forget, improved with streams below)
-                        // this.redis.publish('monitor_updates', JSON.stringify({ ... }));
-
-                        // NEW: Redis Streams (Reliable Delivery)
-                        // Add to stream with specific ID '*' (auto-generated)
-                        // Max length 10000 to prevent infinite growth
-                        try {
-                            await this.redis.xadd(
-                                'monitor_updates_stream',
-                                'MAXLEN', '~', 10000,
-                                '*',
-                                'userId', monitor.user._id.toString(),
-                                'monitorId', monitor._id.toString(),
-                                'data', JSON.stringify({
-                                    monitorId: monitor._id,
-                                    status: monitor.status,
-                                    check: checkDoc.toObject()
-                                })
-                            );
-                        } catch (streamErr) {
-                            console.error('Failed to add to Redis Stream:', streamErr.message);
-                            // Fallback to direct emit if local (optional, but good for redundancy)
-                            if (this.io) {
-                                this.io.to(`user_${monitor.user._id.toString()}`).emit('monitor_update', {
-                                    monitorId: monitor._id,
-                                    status: monitor.status,
-                                    check: checkDoc.toObject()
-                                });
-                            }
-                        }
-                    }
-                }
-            } catch (dbErr) {
-                console.error('Failed to save verification results:', dbErr.message);
             }
 
         } catch (err) {
             console.error(`❌ Global verification failed for ${monitor.name}:`, err.message);
+        } finally {
+            this.activeVerifications.delete(monitor._id.toString());
         }
-
-        // Clean up old verifications
-        setTimeout(() => {
-            this.verificationQueue.delete(verificationId);
-        }, 300000);
     }
 
     /**

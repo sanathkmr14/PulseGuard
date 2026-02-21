@@ -262,21 +262,30 @@ class EnhancedAlertService {
      * Update incident with enhanced analysis
      */
     async updateIncidentWithAnalysis(incident, healthStateResult, checkResult) {
-        incident.lastUpdated = new Date();
-        incident.healthStateAnalysis = healthStateResult;
+        // Prepare update data
+        const updateData = {
+            $set: {
+                lastUpdated: new Date(),
+                healthStateAnalysis: healthStateResult
+            }
+        };
 
         // Update errorMessage from checkResult or fallback to healthStateResult reasons
         if (checkResult.errorMessage) {
-            incident.errorMessage = checkResult.errorMessage;
+            updateData.$set.errorMessage = checkResult.errorMessage;
         } else if (healthStateResult?.reasons?.length > 0) {
-            // Fallback: use reasons from health state analysis
-            incident.errorMessage = healthStateResult.reasons[0];
+            updateData.$set.errorMessage = healthStateResult.reasons[0];
         }
 
-        if (checkResult.errorType) incident.errorType = checkResult.errorType;
-        if (checkResult.statusCode) incident.statusCode = checkResult.statusCode;
+        if (checkResult.errorType) updateData.$set.errorType = checkResult.errorType;
+        if (checkResult.statusCode) updateData.$set.statusCode = checkResult.statusCode;
 
-        await incident.save();
+        // Perform atomic update
+        return await Incident.findOneAndUpdate(
+            { _id: incident._id },
+            updateData,
+            { new: true }
+        );
     }
 
     /**
