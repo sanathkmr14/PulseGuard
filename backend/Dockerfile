@@ -1,11 +1,10 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (Debian/Slim use apt-get)
 COPY package*.json ./
-RUN apk add --no-cache ca-certificates
-ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN npm ci --only=production
 
 # Copy source code

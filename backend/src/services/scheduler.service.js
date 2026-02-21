@@ -36,7 +36,7 @@ const redisOptions = {
     retryDelayOnFailover: 100,
     lazyConnect: false,
     connectTimeout: 20000,
-    commandTimeout: 15000,
+    commandTimeout: 30000, // Increased to 30s to survive transient Redis lag
     enableReadyCheck: true,
     maxRetries: 10, // Allow some retries for general stability
     retryStrategy: (times) => Math.min(times * 50, 2000), // Exponential backoff for reconnection
@@ -224,7 +224,7 @@ class SchedulerService {
                         // We use a internal counter to avoid log spamming
                         this._lockCheckCount = (this._lockCheckCount || 0) + 1;
                         if (this._lockCheckCount % 10 === 0) {
-                            console.log(`ℹ️ Scheduler lock held by instance: ${currentLockValue}`);
+                            console.log(`ℹ️ [Node: ${this.nodeId}] Scheduler lock held by instance: ${currentLockValue}`);
                         }
                     }
                 }
@@ -623,36 +623,58 @@ class SchedulerService {
                 console.log(`🔄 Attempting to reschedule ${updatedMonitor.name} in ${updatedMonitor.interval}m...`);
 
                 try {
-                    // FIX: Deterministic Job ID to prevent "Reschedule Zombie" jobs (exponential job growth)
-                    // We remove the Date.now() suffix to ensure a monitor ALWAYS only has ONE scheduled job
+                    // FIX: Deterministic Job ID to prevent "Reschedule Zombie" jobs
                     const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}`;
 
-                    await this.queue.add('check', {
-                        monitorId: updatedMonitor._id.toString(),
-                        type: updatedMonitor.type,
-                        url: updatedMonitor.url,
-                        isScheduled: true
-                    }, {
-                        jobId: scheduledJobId,
-                        delay: intervalMs,
-                        attempts: 1,
-                        removeOnComplete: true,
-                        removeOnFail: { age: 604800 }
-                    });
-                    console.log(`✅ Successfully rescheduled ${updatedMonitor.name} (Job: ${scheduledJobId})`);
-                } catch (schedErr) {
-                    console.error(`❌ Failed to reschedule ${updatedMonitor.name}:`, schedErr.message);
+                    // RETRY LOOP: Rescheduling is critical to the monitor's lifecycle.
+                    // If Redis times out here, the monitor "stops" until auto-healed.
+                    let retryCount = 0;
+                    const maxRetries = 3;
+                    let schedSuccess = false;
+
+                    while (retryCount < maxRetries && !schedSuccess) {
+                        try {
+                            await this.queue.add('check', {
+                                monitorId: updatedMonitor._id.toString(),
+                                type: updatedMonitor.type,
+                                url: updatedMonitor.url,
+                                isScheduled: true
+                            }, {
+                                jobId: scheduledJobId,
+                                delay: intervalMs,
+                                attempts: 1,
+                                removeOnComplete: true,
+                                removeOnFail: { age: 604800 }
+                            });
+                            schedSuccess = true;
+                        } catch (schedErr) {
+                            retryCount++;
+                            const isTimeout = schedErr.message.includes('Command timed out');
+                            console.warn(`[Node: ${this.nodeId}] Reschedule attempt ${retryCount} failed for ${updatedMonitor.name}${isTimeout ? ' (Redis Timeout)' : ''}:`, schedErr.message);
+                            if (retryCount < maxRetries) {
+                                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                            }
+                        }
+                    }
+
+                    if (schedSuccess) {
+                        console.log(`✅ [Node: ${this.nodeId}] Successfully rescheduled ${updatedMonitor.name} (Job: ${scheduledJobId})`);
+                    } else {
+                        console.error(`🔴 [Node: ${this.nodeId}] Failed to reschedule ${updatedMonitor.name} after ${maxRetries} attempts. Monitor may stall until Safety Net heals it.`);
+                    }
+                } catch (err) { // This catch block was missing for the inner try around queue.add
+                    console.error(`🔴 [Node: ${this.nodeId}] Unexpected error during reschedule attempt for ${updatedMonitor.name}:`, err.message);
                 }
             } else {
                 console.warn(`⚠️ Reschedule failed: updatedMonitor=${!!updatedMonitor}, isActive=${updatedMonitor?.isActive}`);
             }
-        }
 
-        return {
-            ...result,
-            healthState: healthStateResult,
-            checkId: check ? check._id : null
-        };
+            return {
+                ...result,
+                healthState: healthStateResult,
+                checkId: check ? check._id : null
+            };
+        }
     }
 
     /**
