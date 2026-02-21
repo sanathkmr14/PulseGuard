@@ -147,7 +147,7 @@ monitorSchema.pre('deleteOne', { document: true, query: false }, async function 
         console.log(`   ✅ Deleted ${checksResult.deletedCount} checks and ${incidentsResult.deletedCount} incidents`);
 
         // Cleanup health state
-        healthStateService.cleanupState(this._id);
+        await healthStateService.cleanupState(this._id);
     } catch (error) {
         console.error('❌ Monitor cascading delete error:', error);
     }
@@ -155,7 +155,7 @@ monitorSchema.pre('deleteOne', { document: true, query: false }, async function 
 
 monitorSchema.post('findOneAndDelete', async function (doc) {
     if (doc) {
-        healthStateService.cleanupState(doc._id);
+        await healthStateService.cleanupState(doc._id);
     }
 });
 

@@ -10,8 +10,7 @@ import dns from 'dns';
 import dgram from 'dgram';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import Redis from 'ioredis';
-import env from '../config/env.js';
+import redisClient from '../config/redis-cache.js';
 
 /**
  * Enhanced Health State Service
@@ -68,16 +67,8 @@ class HealthStateService {
     constructor() {
         this.io = null; // Will be set later
 
-        // Initialize Redis Client for Streams/Caching
-        this.redis = new Redis(env.REDIS_URL, {
-            lazyConnect: true,
-            retryStrategy: (times) => Math.min(times * 500, 2000)
-        });
-
-        // Handle redis errors
-        this.redis.on('error', (err) => {
-            console.warn('HealthStateService Redis Error:', err.message);
-        });
+        // Use centralized Redis Client for Caching/State
+        this.redis = redisClient;
 
         // Rate limiting for external verification APIs
         // Conservative settings to avoid check-host.net rate limits during mass verification
@@ -141,18 +132,24 @@ class HealthStateService {
             slowResponseWindowSize: 5        // Look at last N checks for slow pattern
         };
 
-        this.stateHistory = new Map(); // Track state transitions per monitor
+        // State history is now backed by Redis to support multi-instance horizontal scaling
+        this.REDIS_STATE_PREFIX = 'health:state:';
+        this.REDIS_CHANGES_PREFIX = 'health:changes:';
     }
 
     /**
      * Clean up state history for a monitor (Memory Leak Fix)
      * should be called when a monitor is deleted
      */
-    cleanupState(monitorId) {
+    async cleanupState(monitorId) {
         const id = monitorId.toString();
-        if (this.stateHistory.has(id)) {
-            this.stateHistory.delete(id);
-            console.log(`[HealthStateService] Cleaned up state history for monitor: ${id}`);
+        try {
+            const stateKey = `${this.REDIS_STATE_PREFIX}${id}`;
+            const changesKey = `${this.REDIS_CHANGES_PREFIX}${id}`;
+            await this.redis.del(stateKey, changesKey);
+            console.log(`[HealthStateService] Cleaned up Redis state history for monitor: ${id}`);
+        } catch (err) {
+            console.warn(`[HealthStateService] Cleanup failed for ${id}:`, err.message);
         }
     }
 
@@ -194,7 +191,7 @@ class HealthStateService {
         const monitorId = monitor?._id?.toString() || 'default-monitor';
 
         // Get state history for hysteresis
-        const stateHistory = this.getStateHistory(monitorId);
+        const stateHistory = await this.getStateHistory(monitorId);
 
         // Seed initial state from history if currently unknown but history exists
         // This handles server restarts and ensures hysteresis works correctly immediately
@@ -221,8 +218,8 @@ class HealthStateService {
             };
         }
 
-        // 2. Analyze current check result
-        const currentCheckAnalysis = this.analyzeCurrentCheck(checkResult, monitor);
+        // 2. Analyze current check result (Async-backed)
+        const currentCheckAnalysis = await this.analyzeCurrentCheck(checkResult, monitor);
 
         // 3. Analyze performance baseline
         const baselineAnalysis = this.analyzePerformanceBaseline(recentChecks);
@@ -230,8 +227,8 @@ class HealthStateService {
         // 4. Multi-check window analysis
         const windowAnalysis = this.analyzeCheckWindow(recentChecks);
 
-        // 5. Apply state transition logic with hysteresis
-        const stateDecision = this.determineStateWithHysteresis(
+        // 5. Apply state transition logic with hysteresis (Redis/Async-backed)
+        const stateDecision = await this.determineStateWithHysteresis(
             currentCheckAnalysis,
             baselineAnalysis,
             windowAnalysis,
@@ -258,8 +255,8 @@ class HealthStateService {
             }
         };
 
-        // 7. Update state history
-        this.updateStateHistory(monitorId, finalResult);
+        // 7. Update state history (Redis-backed)
+        await this.updateStateHistory(monitorId, finalResult);
 
 
 
@@ -308,7 +305,7 @@ class HealthStateService {
      * PROBLEM 2 FIX: Single slow 2xx responses are now WARNINGS, not failures.
      * Need consecutive slow responses before marking as DEGRADED.
      */
-    analyzeCurrentCheck(checkResult, monitor) {
+    async analyzeCurrentCheck(checkResult, monitor) {
         const analysis = {
             isCompletelyUp: checkResult.isUp === true,
             responseTimeMs: checkResult.responseTimeMs || checkResult.responseTime || 0,
@@ -337,7 +334,7 @@ class HealthStateService {
 
         // Get state history to check for consecutive slow responses
         const monitorId = monitor?._id?.toString() || 'default-monitor';
-        const stateHistory = this.getStateHistory(monitorId);
+        const stateHistory = await this.getStateHistory(monitorId);
 
         // Ensure consecutiveSlowCount is initialized
         if (typeof monitor.consecutiveSlowCount === 'undefined') {
@@ -566,7 +563,8 @@ class HealthStateService {
      */
     analyzeCheckWindow(recentChecks) {
         const windowSize = Math.min(this.config.checkWindowSize, recentChecks.length);
-        const windowChecks = recentChecks.slice(-windowSize);
+        // recentChecks is sorted by timestamp DESC (newest first)
+        const windowChecks = recentChecks.slice(0, windowSize);
 
         if (windowChecks.length === 0) {
             return {
@@ -647,7 +645,7 @@ class HealthStateService {
     /**
      * Determine state with hysteresis to prevent flapping
      */
-    determineStateWithHysteresis(currentCheck, baseline, window, stateHistory, monitor) {
+    async determineStateWithHysteresis(currentCheck, baseline, window, stateHistory, monitor) {
         const previousState = stateHistory.currentState || 'unknown';
         const timeInPreviousState = Date.now() - (stateHistory.lastStateChange || Date.now());
         const consecutiveSameState = stateHistory.consecutiveCount || 0;
@@ -727,7 +725,7 @@ class HealthStateService {
 
         // Apply hysteresis for state transitions
         const confirmedThreshold = monitor.alertThreshold || this.config.consecutiveChecksForDegradation;
-        const hysteresisResult = this.applyHysteresis(
+        const hysteresisResult = await this.applyHysteresis(
             targetState,
             previousState,
             timeInPreviousState,
@@ -761,7 +759,7 @@ class HealthStateService {
     /**
      * Apply hysteresis logic to prevent state flapping
      */
-    applyHysteresis(targetState, previousState, timeInState, consecutiveCount, currentCheck, window, confirmedThreshold, monitor) {
+    async applyHysteresis(targetState, previousState, timeInState, consecutiveCount, currentCheck, window, confirmedThreshold, monitor) {
         // Default configuration
         const minTimeInState = this.config.minTimeInStateMs || 30000;
 
@@ -888,7 +886,7 @@ class HealthStateService {
         // FLAPPING SUPPRESSION CHECK (Phase 8 Fix)
         // Check if the monitor is oscillating rapidly between states
         // Definition: > 4 state changes in last 10 minutes
-        const isFlapping = this.checkFlapping(monitor._id);
+        const isFlapping = await this.checkFlapping(monitor._id);
         if (isFlapping && targetState !== previousState) {
             return {
                 status: 'degraded', // Force to degraded if flapping
@@ -913,63 +911,76 @@ class HealthStateService {
      * @param {string} monitorId
      * @returns {boolean}
      */
-    checkFlapping(monitorId) {
-        if (!this.stateHistory.has(monitorId)) return false;
+    async checkFlapping(monitorId) {
+        const changesKey = `${this.REDIS_CHANGES_PREFIX}${monitorId}`;
+        try {
+            const now = Date.now();
+            const lookbackWindow = 10 * 60 * 1000; // 10 minutes
 
-        const history = this.stateHistory.get(monitorId);
-        if (!history.stateChanges || history.stateChanges.length < 5) return false;
+            // Get last 10 timestamps from Redis list
+            const timestamps = await this.redis.lrange(changesKey, 0, 9);
+            if (timestamps.length < 4) return false;
 
-        // Check last 5 changes
-        const now = Date.now();
-        const lookbackWindow = 10 * 60 * 1000; // 10 minutes
-
-        // Count changes in window
-        let changesInWindow = 0;
-        for (let i = history.stateChanges.length - 1; i >= 0; i--) {
-            const change = history.stateChanges[i];
-            if (now - new Date(change.timestamp).getTime() < lookbackWindow) {
-                changesInWindow++;
-            } else {
-                break;
+            // Count changes in window
+            let changesInWindow = 0;
+            for (const ts of timestamps) {
+                if (now - parseInt(ts) < lookbackWindow) {
+                    changesInWindow++;
+                } else {
+                    break;
+                }
             }
-        }
 
-        // If > 4 changes in 10 mins, it's flapping
-        return changesInWindow >= 4;
+            // If > 4 changes in 10 mins, it's flapping
+            return changesInWindow >= 4;
+        } catch (err) {
+            console.warn(`[HealthStateService] Flapping check failed for ${monitorId}:`, err.message);
+            return false;
+        }
     }
 
     /**
      * Get state history for monitor
      */
-    getStateHistory(monitorId) {
-        if (!this.stateHistory.has(monitorId)) {
-            this.stateHistory.set(monitorId, {
-                currentState: 'unknown',
-                lastStateChange: Date.now(),
-                consecutiveCount: 0,
-                stateChanges: [],
-                createdAt: Date.now()
-            });
+    async getStateHistory(monitorId) {
+        const key = `${this.REDIS_STATE_PREFIX}${monitorId}`;
+        try {
+            const data = await this.redis.get(key);
+            if (data) {
+                const history = JSON.parse(data);
+                // Ensure stateChanges exists
+                if (!history.stateChanges) history.stateChanges = [];
+                return history;
+            }
+        } catch (err) {
+            console.warn(`[HealthStateService] Redis GET failed for ${monitorId}:`, err.message);
         }
-        return this.stateHistory.get(monitorId);
+
+        // Default or Fallback
+        return {
+            currentState: 'unknown',
+            lastStateChange: Date.now(),
+            consecutiveCount: 0,
+            stateChanges: [],
+            createdAt: Date.now()
+        };
     }
 
     /**
-     * Update state history after state determination
+     * Update state history after state determination (Redis Persisted)
      */
-    updateStateHistory(monitorId, stateDecision) {
-        const history = this.getStateHistory(monitorId);
+    async updateStateHistory(monitorId, stateDecision) {
+        const history = await this.getStateHistory(monitorId);
         const now = Date.now();
+        const key = `${this.REDIS_STATE_PREFIX}${monitorId}`;
 
         if (history.currentState === stateDecision.status) {
             history.consecutiveCount++;
         } else {
-            // Safe access to transition reason - may not exist for all state decisions
             const transitionReason = stateDecision.transition?.reason ||
                 (stateDecision.reasons && stateDecision.reasons.length > 0 ? stateDecision.reasons[0] : 'State changed');
             const preventedFlapping = stateDecision.transition?.preventedFlapping || false;
 
-            // Ensure stateChanges array exists
             if (!history.stateChanges) {
                 history.stateChanges = [];
             }
@@ -991,27 +1002,44 @@ class HealthStateService {
             history.currentState = stateDecision.status;
             history.lastStateChange = now;
             history.consecutiveCount = 1;
+
+            // TRACK FLAPPING VIA REDIS LIST (Phase 8 Multi-instance fix)
+            const changesKey = `${this.REDIS_CHANGES_PREFIX}${monitorId}`;
+            try {
+                // Add timestamp to list
+                await this.redis.lpush(changesKey, now);
+                // Keep only last 10 entries
+                await this.redis.ltrim(changesKey, 0, 9);
+                // Set expiry (1 hour should be enough for any lookback)
+                await this.redis.expire(changesKey, 3600);
+            } catch (err) {
+                console.warn(`[HealthStateService] Redis LPUSH failed for ${monitorId}:`, err.message);
+            }
         }
 
-        this.stateHistory.set(monitorId, history);
+        try {
+            await this.redis.set(key, JSON.stringify(history), 'EX', 86400 * 7); // Persist for 7 days
+        } catch (err) {
+            console.warn(`[HealthStateService] Redis SET failed for ${monitorId}:`, err.message);
+        }
     }
 
     /**
      * Clear state history (useful for testing or monitor deletion)
      */
-    clearStateHistory(monitorId) {
-        this.stateHistory.delete(monitorId);
+    async clearStateHistory(monitorId) {
+        await this.cleanupState(monitorId);
     }
 
     /**
      * Get health statistics for monitoring and reporting
      */
     async getHealthStatistics(monitorId, timeRangeHours = 24) {
-        const history = this.getStateHistory(monitorId);
+        const history = await this.getStateHistory(monitorId);
         const now = Date.now();
         const timeLimit = now - (timeRangeHours * 3600000);
 
-        const recentTransitions = history.stateChanges.filter(c => c.timestamp.getTime() > timeLimit);
+        const recentTransitions = history.stateChanges.filter(c => new Date(c.timestamp).getTime() > timeLimit);
 
         return {
             monitorId,
@@ -1077,14 +1105,21 @@ class HealthStateService {
         }
 
         const verificationId = `${monitor._id}-${Date.now()}`;
+        const lockKey = `${this.REDIS_STATE_PREFIX}verify_lock:${monitor._id}`;
 
-        // Deduplicate: If another verification for same monitor is already in progress, wait or join
-        this.activeVerifications = this.activeVerifications || new Set();
-        if (this.activeVerifications.has(monitor._id.toString())) {
-            console.log(`ℹ️ Verification already in progress for ${monitor.name}, skipping secondary trigger`);
-            return;
+        // Deduplicate: Use Redis with TTL to prevent concurrent verifications across instances
+        try {
+            const isLocked = await this.redis.set(lockKey, 'locked', 'NX', 'EX', 90); // 90s lock
+            if (!isLocked) {
+                console.log(`ℹ️ Verification already in progress for ${monitor.name} (Redis Lock), skipping secondary trigger`);
+                return;
+            }
+        } catch (err) {
+            console.warn('Redis verification lock failed, falling back to in-memory check:', err.message);
+            this.activeVerifications = this.activeVerifications || new Set();
+            if (this.activeVerifications.has(monitor._id.toString())) return;
+            this.activeVerifications.add(monitor._id.toString());
         }
-        this.activeVerifications.add(monitor._id.toString());
 
         const monitorType = (monitor.type || 'HTTPS').toUpperCase();
 
@@ -1259,7 +1294,12 @@ class HealthStateService {
         } catch (err) {
             console.error(`❌ Global verification failed for ${monitor.name}:`, err.message);
         } finally {
-            this.activeVerifications.delete(monitor._id.toString());
+            try {
+                const lockKey = `${this.REDIS_STATE_PREFIX}verify_lock:${monitor._id}`;
+                await this.redis.del(lockKey);
+            } catch (err) {
+                if (this.activeVerifications) this.activeVerifications.delete(monitor._id.toString());
+            }
         }
     }
 

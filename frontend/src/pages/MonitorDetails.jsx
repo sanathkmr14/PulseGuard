@@ -96,7 +96,7 @@ const MonitorDetails = () => {
 
     useEffect(() => {
         if (id) fetchChecks(checksPage);
-    }, [checksPage]);
+    }, [checksPage, id]);
 
 
 

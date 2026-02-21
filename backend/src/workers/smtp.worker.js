@@ -55,12 +55,14 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                             socket.write('EHLO pulse-guard\r\n');
                         }
                     } else if (statusCode === '250') {
+                        clearTimeout(totalTimeout);
                         cleanup();
                         const err = new Error(`Interception detected: Received 250 instead of 220 banner from ${ip}`);
                         err.statusCode = statusCode;
                         reject(err);
                         return;
                     } else {
+                        clearTimeout(totalTimeout);
                         cleanup();
                         reject(new Error(`Invalid banner from ${ip}: ${line.trim()}`));
                         return;
@@ -72,6 +74,7 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         state = 'STARTTLS_SENT';
                         socket.write('STARTTLS\r\n');
                     } else if (isFinalLine) {
+                        clearTimeout(totalTimeout);
                         cleanup();
                         reject(new Error(`EHLO failed on ${ip}: ${line}`));
                         return;
@@ -126,6 +129,7 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         // Replace socket reference for cleanup
                         socket = tlsSocket;
                     } else {
+                        clearTimeout(totalTimeout);
                         cleanup();
                         reject(new Error(`STARTTLS rejected by ${ip}: ${line}`));
                         return;
@@ -150,6 +154,7 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         resolve({ isUp: true, responseTime: Date.now() - startTime, statusCode, response: line });
                         return;
                     } else if (isFinalLine) {
+                        clearTimeout(totalTimeout);
                         cleanup();
                         reject(new Error(`Handshake failed on ${ip}`));
                         return;

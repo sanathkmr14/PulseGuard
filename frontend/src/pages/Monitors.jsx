@@ -154,7 +154,6 @@ const Monitors = () => {
         setEditingMonitor(null);
         setShowForm(false);
         setShowAdvanced(false);
-        setShowAdvanced(false);
         setFormData({ name: '', type: 'HTTPS', url: '', interval: 5, timeout: 30000, degradedThresholdMs: 2000, sslExpiryThresholdDays: 30, expectedContent: '', expectedStatusCode: '' });
     };
 

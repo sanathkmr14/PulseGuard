@@ -204,7 +204,7 @@ export const updateMonitor = async (req, res) => {
             console.log(`   ✅ Deleted ${deletedChecks.deletedCount} old checks, ${deletedIncidents.deletedCount} old incidents`);
 
             // Clear health state history (hysteresis data for old URL)
-            healthStateService.cleanupState(monitor._id);
+            await healthStateService.cleanupState(monitor._id);
 
             // Clear Redis alert suppression keys (old URL's suppression should not block new URL alerts)
             await enhancedAlertService.clearAlertSuppression(monitor._id);
@@ -268,7 +268,7 @@ export const deleteMonitor = async (req, res) => {
         console.log('   ✅ Monitor deleted');
 
         // Step 4: Cleanup health state
-        healthStateService.cleanupState(monitor._id);
+        await healthStateService.cleanupState(monitor._id);
 
         res.json({ success: true, message: 'Monitor deleted' });
     } catch (error) {

@@ -44,6 +44,9 @@ services:
   redis:
     image: redis:alpine
     restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy noeviction --appendonly yes
+    volumes:
+      - redis-data:/data
     networks:
       - app-network
 
@@ -53,3 +56,4 @@ networks:
 
 volumes:
   mongo-data:
+  redis-data:

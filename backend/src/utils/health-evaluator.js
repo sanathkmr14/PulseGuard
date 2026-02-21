@@ -298,9 +298,6 @@ function mapProtocolStatus(protocol, errorCode, latency, threshold, timeout = 30
 /**
  * Maps SMTP Status
  */
-/**
- * Maps SMTP Status
- */
 function mapSMTPStatus(statusCode, latency, threshold, existingMessage) {
     // Convert to string for comparison
     const code = statusCode ? statusCode.toString() : '';

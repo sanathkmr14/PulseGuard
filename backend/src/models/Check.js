@@ -72,7 +72,6 @@ const checkSchema = new mongoose.Schema({
 checkSchema.index({ monitor: 1, timestamp: -1 });
 checkSchema.index({ timestamp: -1 });
 checkSchema.index({ monitor: 1, status: 1 }); // For uptime calculations
-checkSchema.index({ monitor: 1, createdAt: -1 }); // Redundant but safe for createdAt sorting
 
 // TTL index to automatically delete old checks after 90 days
 checkSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7776000 });

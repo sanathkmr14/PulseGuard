@@ -216,9 +216,6 @@ export function classifyHttpResponse(statusCode, latency, options = {}) {
     // ========================================
     // 5. Handle Redirects (3xx)
     // ========================================
-    // ========================================
-    // 5. Handle Redirects (3xx)
-    // ========================================
     if (statusCode >= 300 && statusCode < 400) {
         if (redirectCount > maxRedirects) {
             return {
@@ -442,7 +439,7 @@ export function classifyTcpConnection(error = null, latency = null, options = {}
     }
 
     // Connection timeout
-    if (error.code === 'ETIMEDOUT' || error.code === 'EHOSTUNREACH' || error.message?.includes('timeout')) {
+    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
         return {
             status: STATUS.DOWN,
             confidence: CONFIDENCE.MEDIUM,

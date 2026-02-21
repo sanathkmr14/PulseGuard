@@ -185,9 +185,9 @@ export const HTTP_ERROR_TYPES = {
 
     // Partial failures (typically DEGRADED)
     'KEYWORD_MISMATCH': {
-        severity: 0.4,
-        healthState: 'DEGRADED',
-        description: 'Expected content keyword not found',
+        severity: 0.9,
+        healthState: 'DOWN',
+        description: 'Expected content keyword not found in response body',
         examples: ['Expected content not found'],
         protocols: ['HTTP', 'HTTPS']
     },

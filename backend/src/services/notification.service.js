@@ -144,56 +144,73 @@ class NotificationService {
     }
   }
 
-  // Send via Brevo (Sendinblue) REST API
+  // Send via Brevo (Sendinblue) REST API with Retry Logic
   async sendViaBrevo(to, subject, html) {
-    try {
-      if (!process.env.BREVO_API_KEY) {
-        return { success: false, error: 'brevo-api-key-missing' };
+    let lastError;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (!process.env.BREVO_API_KEY) {
+          return { success: false, error: 'brevo-api-key-missing' };
+        }
+
+        // Normalize recipients into [{ email, name? }]
+        let recipients = [];
+        if (!to) {
+          return { success: false, error: 'no-recipient' };
+        }
+
+        if (Array.isArray(to)) {
+          recipients = to.map(t => (typeof t === 'string' ? { email: t } : t));
+        } else if (typeof to === 'string') {
+          recipients = to.split(',').map(s => ({ email: s.trim() }));
+        } else if (typeof to === 'object' && to.email) {
+          recipients = [to];
+        }
+
+        const senderEmail = (process.env.EMAIL_FROM && process.env.EMAIL_FROM.includes('<'))
+          ? process.env.EMAIL_FROM.replace(/.*<([^>]+)>/, '$1').trim()
+          : (process.env.EMAIL_FROM_EMAIL || (process.env.EMAIL_FROM && process.env.EMAIL_FROM) || 'no-reply@uptime-checker.dev');
+        const senderName = process.env.EMAIL_FROM_NAME || (process.env.EMAIL_FROM && process.env.EMAIL_FROM.replace(/<.*>/, '').trim()) || 'PulseGuard';
+
+        const body = {
+          sender: { name: senderName, email: senderEmail },
+          to: recipients,
+          subject,
+          htmlContent: html
+        };
+
+        const res = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
+          headers: {
+            'api-key': process.env.BREVO_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000 // Increased timeout for API reliability
+        });
+
+        // Brevo typically responds with an object including messageId
+        const data = res && res.data ? res.data : null;
+        const messageId = data && (data.messageId || data['messageId']) ? data.messageId || data['messageId'] : undefined;
+        return { success: true, messageId, raw: data };
+      } catch (err) {
+        lastError = err;
+        const statusCode = err.response?.status;
+        const isRetryable = !statusCode || (statusCode >= 500 && statusCode <= 599) || statusCode === 429 || err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT';
+
+        if (!isRetryable || attempt === maxRetries) {
+          break;
+        }
+
+        const backoffMs = 1000 * Math.pow(2, attempt - 1);
+        console.warn(`⚠️ Brevo send attempt ${attempt} failed: ${err.message}. Retrying in ${backoffMs}ms...`);
+        await new Promise(res => setTimeout(res, backoffMs));
       }
-
-      // Normalize recipients into [{ email, name? }]
-      let recipients = [];
-      if (!to) {
-        return { success: false, error: 'no-recipient' };
-      }
-
-      if (Array.isArray(to)) {
-        recipients = to.map(t => (typeof t === 'string' ? { email: t } : t));
-      } else if (typeof to === 'string') {
-        recipients = to.split(',').map(s => ({ email: s.trim() }));
-      } else if (typeof to === 'object' && to.email) {
-        recipients = [to];
-      }
-
-      const senderEmail = (process.env.EMAIL_FROM && process.env.EMAIL_FROM.includes('<'))
-        ? process.env.EMAIL_FROM.replace(/.*<([^>]+)>/, '$1').trim()
-        : (process.env.EMAIL_FROM_EMAIL || (process.env.EMAIL_FROM && process.env.EMAIL_FROM) || 'no-reply@uptime-checker.dev');
-      const senderName = process.env.EMAIL_FROM_NAME || (process.env.EMAIL_FROM && process.env.EMAIL_FROM.replace(/<.*>/, '').trim()) || 'PulseGuard';
-
-      const body = {
-        sender: { name: senderName, email: senderEmail },
-        to: recipients,
-        subject,
-        htmlContent: html
-      };
-
-      const res = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
-        headers: {
-          'api-key': process.env.BREVO_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        timeout: 15000
-      });
-
-      // Brevo typically responds with an object including messageId
-      const data = res && res.data ? res.data : null;
-      const messageId = data && (data.messageId || data['messageId']) ? data.messageId || data['messageId'] : undefined;
-      return { success: true, messageId, raw: data };
-    } catch (err) {
-      const errMsg = err && err.response && err.response.data ? JSON.stringify(err.response.data) : (err && err.message ? err.message : String(err));
-      console.error('Brevo send error:', errMsg);
-      return { success: false, error: errMsg };
     }
+
+    const errMsg = lastError && lastError.response && lastError.response.data ? JSON.stringify(lastError.response.data) : (lastError && lastError.message ? lastError.message : String(lastError));
+    console.error('Brevo send error after retries:', errMsg);
+    return { success: false, error: errMsg };
   }
 
   // Verify transporter connectivity and return a simple status object

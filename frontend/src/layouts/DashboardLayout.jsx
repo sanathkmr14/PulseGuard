@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { statsAPI } from '../services/api';
@@ -61,8 +61,20 @@ const DashboardLayout = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [systemConfig, setSystemConfig] = useState(null);
+    const userMenuRef = useRef(null);
 
     const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+
+    // Close user menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+                setUserMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -108,7 +120,8 @@ const DashboardLayout = () => {
             )}
 
             {/* Mobile Header */}
-            <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#12121a] border-b border-gray-800 flex items-center justify-between px-4 z-50 mt-[systemConfig?.globalAlert?36:0]px">
+            <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#12121a] border-b border-gray-800 flex items-center justify-between px-4 z-50"
+                style={{ marginTop: (systemConfig?.globalAlert || systemConfig?.maintenanceMode) ? '36px' : '0' }}>
                 <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white">
                     {Icons.menu}
                 </button>
@@ -187,7 +200,7 @@ const DashboardLayout = () => {
             <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
                 {/* Desktop Header */}
                 <header className="hidden lg:flex h-16 items-center justify-end px-8 border-b border-gray-800/50">
-                    <div className="relative">
+                    <div className="relative" ref={userMenuRef}>
                         <button onClick={() => setUserMenuOpen(!userMenuOpen)}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
                             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">

@@ -635,41 +635,37 @@ class EnhancedAlertService {
             // 2. Slack Notifications
             if (user.notificationPreferences?.slack && user.slackWebhook) {
                 notificationPromises.push((async () => {
-                    try {
-                        let text = '';
-                        if (alertData.type === 'failure') text = `🚨 *Monitor Alert: ${alertData.monitor.name} is DOWN*\nURL: ${alertData.monitor.url}\nError: ${incident.errorMessage}`;
-                        else if (alertData.type === 'degradation') text = `⚠️ *Monitor Warning: ${alertData.monitor.name} is Degraded*\nURL: ${alertData.monitor.url}\nIssue: ${incident.errorMessage}`;
-                        else if (alertData.type === 'recovery') text = `✅ *Monitor Recovered: ${alertData.monitor.name} is UP*\nURL: ${alertData.monitor.url}\nDuration: ${notificationService.formatDuration(incident.duration || 0)}`;
+                    let text = '';
+                    if (alertData.type === 'failure') text = `🚨 *Monitor Alert: ${alertData.monitor.name} is DOWN*\nURL: ${alertData.monitor.url}\nError: ${incident.errorMessage}`;
+                    else if (alertData.type === 'degradation') text = `⚠️ *Monitor Warning: ${alertData.monitor.name} is Degraded*\nURL: ${alertData.monitor.url}\nIssue: ${incident.errorMessage}`;
+                    else if (alertData.type === 'recovery') text = `✅ *Monitor Recovered: ${alertData.monitor.name} is UP*\nURL: ${alertData.monitor.url}\nDuration: ${notificationService.formatDuration(incident.duration || 0)}`;
 
-                        const slackResult = await notificationService.sendSlack(user.slackWebhook, { text });
-                        results.slack = slackResult.success;
-                    } catch (err) {
-                        results.slack = false;
-                    }
+                    const slackResult = await this.executeWithRetry(
+                        () => notificationService.sendSlack(user.slackWebhook, { text }),
+                        `Slack retry for ${alertData.monitor.name}`
+                    );
+                    results.slack = slackResult.success;
                 })());
             }
 
             // 3. Webhook Notifications
             if (user.notificationPreferences?.webhook && user.webhookUrl) {
                 notificationPromises.push((async () => {
-                    try {
-                        const webhookResult = await notificationService.sendWebhook(user.webhookUrl, {
+                    const webhookResult = await this.executeWithRetry(
+                        () => notificationService.sendWebhook(user.webhookUrl, {
                             event: alertData.type,
                             monitor: { id: monitorId, name: alertData.monitor.name, url: alertData.monitor.url },
                             incident: { id: incident._id, status: incident.status, startTime: incident.startTime, endTime: incident.endTime, duration: incident.duration }
-                        });
-                        results.webhook = webhookResult.success;
-                    } catch (err) {
-                        results.webhook = false;
-                    }
+                        }),
+                        `Webhook retry for ${alertData.monitor.name}`
+                    );
+                    results.webhook = webhookResult.success;
                 })());
             }
 
             await Promise.allSettled(notificationPromises);
 
-            await Promise.allSettled(notificationPromises);
-
-            // Persist notification statistics in incident document (Phase 8 Fix)
+            // Persist notification statistics in incident document
             try {
                 const updateQuery = {
                     $set: {
@@ -680,23 +676,13 @@ class EnhancedAlertService {
                     }
                 };
 
-                const updateResult = await Incident.updateOne({ _id: incident._id }, updateQuery);
-
-                if (updateResult.modifiedCount === 0 && updateResult.matchedCount === 0) {
-                    console.error(`⚠️ Failed to update incident ${incident._id}: Document not found`);
-                } else if (updateResult.matchedCount > 0 && updateResult.modifiedCount === 0) {
-                    // This is fine, maybe it was already set?
-                    console.log(`ℹ️ Incident ${incident._id} notification status already up to date`);
-                } else {
-                    console.log(`✅ Incident ${incident._id} updated with notification status`);
-                }
-
+                await Incident.updateOne({ _id: incident._id }, updateQuery);
+                console.log(`✅ Incident ${incident._id} updated with notification status`);
             } catch (dbErr) {
-                console.error(`❌ CRITICAL: Failed to persist notification results for incident ${incident._id}:`, dbErr.message);
-                console.error('Update payload was:', JSON.stringify(results, null, 2));
+                console.error(`❌ Failed to persist notification results for incident ${incident._id}:`, dbErr.message);
             }
 
-            // Log sanitized results (PII Masking Fix)
+            // Log sanitized results
             console.log(`📧 Alerts processed for ${alertData.monitor.name || monitorId}:`, this.maskPiiInResults(results));
             return { success: true, results };
         } catch (error) {
@@ -706,15 +692,37 @@ class EnhancedAlertService {
     }
 
     /**
+     * Execute a function with exponential backoff retries
+     */
+    async executeWithRetry(fn, label, maxRetries = 3) {
+        let lastError;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const result = await fn();
+                if (result && result.success) return result;
+                lastError = new Error(result?.error || 'Unknown notification error');
+            } catch (err) {
+                lastError = err;
+            }
+
+            if (attempt < maxRetries) {
+                const backoffMs = 1000 * Math.pow(2, attempt - 1);
+                console.warn(`⚠️ ${label} attempt ${attempt} failed: ${lastError.message}. Retrying in ${backoffMs}ms...`);
+                await new Promise(res => setTimeout(res, backoffMs));
+            }
+        }
+        return { success: false, error: lastError?.message || 'Max retries reached' };
+    }
+
+    /**
      * Get alert statistics (Redis implementation - approximate)
      */
     async getAlertStatistics() {
-        // This is harder with Redis keys. Simplified to just return active suppression count.
         const pattern = `${this.REDIS_PREFIX}*`;
         const keys = await redisClient.keys(pattern);
 
         return {
-            totalAlerts: 0, // Cannot easily track history without List/Stream. Redis is for current state here.
+            totalAlerts: 0,
             suppressedAlerts: keys.length,
             byType: { failure: 0, degraded: 0, recovery: 0 },
             timestamp: new Date()

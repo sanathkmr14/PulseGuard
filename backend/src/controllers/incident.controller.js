@@ -27,6 +27,7 @@ export const getIncidents = async (req, res) => {
         const total = await Incident.countDocuments(query);
 
         const validIncidents = incidents.filter(incident => incident.monitor !== null);
+        const orphanedCount = incidents.length - validIncidents.length;
 
         res.json({
             success: true,
@@ -34,8 +35,8 @@ export const getIncidents = async (req, res) => {
             data: validIncidents,
             pagination: {
                 current: parseInt(page),
-                pages: Math.ceil(total / limit),
-                total
+                pages: Math.ceil(Math.max(0, total - orphanedCount) / limit),
+                total: Math.max(0, total - orphanedCount)
             }
         });
     } catch (error) {

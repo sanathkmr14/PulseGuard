@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../context/AdminAuthContext';
 
@@ -7,6 +7,18 @@ const AdminLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const userMenuRef = useRef(null);
+
+    // Close user menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+                setUserMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleLogout = () => {
         logout();
@@ -90,7 +102,7 @@ const AdminLayout = () => {
                 <header className="h-16 px-8 border-b border-slate-800 bg-slate-900/80 backdrop-blur-xl flex items-center justify-between sticky top-0 z-20">
                     <div className="flex-1" />
 
-                    <div className="relative">
+                    <div className="relative" ref={userMenuRef}>
                         <button
                             onClick={() => setUserMenuOpen(!userMenuOpen)}
                             className="flex items-center gap-3 p-1 rounded-full hover:bg-slate-800 transition-colors"

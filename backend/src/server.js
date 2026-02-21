@@ -196,43 +196,7 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Per-User Rate Limiter (prevents abuse even across multiple IPs)
-// Applied to authenticated routes - limits per user ID
-const userRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // Limit each user to 300 requests per windowMs
-    message: {
-        success: false,
-        message: 'Rate limit exceeded for your account. Please try again later.'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    // Key by user ID only (skip handles unauthenticated)
-    keyGenerator: (req) => {
-        return `user_${req.user._id.toString()}`;
-    },
-    // Skip if user not authenticated (IP limiter handles it)
-    skip: (req) => !req.user
-});
 
-
-
-// More restrictive rate limiter for auth endpoints to prevent brute force
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // Limit each IP to 20 auth attempts per windowMs
-    message: {
-        success: false,
-        message: 'Too many authentication attempts, please try again later'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    // Skip rate limiting for authenticated profile updates
-    skip: (req) => {
-        // Allow profile updates (PUT /me) and check requests (GET /me) 
-        return req.path === '/me' && (req.method === 'PUT' || req.method === 'GET');
-    }
-});
 
 // Middleware
 app.use(cors({
@@ -255,11 +219,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Request logging middleware
-app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
-});
+
 
 // Enhanced Health Check: Reports DB and Scheduler status
 app.get('/health', async (req, res) => {
@@ -314,7 +274,7 @@ app.get('/health', async (req, res) => {
 
 
 // API Routes
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/monitors', monitorRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/stats', statsRoutes); // Stats Routes
