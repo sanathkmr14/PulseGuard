@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
+RUN apk add --no-cache ca-certificates
 RUN npm ci --only=production
 
 # Copy source code

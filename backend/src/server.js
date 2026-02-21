@@ -274,23 +274,35 @@ app.get('/health', async (req, res) => {
         const dbStatus = dbStates[mongoose.connection.readyState] || 'unknown';
         const isDbHealthy = mongoose.connection.readyState === 1;
 
-        // Check scheduler status
-        const schedulerHealthy = schedulerService.isMaster !== undefined;
+        // Check scheduler status - Enhanced with isReady check
+        const schedulerHealthy = schedulerService.isMaster !== undefined && schedulerService.isReady;
 
         // Overall status
         const overallStatus = (isDbHealthy && schedulerHealthy) ? 'UP' : 'DEGRADED';
+
+        if (overallStatus === 'DEGRADED') {
+            console.warn(`[Health-Check] Returning 503 DEGRADED. DB: ${dbStatus}, Scheduler: ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
+        }
 
         res.status(isDbHealthy && schedulerHealthy ? 200 : 503).json({
             success: true,
             status: overallStatus,
             services: {
-                database: dbStatus,
+                database: {
+                    status: dbStatus,
+                    healthy: isDbHealthy
+                },
                 server: 'UP',
-                scheduler: schedulerHealthy ? 'running' : 'initializing'
+                scheduler: {
+                    status: schedulerService.isMaster !== undefined ? (schedulerHealthy ? 'running' : 'initializing') : 'offline',
+                    healthy: schedulerHealthy,
+                    isMaster: schedulerService.isMaster
+                }
             },
             timestamp: new Date().toISOString()
         });
     } catch (error) {
+        console.error('[Health-Check] Critical Failure:', error.message);
         res.status(503).json({
             success: false,
             status: 'DOWN',

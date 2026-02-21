@@ -75,6 +75,7 @@ class SchedulerService {
         this.hasInitialSync = false;
         this.lockInterval = null;
         this.io = null;
+        this.isReady = false; // Add readiness indicator
     }
 
     async initialize() {
@@ -114,82 +115,48 @@ class SchedulerService {
 
         console.log(`✅ Scheduler Initialized. Is Master? ${this.isMaster}`);
 
-        // 4. If Master, perform initial sync
-        if (this.isMaster) {
-            await this.cleanQueue();
-            await this.syncMonitors();
-        } else {
-            // If we're not master, try to become master after a short delay
-            // This is important for single-node environments
-            setTimeout(async () => {
-                await this.tryAcquireLock(true);
-                if (this.isMaster) {
-                    console.log('👑 Became Master after initial check');
-                    await this.cleanQueue();
-                    await this.syncMonitors();
-                }
-            }, 1000);
-        }
+        // Consolidate initialization and sync logic to prevent race conditions
+        // In local/dev environments, we often want to become master immediately
+        const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev' || process.env.NODE_ENV === 'test';
+        const syncTimeout = isDevelopment ? 500 : 2000;
 
-        // Double check after initialization to ensure we became master in single-node environments
         setTimeout(async () => {
             if (!this.isMaster) {
                 await this.tryAcquireLock(true);
-                if (this.isMaster) {
-                    console.log('👑 Finally became Master after double-check');
+
+                // If we're still not master and we suspect we are the only server
+                // (e.g. single-node prod or development environment), force it
+                const forceMaster = process.env.FORCE_MASTER === 'true' || isDevelopment;
+                if (!this.isMaster && forceMaster) {
+                    console.log(`🔄 Forcing master election (ForceMaster=${forceMaster})...`);
+                    try {
+                        if (!this.lockId) {
+                            this.lockId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                        }
+                        await this.redis.set(LOCK_KEY, this.lockId, 'PX', LOCK_TTL);
+                        this.isMaster = true;
+                        console.log('👑 Forced Master Status - Lock Acquired');
+                    } catch (err) {
+                        console.error('Failed to force master status:', err.message);
+                    }
+                }
+
+                if (this.isMaster && !this.hasInitialSync) {
+                    console.log('👑 Became Master - Performing initial sync');
+                    this.hasInitialSync = true;
                     await this.cleanQueue();
                     await this.syncMonitors();
+                    this.isReady = true;
+
+                    // Start Health Sentinel (Safety Net) upon becoming Master
+                    console.log('🛡️ Health Sentinel (Safety Net) Active');
+                    if (this.sentinelInterval) clearInterval(this.sentinelInterval);
+                    this.sentinelInterval = setInterval(() => {
+                        this.verifyJobHealth();
+                    }, 5 * 60 * 1000); // 5 minutes
                 }
             }
-        }, 2000);
-
-        // Force master election in single-node environments (development only)
-        // This is critical for development where we only have one instance
-        // In production, we rely on normal lock acquisition
-        const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
-
-        if (!this.isMaster && isDevelopment) {
-            console.log('🔄 Forcing master election in single-node environment...');
-            // Wait for Redis to be ready and try again
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await this.tryAcquireLock(true);
-
-            if (!this.isMaster) {
-                // Forcefully set as master if no other instance exists
-                // This is safe in single-node development environments
-                try {
-                    if (!this.lockId) {
-                        this.lockId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                    }
-                    await this.redis.set(LOCK_KEY, this.lockId, 'PX', LOCK_TTL);
-                    this.isMaster = true;
-                    console.log('👑 Forced Master Status - Single Node Environment');
-
-                    // Only sync if we haven't already synced
-                    if (!this.hasInitialSync) {
-                        this.hasInitialSync = true;
-                        await this.cleanQueue();
-                        await this.syncMonitors();
-                    }
-                } catch (err) {
-                    console.error('Failed to force master status:', err.message);
-                }
-            }
-        } else if (this.isMaster && !this.hasInitialSync) {
-            // Normal master sync (avoid double sync)
-            this.hasInitialSync = true;
-            await this.cleanQueue();
-            await this.syncMonitors();
-        }
-
-        // 5. MASTER SENTINEL: Start background health check (Safety Net)
-        // Scans for stuck monitors every 5 minutes and force-heals them
-        if (this.isMaster) {
-            console.log('🛡️ Health Sentinel (Safety Net) Active');
-            this.sentinelInterval = setInterval(() => {
-                this.verifyJobHealth();
-            }, 5 * 60 * 1000); // 5 minutes
-        }
+        }, syncTimeout);
     }
 
     setIO(io) {
@@ -228,6 +195,7 @@ class SchedulerService {
                     // Trigger sync on promotion (but not during initialize - it handles sync separately)
                     if (!skipSync) {
                         await this.syncMonitors();
+                        this.isReady = true; // Mark as ready after promotion sync
                     }
                 }
             } else {
@@ -248,6 +216,13 @@ class SchedulerService {
                     if (this.isMaster) {
                         console.warn('⚠️ Lost Master Status (Lock stolen or expired)');
                         this.isMaster = false;
+                    } else if (currentLockValue) {
+                        // Periodic log only if lock is held by another instance
+                        // We use a internal counter to avoid log spamming
+                        this._lockCheckCount = (this._lockCheckCount || 0) + 1;
+                        if (this._lockCheckCount % 10 === 0) {
+                            console.log(`ℹ️ Scheduler lock held by instance: ${currentLockValue}`);
+                        }
                     }
                 }
             }
@@ -298,17 +273,28 @@ class SchedulerService {
                 let removedCount = 0;
                 for (const job of allJobs) {
                     try {
-                        // Skip if job became active
                         const state = await job.getState();
+
+                        // FIX: Aggressive Zombie Purge
+                        // Any job ID that contains more than one '-' after 'scheduled-' is an old pattern
+                        const isOldPattern = job.id.startsWith('scheduled-') && job.id.split('-').length > 2;
+
                         if (state === 'active') {
                             console.log(`   ⚠️ Skipping active job ${job.id}`);
                             continue;
                         }
-                        await job.remove();
-                        removedCount++;
+
+                        if (isOldPattern) {
+                            console.log(`   🧹 Removing zombie job: ${job.id}`);
+                            await job.remove();
+                            removedCount++;
+                        } else {
+                            // Also remove standard jobs to ensure a clean sync starting point
+                            await job.remove();
+                            removedCount++;
+                        }
                     } catch (err) {
-                        // Job might be locked or already removed - skip it
-                        console.debug(`   ⚠️ Could not remove job ${job.id}: ${err.message}`);
+                        console.debug(`   ⚠️ Could not process job ${job.id}: ${err.message}`);
                     }
                 }
                 console.log(`🧹 Removed ${removedCount} old jobs`);
@@ -340,6 +326,7 @@ class SchedulerService {
         }
 
         console.log(`✅ Sync complete - ${monitors.length} monitors scheduled.`);
+        this.isReady = true; // Mark as ready
     }
 
     /**
@@ -356,7 +343,6 @@ class SchedulerService {
      * 2. Interval starts AFTER previous check finishes.
      */
     async scheduleMonitor(monitor) {
-        const jobId = `monitor-check-${monitor._id.toString().replace(/:/g, '-')}`;
 
         // Remove any existing job (scheduled or immediate) to "reset" the timer
         await this.removeMonitor(monitor._id);
@@ -375,8 +361,6 @@ class SchedulerService {
      * Used during server startup to prevent duplicate immediate checks
      */
     async scheduleMonitorForSync(monitor) {
-        // Use unique ID with timestamp to prevent collisions
-        const jobId = `monitor-check-${monitor._id.toString().replace(/:/g, '-')}-${Date.now()}`;
 
         let intervalMs = this.generateIntervalMs(monitor.interval);
 
@@ -636,8 +620,9 @@ class SchedulerService {
                 console.log(`🔄 Attempting to reschedule ${updatedMonitor.name} in ${updatedMonitor.interval}m...`);
 
                 try {
-                    // Use UNIQUE ID for rescheduled checks to prevent collision/zombie locks
-                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}-${Date.now()}`;
+                    // FIX: Deterministic Job ID to prevent "Reschedule Zombie" jobs (exponential job growth)
+                    // We remove the Date.now() suffix to ensure a monitor ALWAYS only has ONE scheduled job
+                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}`;
 
                     await this.queue.add('check', {
                         monitorId: updatedMonitor._id.toString(),

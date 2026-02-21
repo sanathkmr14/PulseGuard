@@ -81,6 +81,11 @@ const monitorSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    allowUnauthorized: {
+        type: Boolean,
+        default: false,
+        description: 'Allow self-signed certificates (skip SSL verification)'
+    },
     lastChecked: {
         type: Date,
         default: null

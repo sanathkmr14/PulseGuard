@@ -188,7 +188,8 @@ class CheckHostProvider extends VerificationProvider {
                     statusCode = httpResult[3] || null;
 
                     if (!isUp) {
-                        error = null;
+                        // Check-Host often returns an error string or code in httpResult[2]
+                        error = httpResult[2] || 'HTTP failure';
                     }
                 } else if (checkType === 'tcp' && Array.isArray(nodeData) && nodeData[0]) {
                     const tcpResult = nodeData[0];
@@ -198,7 +199,7 @@ class CheckHostProvider extends VerificationProvider {
                     isUp = tcpResult.time !== undefined && !tcpResult.error;
                     responseTime = Math.round((tcpResult.time || 0) * 1000);
 
-                    if (tcpResult.error) error = null;
+                    if (tcpResult.error) error = tcpResult.error;
                 } else if (checkType === 'ping' && Array.isArray(nodeData) && nodeData[0]) {
                     const pingResults = nodeData[0];
                     const successfulPings = pingResults.filter(p => p && p[0] === 'OK');

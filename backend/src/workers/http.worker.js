@@ -33,7 +33,9 @@ const performRequest = (monitor, timeout) => {
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
                 'Connection': 'close' // Ensure connection is closed after request
-            }
+            },
+            // SUPPORT: Skip SSL certificate validation if configured (Phase 10)
+            rejectUnauthorized: monitor.allowUnauthorized === true ? false : true
         };
 
         const req = protocol.request(options);
@@ -72,6 +74,7 @@ const performRequest = (monitor, timeout) => {
             // But we have established a connection.
 
             let data = '';
+            let hasLoggedCap = false;
             res.on('data', chunk => {
                 if (isDone) return;
                 // Cap body size to prevent OOM (Phase 10)
@@ -80,7 +83,10 @@ const performRequest = (monitor, timeout) => {
                     if (remaining > 0) {
                         data += chunk.slice(0, remaining);
                     }
-                    console.warn(`[HTTP] Response body capped for ${monitor.url} at ${MAX_BODY_SIZE} bytes`);
+                    if (!hasLoggedCap) {
+                        console.warn(`[HTTP] Response body capped for ${monitor.url} at ${MAX_BODY_SIZE} bytes`);
+                        hasLoggedCap = true;
+                    }
                     // We don't destroy yet, we just stop accumulating.
                     // This allows the response to "end" naturally.
                 } else {
@@ -134,6 +140,13 @@ const performRequest = (monitor, timeout) => {
             if (isDone) return;
             isDone = true;
             req.destroy();
+
+            // SSL Diagnostic Logging
+            if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'CERT_HAS_EXPIRED' || err.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || err.code === 'CERT_CHAIN_ERROR') {
+                console.warn(`[SSL-DIAG] Error: ${err.code} for ${monitor.url}`);
+                // Note: The 'cert' might be available in some error contexts or via checking the socket
+            }
+
             reject(err);
         });
 

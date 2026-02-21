@@ -92,8 +92,8 @@ function mapNetworkError(code, latency, threshold) {
         'DNS_ERROR': { state: "🔴 DOWN", type: "DNS_FAILURE", msg: "DNS resolution failed (DNS_ERROR).", severity: "CRITICAL" },
         'DNS_NOT_FOUND': { state: "🔴 DOWN", type: "DNS_FAILURE", msg: "Domain name not found (DNS_NOT_FOUND).", severity: "CRITICAL" },
         'DNS_TIMEOUT': { state: "🔴 DOWN", type: "DNS_TIMEOUT", msg: "DNS resolution timed out (DNS_TIMEOUT).", severity: "CRITICAL" },
-        // Add CONNECTION_RESET mapping
         'CONNECTION_RESET': { state: "🔴 DOWN", type: "SOCKET_HANGUP", msg: "Server abruptly closed the connection (CONNECTION_RESET).", severity: "CRITICAL" },
+        'CERT_CHAIN_ERROR': { state: "🔴 DOWN", type: "SSL_CHAIN_ERROR", msg: "SSL certificate chain verification failed. Missing intermediate or CA certificate.", severity: "CRITICAL" },
         // Custom Worker Mappings
         'PING_TIMEOUT': { state: "🔴 DOWN", type: "PING_TIMEOUT", msg: "Ping request timed out (PING_TIMEOUT).", severity: "CRITICAL" },
         'HOST_UNREACHABLE_PING': { state: "🔴 DOWN", type: "HOST_UNREACHABLE", msg: "Host is unreachable (HOST_UNREACHABLE_PING).", severity: "CRITICAL" },
@@ -184,10 +184,14 @@ function mapHTTPStatus(code, latency, threshold) {
 
     // 5xx Server Errors
     if (code >= 500) {
+        const customMsg = code === 503
+            ? `Service Temporarily Unavailable: ${name} (${code})`
+            : `Server Error: ${name} (${code}) - ${description}`;
+
         return {
             state: "🔴 DOWN",
             type: "SERVER_ERROR",
-            msg: `Server Error: ${name} (${code}) - ${description}`,
+            msg: customMsg,
             errorType: statusInfo ? `HTTP_${statusInfo.name.toUpperCase().replace(/\s+/g, '_')}` : "HTTP_SERVER_ERROR",
             severity: "ERROR"
         };
