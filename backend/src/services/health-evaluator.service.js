@@ -374,56 +374,65 @@ class HealthStateService {
         // Complete failure analysis for non-slow responses
         if (!analysis.isCompletelyUp) {
             analysis.severity = 1.0;
+        }
 
-            if (analysis.errorType) {
-                // Network-level failures (highest severity)
-                if (['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED', 'CONNECTION_RESET', 'ECONNRESET'].includes(analysis.errorType)) {
-                    analysis.severity = 0.95;
-                    analysis.issues.push(`Network failure: ${analysis.errorType}`);
-                }
-                // SSL/TLS failures
-                else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE', 'CERT_CHAIN_ERROR', 'SSL_CHAIN_ERROR'].includes(analysis.errorType)) {
+        if (analysis.errorType) {
+            // Network-level failures (highest severity)
+            if (['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED', 'CONNECTION_RESET', 'ECONNRESET'].includes(analysis.errorType)) {
+                if (!analysis.isCompletelyUp) analysis.severity = 0.95;
+                analysis.issues.push(`Network failure: ${analysis.errorType}`);
+            }
+            // SSL/TLS failures
+            else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE', 'CERT_CHAIN_ERROR', 'SSL_CHAIN_ERROR'].includes(analysis.errorType)) {
+                // If it's a chain error or self-signed, it's DEGRADED (if unreachable, it's already caught by isCompletelyUp check above)
+                if (analysis.errorType === 'CERT_CHAIN_ERROR' || analysis.errorType === 'SELF_SIGNED_CERT') {
+                    analysis.severity = Math.max(analysis.severity, 0.5);
+                } else if (!analysis.isCompletelyUp) {
                     analysis.severity = 0.9;
-                    // Use the detailed error message from the worker if available
-                    const issueMsg = analysis.errorMessage || `SSL/TLS failure: ${analysis.errorType}`;
+                }
+
+                // Use the detailed error message from the worker if available
+                const issueMsg = analysis.errorMessage || `SSL/TLS failure: ${analysis.errorType}`;
+                if (!analysis.issues.includes(issueMsg)) {
                     analysis.issues.push(issueMsg);
                 }
-                // Application-level failures - check severity by status code
-                // HTTP 5xx errors are HIGH severity (DOWN), 4xx are medium (DEGRADED)
-                else if (analysis.errorType.startsWith('HTTP_')) {
-                    // HTTP 5xx = Server errors = HIGH severity (DOWN)
-                    if (analysis.statusCode >= 500 && analysis.statusCode < 600) {
-                        analysis.severity = 0.95; // High severity for 5xx
-                        analysis.issues.push(`Server error: ${analysis.errorType} (${analysis.statusCode})`);
-                    }
-                    // HTTP 429 = Rate Limit = Performance degradation (Medium)
-                    else if (analysis.statusCode === 429) {
-                        analysis.severity = 0.6; // Medium severity
-                        analysis.issues.push(`Rate Limit exceeded: ${analysis.errorType} (429)`);
-                        // Ensure it's treated as performance issue
-                        analysis.isSlowResponse = true;
-                        monitor.consecutiveSlowCount = (monitor.consecutiveSlowCount || 0) + 1; // Treat as consecutive slow?
-                    }
-                    // HTTP 4xx = Client errors = Client Configuration Error (DOWN)
-                    // Updated to 0.9 severity to match error-classifications.js (CLIENT_ERROR = DOWN)
-                    // But handled with hysteresis (awaiting confirmation) via Rule 1
-                    else if (analysis.statusCode >= 400 && analysis.statusCode < 500) {
-                        analysis.severity = 0.9; // High severity for 4xx (Client Error is still a failure)
-                        analysis.issues.push(`Client error: ${analysis.errorType} (${analysis.statusCode})`);
-                    }
-                    // Other HTTP errors
-                    else {
-                        analysis.severity = 0.7;
-                        analysis.issues.push(`Application error: ${analysis.errorType} (${analysis.statusCode})`);
-                    }
+            }
+            // Application-level failures - check severity by status code
+            // HTTP 5xx errors are HIGH severity (DOWN), 4xx are medium (DEGRADED)
+            else if (analysis.errorType.startsWith('HTTP_')) {
+                // HTTP 5xx = Server errors = HIGH severity (DOWN)
+                if (analysis.statusCode >= 500 && analysis.statusCode < 600) {
+                    if (!analysis.isCompletelyUp) analysis.severity = 0.95; // High severity for 5xx
+                    analysis.issues.push(`Server error: ${analysis.errorType} (${analysis.statusCode})`);
                 }
-                // Other failures (Generic Protocol Errors)
+                // HTTP 429 = Rate Limit = Performance degradation (Medium)
+                else if (analysis.statusCode === 429) {
+                    analysis.severity = Math.max(analysis.severity, 0.6); // Medium severity
+                    analysis.issues.push(`Rate Limit exceeded: ${analysis.errorType} (429)`);
+                    // Ensure it's treated as performance issue
+                    analysis.isSlowResponse = true;
+                    monitor.consecutiveSlowCount = (monitor.consecutiveSlowCount || 0) + 1; // Treat as consecutive slow?
+                }
+                // HTTP 4xx = Client errors = Client Configuration Error (DOWN)
+                // Updated to 0.9 severity to match error-classifications.js (CLIENT_ERROR = DOWN)
+                // But handled with hysteresis (awaiting confirmation) via Rule 1
+                else if (analysis.statusCode >= 400 && analysis.statusCode < 500) {
+                    if (!analysis.isCompletelyUp) analysis.severity = 0.9; // High severity for 4xx (Client Error is still a failure)
+                    analysis.issues.push(`Client error: ${analysis.errorType} (${analysis.statusCode})`);
+                }
+                // Other HTTP errors
                 else {
-                    analysis.severity = 0.9; // Default to High severity for any identified error type
-                    analysis.issues.push(`Service error: ${analysis.errorType}`);
+                    if (!analysis.isCompletelyUp) analysis.severity = 0.7;
+                    analysis.issues.push(`Application error: ${analysis.errorType} (${analysis.statusCode})`);
                 }
             }
+            // Other failures (Generic Protocol Errors)
+            else {
+                if (!analysis.isCompletelyUp) analysis.severity = 0.9; // Default to High severity for any identified error type
+                analysis.issues.push(`Service error: ${analysis.errorType}`);
+            }
         }
+
 
         // Performance degradation analysis for non-2xx responses
         if (analysis.responseTimeMs > 0 && slowThreshold > 0) {
