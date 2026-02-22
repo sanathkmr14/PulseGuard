@@ -7,9 +7,15 @@ import Config from '../models/Config.js';
 import mongoose from 'mongoose';
 import os from 'os';
 import jwt from 'jsonwebtoken';
+import enhancedAlertService from '../services/enhanced-alert.service.js';
 
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '12h' }); // Admin token 12h
+};
+
+// Helper: Escape Regex special characters for safe NoSQL search
+const escapeRegex = (string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
 // @desc    Admin Login
@@ -211,9 +217,10 @@ export const getUsers = async (req, res) => {
         let query = { role: 'user' };
 
         if (search) {
+            const escapedSearch = escapeRegex(search);
             query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
+                { name: { $regex: escapedSearch, $options: 'i' } },
+                { email: { $regex: escapedSearch, $options: 'i' } }
             ];
         }
 
@@ -373,11 +380,12 @@ export const getIncidents = async (req, res) => {
 
         // Search Filter (Monitor Name, URL, or User Name)
         if (search) {
+            const escapedSearch = escapeRegex(search);
             match.$or = [
-                { 'monitor.name': { $regex: search, $options: 'i' } },
-                { 'monitor.url': { $regex: search, $options: 'i' } },
-                { 'monitor.user.name': { $regex: search, $options: 'i' } },
-                { 'monitor.user.email': { $regex: search, $options: 'i' } }
+                { 'monitor.name': { $regex: escapedSearch, $options: 'i' } },
+                { 'monitor.url': { $regex: escapedSearch, $options: 'i' } },
+                { 'monitor.user.name': { $regex: escapedSearch, $options: 'i' } },
+                { 'monitor.user.email': { $regex: escapedSearch, $options: 'i' } }
             ];
         }
 
@@ -613,7 +621,8 @@ export const getSystemHealth = async (req, res) => {
                         nodeVersion: systemStats.nodeVersion,
                         uptime: formatUptime(systemStats.uptime)
                     }
-                }
+                },
+                alerts: await enhancedAlertService.getAlertStatistics()
             }
         });
     } catch (error) {

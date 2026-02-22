@@ -242,9 +242,17 @@ class EnhancedAlertService {
      */
     async clearAlertSuppression(monitorId) {
         const pattern = `${this.REDIS_PREFIX}${monitorId}:*`;
-        const keys = await redisClient.keys(pattern);
-        if (keys.length > 0) {
-            await redisClient.del(...keys);
+        let cursor = '0';
+        try {
+            do {
+                const [newCursor, keys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+                cursor = newCursor;
+                if (keys && keys.length > 0) {
+                    await redisClient.del(...keys);
+                }
+            } while (cursor !== '0');
+        } catch (err) {
+            console.error(`❌ Error clearing suppression keys for ${monitorId}:`, err.message);
         }
     }
 
@@ -678,6 +686,15 @@ class EnhancedAlertService {
 
                 await Incident.updateOne({ _id: incident._id }, updateQuery);
                 console.log(`✅ Incident ${incident._id} updated with notification status`);
+
+                // Increment Global Stats in Redis (Phase 11: Persistent Counters)
+                const statsKey = `${this.REDIS_PREFIX}global:stats`;
+                const statsPip = redisClient.pipeline();
+                if (results.email.some(e => e.success)) statsPip.hincrby(statsKey, 'email', 1);
+                if (results.slack) statsPip.hincrby(statsKey, 'slack', 1);
+                if (results.webhook) statsPip.hincrby(statsKey, 'webhook', 1);
+                await statsPip.exec().catch(err => console.error('Stats increment error:', err.message));
+
             } catch (dbErr) {
                 console.error(`❌ Failed to persist notification results for incident ${incident._id}:`, dbErr.message);
             }
@@ -719,14 +736,43 @@ class EnhancedAlertService {
      */
     async getAlertStatistics() {
         const pattern = `${this.REDIS_PREFIX}*`;
-        const keys = await redisClient.keys(pattern);
+        const byType = { failure: 0, degraded: 0, recovery: 0 };
+        let totalKeys = 0;
+        let cursor = '0';
 
-        return {
-            totalAlerts: 0,
-            suppressedAlerts: keys.length,
-            byType: { failure: 0, degraded: 0, recovery: 0 },
-            timestamp: new Date()
-        };
+        try {
+            do {
+                const [newCursor, scannedKeys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+                cursor = newCursor;
+
+                if (scannedKeys && scannedKeys.length > 0) {
+                    totalKeys += scannedKeys.length;
+                    for (const key of scannedKeys) {
+                        if (key.includes(':failure:')) byType.failure++;
+                        else if (key.includes(':degraded:')) byType.degraded++;
+                        else if (key.includes(':recovery:')) byType.recovery++;
+                    }
+                }
+            } while (cursor !== '0');
+
+            // Also fetch global counters for alerts sent (Phase 11: Persistent Counters)
+            const globalStats = await redisClient.hgetall(`${this.REDIS_PREFIX}global:stats`);
+
+            return {
+                totalOngoingSuppressed: totalKeys,
+                byType,
+                totalSent: {
+                    email: parseInt(globalStats?.email || 0),
+                    slack: parseInt(globalStats?.slack || 0),
+                    webhook: parseInt(globalStats?.webhook || 0),
+                    total: parseInt(globalStats?.email || 0) + parseInt(globalStats?.slack || 0) + parseInt(globalStats?.webhook || 0)
+                },
+                timestamp: new Date()
+            };
+        } catch (err) {
+            console.error('Error fetching alert statistics:', err.message);
+            return { error: 'Failed to fetch statistics', timestamp: new Date() };
+        }
     }
 
     /**

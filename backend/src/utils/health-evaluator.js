@@ -76,6 +76,7 @@ function mapNetworkError(code, latency, threshold) {
     const errorMap = {
         'ECONNRESET': { state: "🔴 DOWN", type: "SOCKET_HANGUP", msg: "Server abruptly closed the connection (ECONNRESET).", severity: "CRITICAL" },
         'ETIMEDOUT': { state: "🔴 DOWN", type: "TIMEOUT", msg: "Connection timed out (ETIMEDOUT).", severity: "CRITICAL" },
+        'ECONNABORTED': { state: "🔴 DOWN", type: "TIMEOUT", msg: "Connection aborted (ECONNABORTED).", severity: "CRITICAL" },
         'ENOTFOUND': { state: "🔴 DOWN", type: "DNS_FAILURE", msg: "Domain name not found / DNS resolution failed (ENOTFOUND).", severity: "CRITICAL" },
         'ECONNREFUSED': { state: "🔴 DOWN", type: "PORT_CLOSED", msg: "Connection refused (ECONNREFUSED).", severity: "CRITICAL" },
         'EHOSTUNREACH': { state: "🔴 DOWN", type: "NETWORK_UNREACHABLE", msg: "No network route to the server (EHOSTUNREACH).", severity: "CRITICAL" },
@@ -85,15 +86,16 @@ function mapNetworkError(code, latency, threshold) {
         'CERT_EXPIRED': { state: "🔴 DOWN", type: "SSL_EXPIRED", msg: "SSL certificate has expired (CERT_EXPIRED).", severity: "CRITICAL" },
         'ERR_TLS_CERT_ALTNAME_INVALID': { state: "🔴 DOWN", type: "SSL_HOSTNAME_MISMATCH", msg: "SSL certificate hostname does not match (ERR_TLS_CERT_ALTNAME_INVALID).", severity: "CRITICAL" },
         'CERT_HOSTNAME_MISMATCH': { state: "🔴 DOWN", type: "SSL_HOSTNAME_MISMATCH", msg: "SSL certificate hostname does not match.", severity: "CRITICAL" },
-        'DEPTH_ZERO_SELF_SIGNED_CERT': { state: "🔴 DOWN", type: "SSL_SELF_SIGNED", msg: "Certificate is self-signed (untrusted).", severity: "CRITICAL" },
-        'SELF_SIGNED_CERT': { state: "🔴 DOWN", type: "SSL_SELF_SIGNED", msg: "Certificate is self-signed (untrusted).", severity: "CRITICAL" },
-        'UNABLE_TO_VERIFY_LEAF_SIGNATURE': { state: "🟡 DEGRADED", type: "SSL_UNTRUSTED_CA", msg: "Untrusted Certificate Authority (UNABLE_TO_VERIFY_LEAF_SIGNATURE).", severity: "WARNING" },
+        // Self-signed / UNtrusted CA: site IS reachable — UP with a note (matches CERT_CHAIN_ERROR logic + Site24x7)
+        'DEPTH_ZERO_SELF_SIGNED_CERT': { state: "🟡 DEGRADED", type: "SSL_SELF_SIGNED", msg: "Self-signed certificate — site is reachable but cert is not browser-trusted.", severity: "WARNING" },
+        'SELF_SIGNED_CERT': { state: "🟡 DEGRADED", type: "SSL_SELF_SIGNED", msg: "Self-signed certificate — site is reachable but cert is not browser-trusted.", severity: "WARNING" },
+        'UNABLE_TO_VERIFY_LEAF_SIGNATURE': { state: "🟢 UP", type: "SSL_UNTRUSTED_CA", msg: "Untrusted Certificate Authority — site is reachable but certificate chain is not publicly trusted.", severity: "INFO" },
         // DNS errors
         'DNS_ERROR': { state: "🔴 DOWN", type: "DNS_FAILURE", msg: "DNS resolution failed (DNS_ERROR).", severity: "CRITICAL" },
         'DNS_NOT_FOUND': { state: "🔴 DOWN", type: "DNS_FAILURE", msg: "Domain name not found (DNS_NOT_FOUND).", severity: "CRITICAL" },
         'DNS_TIMEOUT': { state: "🔴 DOWN", type: "DNS_TIMEOUT", msg: "DNS resolution timed out (DNS_TIMEOUT).", severity: "CRITICAL" },
         'CONNECTION_RESET': { state: "🔴 DOWN", type: "SOCKET_HANGUP", msg: "Server abruptly closed the connection (CONNECTION_RESET).", severity: "CRITICAL" },
-        'CERT_CHAIN_ERROR': { state: "🔴 DOWN", type: "SSL_CHAIN_ERROR", msg: "SSL certificate chain verification failed. Missing intermediate or CA certificate.", severity: "CRITICAL" },
+        'CERT_CHAIN_ERROR': { state: "🟡 DEGRADED", type: "SSL_CHAIN_ERROR", msg: "SSL certificate chain is incomplete — server is missing an intermediate CA certificate.", severity: "WARNING" },
         // Custom Worker Mappings
         'PING_TIMEOUT': { state: "🔴 DOWN", type: "PING_TIMEOUT", msg: "Ping request timed out (PING_TIMEOUT).", severity: "CRITICAL" },
         'HOST_UNREACHABLE_PING': { state: "🔴 DOWN", type: "HOST_UNREACHABLE", msg: "Host is unreachable (HOST_UNREACHABLE_PING).", severity: "CRITICAL" },
@@ -131,13 +133,24 @@ function mapHTTPStatus(code, latency, threshold) {
     const name = statusInfo ? statusInfo.name : 'Unknown Status';
     const description = statusInfo ? statusInfo.description : 'No description available';
 
+    // 1xx Informational → DEGRADED (must be first — no final response yet)
+    if (code >= 100 && code < 200) {
+        return {
+            state: "🟡 DEGRADED",
+            type: "INFORMATIONAL",
+            msg: `Interim Response: ${name} (${code}) — ${description}`,
+            errorType: "HTTP_INFORMATIONAL",
+            severity: "WARNING"
+        };
+    }
+
     // 2xx Success
     if (code >= 200 && code < 300) {
         if (latency > threshold) {
             return {
                 state: "🟡 DEGRADED",
                 type: "SLOW_RESPONSE",
-                msg: `Slow success: ${latency}ms`,
+                msg: `Slow response: ${latency}ms (threshold: ${threshold}ms)`,
                 errorType: "SLOW_RESPONSE",
                 severity: "WARNING"
             };
@@ -150,7 +163,7 @@ function mapHTTPStatus(code, latency, threshold) {
         };
     }
 
-    // 3xx Redirection
+    // 3xx Redirection — normally followed automatically; shown only for edge cases
     if (code >= 300 && code < 400) {
         return {
             state: "🟢 UP",
@@ -160,58 +173,43 @@ function mapHTTPStatus(code, latency, threshold) {
         };
     }
 
-    // 429 Too Many Requests -> DEGRADED (Special handling)
+    // 429 Too Many Requests → DEGRADED (server is reachable, just throttling)
     if (code === 429) {
         return {
             state: "🟡 DEGRADED",
             type: "RATE_LIMITED",
-            msg: `Rate Limited: ${name} (${code}) - ${description}`,
+            msg: `Rate Limited: ${name} (${code}) — ${description}`,
             errorType: "HTTP_RATE_LIMIT",
             severity: "WARNING"
         };
     }
 
-    // 4xx Client Errors
+    // 4xx Client Errors → DOWN
     if (code >= 400 && code < 500) {
         return {
             state: "🔴 DOWN",
             type: "CLIENT_ERROR",
-            msg: `Client Error: ${name} (${code}) - ${description}`,
-            errorType: statusInfo ? `HTTP_${statusInfo.name.toUpperCase().replace(/\s+/g, '_')}` : "HTTP_CLIENT_ERROR",
+            msg: `Client Error: ${name} (${code}) — ${description}`,
+            errorType: "HTTP_CLIENT_ERROR",
             severity: "ERROR"
         };
     }
 
-    // 5xx Server Errors
+    // 5xx Server Errors → DOWN
     if (code >= 500) {
-        const customMsg = code === 503
-            ? `Service Temporarily Unavailable: ${name} (${code})`
-            : `Server Error: ${name} (${code}) - ${description}`;
-
         return {
             state: "🔴 DOWN",
             type: "SERVER_ERROR",
-            msg: customMsg,
-            errorType: statusInfo ? `HTTP_${statusInfo.name.toUpperCase().replace(/\s+/g, '_')}` : "HTTP_SERVER_ERROR",
+            msg: `Server Error: ${name} (${code}) — ${description}`,
+            errorType: "HTTP_SERVER_ERROR",
             severity: "ERROR"
-        };
-    }
-
-    // 1xx Informational -> DEGRADED
-    if (code >= 100 && code < 200) {
-        return {
-            state: "🟡 DEGRADED",
-            type: "INFORMATIONAL",
-            msg: `Interim Response: ${name} (${code}) - ${description}`,
-            errorType: "HTTP_INFORMATIONAL",
-            severity: "WARNING"
         };
     }
 
     return {
         state: "🔴 DOWN",
         type: "HTTP_ERROR",
-        msg: `HTTP Error: ${code}`,
+        msg: `Unexpected HTTP status: ${code}`,
         errorType: "HTTP_ERROR",
         severity: "ERROR"
     };
@@ -323,11 +321,11 @@ function mapSMTPStatus(statusCode, latency, threshold, existingMessage) {
 
     if (code.startsWith('421')) {
         return {
-            state: "🔴 DOWN",
-            type: "SMTP_UNAVAILABLE",
-            msg: `SMTP service unavailable (${code}).`,
-            errorType: "SMTP_SERVICE_UNAVAILABLE",
-            severity: "ERROR"
+            state: "🟡 DEGRADED",
+            type: "SMTP_TEMPORARILY_UNAVAILABLE",
+            msg: `SMTP service temporarily unavailable (${code}) — server is reachable, try again later.`,
+            errorType: "SMTP_TEMPORARILY_UNAVAILABLE",
+            severity: "WARNING"
         };
     }
 

@@ -567,6 +567,32 @@ class SchedulerService {
 
             updatedMonitor = await Monitor.findByIdAndUpdate(monitor._id, updateData, { new: true });
 
+            // --- PERSISTENT UPTIME CALCULATION (Phase 11: Audit Fix) --- //
+            // Ensure uptime percentages are updated incrementally to avoid expensive full-collection scans in stats service.
+            if (updatedMonitor && updatedMonitor.totalChecks > 0) {
+                try {
+                    const lifetimeUptime = parseFloat(((updatedMonitor.successfulChecks / updatedMonitor.totalChecks) * 100).toFixed(2));
+
+                    // Efficient sliding 24h calculation using covered index { monitor, timestamp }
+                    const startOf24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                    const [checks24h, up24h] = await Promise.all([
+                        Check.countDocuments({ monitor: updatedMonitor._id, timestamp: { $gte: startOf24h } }),
+                        Check.countDocuments({ monitor: updatedMonitor._id, timestamp: { $gte: startOf24h }, status: { $in: ['up', 'degraded'] } })
+                    ]);
+
+                    const dayUptime = checks24h > 0 ? parseFloat(((up24h / checks24h) * 100).toFixed(2)) : lifetimeUptime;
+
+                    // Update percentages on monitor document
+                    updatedMonitor = await Monitor.findByIdAndUpdate(
+                        updatedMonitor._id,
+                        { $set: { uptimePercentage: lifetimeUptime, last24hUptime: dayUptime } },
+                        { new: true }
+                    );
+                } catch (uptimeErr) {
+                    console.error(`⚠️ Failed to update persistent uptime for ${updatedMonitor.name}:`, uptimeErr.message);
+                }
+            }
+
             // Defensive: Monitor might have been deleted during the check
             if (!updatedMonitor) {
                 console.warn(`Monitor ${monitor._id} was deleted during check execution. Aborting update.`);

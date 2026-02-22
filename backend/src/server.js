@@ -21,6 +21,7 @@ import monitorRoutes from './routes/monitor.routes.js';
 import incidentRoutes from './routes/incident.routes.js';
 import statsRoutes from './routes/stats.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import maintenanceMode from './middlewares/maintenance.middleware.js';
 
 
 // Import services
@@ -195,6 +196,7 @@ const limiter = rateLimit({
     legacyHeaders: false
 });
 app.use('/api/', limiter);
+app.use('/api/', maintenanceMode); // Phase 11: Global maintenance mode enforcement
 
 
 

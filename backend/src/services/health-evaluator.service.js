@@ -123,7 +123,6 @@ class HealthStateService {
             // Partial failure weights
             sslWarningWeight: 0.3,           // SSL warnings count as 30% failure
             slowResponseWeight: 0.4,         // Slow responses count as 40% failure
-            contentMismatchWeight: 0.5,      // Content mismatch counts as 50% failure
 
             // Slow response hysteresis
             // Single slow 2xx response should NOT degrade - need consecutive slow responses
@@ -377,6 +376,16 @@ class HealthStateService {
         }
 
         if (analysis.errorType) {
+            // ── Healthy HTTP responses: 2xx success and 3xx redirects ────────────
+            // These are NOT failures. Return immediately with zero severity/issues
+            // so they NEVER flow into Rule 4 (DEGRADED) via partial-failure checks.
+            if (analysis.errorType === 'HTTP_SUCCESS' || analysis.errorType === 'HTTP_REDIRECT') {
+                analysis.isCompletelyUp = true;
+                analysis.severity = 0;
+                // issues and partialFailures remain empty
+                return analysis;
+            }
+
             // Network-level failures (highest severity)
             if (['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED', 'CONNECTION_RESET', 'ECONNRESET'].includes(analysis.errorType)) {
                 if (!analysis.isCompletelyUp) analysis.severity = 0.95;
@@ -399,36 +408,42 @@ class HealthStateService {
             }
             // Application-level failures - check severity by status code
             // HTTP 5xx errors are HIGH severity (DOWN), 4xx are medium (DEGRADED)
-            else if (analysis.errorType.startsWith('HTTP_')) {
-                // HTTP 5xx = Server errors = HIGH severity (DOWN)
-                if (analysis.statusCode >= 500 && analysis.statusCode < 600) {
-                    if (!analysis.isCompletelyUp) analysis.severity = 0.95; // High severity for 5xx
-                    analysis.issues.push(`Server error: ${analysis.errorType} (${analysis.statusCode})`);
+            else if (analysis.errorType.startsWith('HTTP_') || analysis.errorType === 'HIGH_LATENCY' || analysis.errorType === 'REDIRECT_LOOP') {
+
+                // ── Latency degradation ────────────────────────────────────────
+                if (analysis.errorType === 'HIGH_LATENCY') {
+                    analysis.severity = Math.max(analysis.severity, 0.5);
+                    analysis.issues.push(analysis.errorMessage || `Slow response: ${analysis.responseTimeMs}ms`);
                 }
-                // HTTP 429 = Rate Limit = Performance degradation (Medium)
-                else if (analysis.statusCode === 429) {
-                    analysis.severity = Math.max(analysis.severity, 0.6); // Medium severity
-                    analysis.issues.push(`Rate Limit exceeded: ${analysis.errorType} (429)`);
-                    // Ensure it's treated as performance issue
+                // ── Redirect loop → DOWN ───────────────────────────────────────
+                else if (analysis.errorType === 'REDIRECT_LOOP') {
+                    analysis.severity = 0.9;
+                    analysis.issues.push(analysis.errorMessage || 'Too many redirects — possible redirect loop');
+                }
+                // ── 1xx Informational → DEGRADED ─────────────────────────────
+                else if (analysis.errorType === 'HTTP_INFORMATIONAL') {
+                    analysis.severity = Math.max(analysis.severity, 0.4);
+                    analysis.issues.push(analysis.errorMessage || `Informational response (${analysis.statusCode}) — no final response received`);
+                }
+                // ── 5xx Server errors → DOWN ──────────────────────────────────
+                else if (analysis.statusCode >= 500 && analysis.statusCode < 600) {
+                    if (!analysis.isCompletelyUp) analysis.severity = 0.95;
+                    analysis.issues.push(analysis.errorMessage || `Server error (${analysis.statusCode})`);
+                }
+                // ── 429 Rate Limit → DEGRADED ─────────────────────────────────
+                else if (analysis.statusCode === 429 || analysis.errorType === 'HTTP_RATE_LIMIT') {
+                    analysis.severity = Math.max(analysis.severity, 0.6);
+                    analysis.issues.push('Too Many Requests (429) — rate limit exceeded');
                     analysis.isSlowResponse = true;
-                    monitor.consecutiveSlowCount = (monitor.consecutiveSlowCount || 0) + 1; // Treat as consecutive slow?
+                    monitor.consecutiveSlowCount = (monitor.consecutiveSlowCount || 0) + 1;
                 }
-                // HTTP 4xx = Client errors = Client Configuration Error (DOWN)
-                // Updated to 0.9 severity to match error-classifications.js (CLIENT_ERROR = DOWN)
-                // But handled with hysteresis (awaiting confirmation) via Rule 1
+                // ── 4xx Client errors → DOWN ──────────────────────────────────
                 else if (analysis.statusCode >= 400 && analysis.statusCode < 500) {
-                    if (!analysis.isCompletelyUp) analysis.severity = 0.9; // High severity for 4xx (Client Error is still a failure)
-                    analysis.issues.push(`Client error: ${analysis.errorType} (${analysis.statusCode})`);
+                    if (!analysis.isCompletelyUp) analysis.severity = 0.9;
+                    analysis.issues.push(analysis.errorMessage || `Client error (${analysis.statusCode})`);
                 }
-                // Other HTTP errors
-                else {
-                    if (analysis.errorType !== 'HTTP_SUCCESS') {
-                        if (!analysis.isCompletelyUp) analysis.severity = 0.7;
-                        if (!analysis.issues.includes(`Application error: ${analysis.errorType} (${analysis.statusCode})`)) {
-                            analysis.issues.push(`Application error: ${analysis.errorType} (${analysis.statusCode})`);
-                        }
-                    }
-                }
+                // ── 2xx / 3xx — should have been caught by early return above ─
+                // (HTTP_SUCCESS / HTTP_REDIRECT already return early)
             }
             // Other failures (Generic Protocol Errors)
             else {
@@ -470,27 +485,7 @@ class HealthStateService {
             analysis.issues.push(`SSL warning: ${sslWarning}`);
         }
 
-        // Content mismatch analysis (partial failure)
-        if (analysis.errorType === 'KEYWORD_MISMATCH') {
-            analysis.partialFailures.push({
-                type: 'CONTENT_MISMATCH',
-                message: analysis.errorMessage,
-                weight: this.config.contentMismatchWeight,
-                severity: 0.4
-            });
-            analysis.issues.push('Content mismatch detected');
-        }
 
-        // Expected status code mismatch (partial failure)
-        if (monitor.expectedStatusCode && analysis.statusCode !== monitor.expectedStatusCode) {
-            analysis.partialFailures.push({
-                type: 'STATUS_CODE_MISMATCH',
-                message: `Expected ${monitor.expectedStatusCode}, got ${analysis.statusCode}`,
-                weight: 1.0,
-                severity: 1.0
-            });
-            analysis.issues.push(`Unexpected status code: ${analysis.statusCode}`);
-        }
 
         // Fallback: If no specific issues found but check failed
         if (!analysis.isCompletelyUp && analysis.issues.length === 0) {

@@ -6,11 +6,18 @@ import schedulerService from '../services/scheduler.service.js';
 import enhancedAlertService from '../services/enhanced-alert.service.js';
 import healthStateService from '../services/health-evaluator.service.js';
 import mongoose from 'mongoose';
+import redisClient from '../config/redis-cache.js';
 
 /**
  * Monitor Controller
  * Handles all logic for monitor-related API endpoints
  */
+const ALLOWED_MONITOR_FIELDS = [
+    'name', 'type', 'url', 'port', 'interval', 'timeout',
+    'alertThreshold', 'degradedThresholdMs', 'sslExpiryThresholdDays',
+    'isActive', 'strictMode', 'allowUnauthorized'
+];
+
 export const getMonitors = async (req, res) => {
     try {
         const { page = 1, limit = 12 } = req.query;
@@ -58,7 +65,12 @@ export const getMonitors = async (req, res) => {
 
 export const createMonitor = async (req, res) => {
     try {
-        const monitorData = { ...req.body, user: req.user._id };
+        // SECURITY: Whitelist allowed fields to prevent mass assignment (Phase 11: Audit Fix)
+        const monitorData = { user: req.user._id };
+        ALLOWED_MONITOR_FIELDS.forEach(field => {
+            if (req.body[field] !== undefined) monitorData[field] = req.body[field];
+        });
+
         // Auto-extract port from URL if not explicitly provided
         if (!monitorData.port && monitorData.url) {
             const parsed = MonitorRunner.parseUrl(monitorData.url);
@@ -155,9 +167,11 @@ export const updateMonitor = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
-        const updateData = { ...req.body };
-        // alertEmail is managed via Settings and linked to user contactEmails
-        delete updateData.alertEmail;
+        // SECURITY: Whitelist allowed fields to prevent mass assignment (Phase 11: Audit Fix)
+        const updateData = {};
+        ALLOWED_MONITOR_FIELDS.forEach(field => {
+            if (req.body[field] !== undefined) updateData[field] = req.body[field];
+        });
 
         // Smart Reset: Detect if monitoring target changed (URL, type, or port = fresh start)
         const oldUrl = monitor.url;
@@ -358,6 +372,21 @@ export const checkMonitorNow = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
+        // 🛡️ SECURITY: Manual check cooldown (30 seconds) using Redis
+        const COOLDOWN_SECONDS = 30;
+        const cooldownKey = `cooldown:manual-check:${monitor._id}`;
+
+        const remainingTtl = await redisClient.ttl(cooldownKey);
+        if (remainingTtl > 0) {
+            return res.status(429).json({
+                success: false,
+                message: `Manual check cooldown active. Please wait ${remainingTtl}s.`
+            });
+        }
+
+        // Set cooldown in Redis with TTL
+        await redisClient.set(cooldownKey, 'active', 'EX', COOLDOWN_SECONDS);
+
         const result = await MonitorRunner.run(monitor);
         const healthStateResult = await healthStateService.determineHealthState(result, monitor);
         const { status, reasons } = healthStateResult;
@@ -433,7 +462,6 @@ export const checkMonitorNow = async (req, res) => {
                     const r = reason.toLowerCase();
                     return r.includes('performance') || r.includes('degradation') || r.includes('slow') ||
                         r.includes('ssl') || r.includes('cert') || r.includes('security') ||
-                        r.includes('content') || r.includes('keyword') ||
                         r.includes('rate') || r.includes('429') || r.includes('limit');
                 });
                 await enhancedAlertService.handleDegraded(updatedMonitor, result, degradationReasons, healthStateResult);

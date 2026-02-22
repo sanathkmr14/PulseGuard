@@ -131,10 +131,6 @@ export function shouldTreatAsUp(statusCode, monitor = {}) {
     if (isNaN(code)) return false;
     const category = getStatusCodeCategory(code);
 
-    // If user specified expected status code, check for exact match
-    if (monitor.expectedStatusCode) {
-        return code === monitor.expectedStatusCode;
-    }
 
     // Standard success categories
     // Note: INFORMATIONAL (1xx) codes are now treated as DOWN since they indicate
@@ -148,10 +144,6 @@ export function shouldTreatAsDown(statusCode, monitor = {}) {
     if (isNaN(code)) return true;
     const category = getStatusCodeCategory(code);
 
-    // If user specified expected status code, check for exact match
-    if (monitor.expectedStatusCode && code === monitor.expectedStatusCode) {
-        return false;
-    }
 
     // Server errors and client errors indicate down status
     // Note: INFORMATIONAL (1xx) codes are now treated as DEGRADED (not DOWN)
@@ -167,10 +159,6 @@ export function shouldTreatAsDegraded(statusCode, monitor = {}) {
     if (isNaN(code)) return false;
     const category = getStatusCodeCategory(code);
 
-    // If user specified expected status code, check for exact match
-    if (monitor.expectedStatusCode && code === monitor.expectedStatusCode) {
-        return false;
-    }
 
     // INFORMATIONAL (1xx) codes indicate server is processing but not complete - treat as DEGRADED
     if (category === 'INFORMATIONAL') return true;

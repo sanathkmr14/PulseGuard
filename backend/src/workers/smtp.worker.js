@@ -268,6 +268,15 @@ export const checkSmtp = async (monitor, result, options = {}) => {
             result.errorMessage = 'SMTP Blocked: ISP Interception (Received 250 banner). Try Port 587.';
         }
 
+        // 421 = Temporarily Unavailable: server is reachable, DEGRADED not DOWN
+        if (err.message && (err.message.includes('421') || result.errorType === 'SMTP_SERVICE_UNAVAILABLE')) {
+            result.healthState = 'DEGRADED';
+            result.isUp = true;
+            result.errorType = 'SMTP_TEMPORARILY_UNAVAILABLE';
+            result.errorMessage = 'SMTP temporarily unavailable (421) — server is reachable, try again later.';
+            return;
+        }
+
         const hsr = determineHealthStateFromError(result.errorType, null, 'SMTP', responseTime, monitor);
         result.healthState = hsr.healthState;
         result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';

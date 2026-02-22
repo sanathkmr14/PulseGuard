@@ -25,23 +25,14 @@ const monitorSchema = new mongoose.Schema({
     interval: {
         type: Number,
         default: 5, // minutes
-        min: 1,
+        min: [5, 'Monitoring interval must be at least 5 minutes to prevent resource exhaustion'],
         max: 1440
     },
     timeout: {
         type: Number,
-        default: 30000, // milliseconds
-        min: 1000,
-        max: 120000
-    },
-    expectedStatusCode: {
-        type: Number,
-        default: null,  // No default - if not specified, runner.js accepts all 2xx codes (200-299)
-        required: false
-    },
-    expectedContent: {
-        type: String,
-        default: ''
+        default: 10000, // 10 seconds is usually enough for well-behaved sites
+        min: [1000, 'Timeout must be at least 1 second'],
+        max: [30000, 'Timeout cannot exceed 30 seconds for stability and fair usage']
     },
     port: {
         type: Number,
@@ -72,19 +63,9 @@ const monitorSchema = new mongoose.Schema({
         min: 1,
         max: 365
     },
-    strictMode: {
-        type: Boolean,
-        default: false,
-        description: 'UDP strict mode: timeout = DOWN (true) or UP (false, lenient)'
-    },
     isActive: {
         type: Boolean,
         default: true
-    },
-    allowUnauthorized: {
-        type: Boolean,
-        default: false,
-        description: 'Allow self-signed certificates (skip SSL verification)'
     },
     lastChecked: {
         type: Date,
@@ -113,6 +94,18 @@ const monitorSchema = new mongoose.Schema({
     successfulChecks: {
         type: Number,
         default: 0
+    },
+    uptimePercentage: {
+        type: Number,
+        default: 100,
+        min: 0,
+        max: 100
+    },
+    last24hUptime: {
+        type: Number,
+        default: 100,
+        min: 0,
+        max: 100
     }
 }, {
     timestamps: true

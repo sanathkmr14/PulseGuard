@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Monitor from '../src/models/Monitor.js';
+import schedulerService from '../src/services/scheduler.service.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,10 +8,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load env vars
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-async function checkMonitor() {
+async function kickMonitor() {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('Connected to MongoDB');
@@ -30,26 +30,31 @@ async function checkMonitor() {
 
         if (!monitor) {
             console.log(`Monitor with ID/URL ${input} not found.`);
-            // List all monitors to see if we can find it
-            const all = await Monitor.find({}, 'name url alertThreshold type userId');
-            console.log('Available monitors:', all);
-        } else {
-            console.log('Found Monitor:');
-            console.log('Name:', monitor.name);
-            console.log('URL:', monitor.url);
-            console.log('Alert Threshold:', monitor.alertThreshold);
-            console.log('Consecutive Failures:', monitor.consecutiveFailures);
-            console.log('Status:', monitor.status);
-            console.log('Type:', monitor.type);
-            console.log('Created At:', monitor.createdAt);
-            console.log('Last Checked:', monitor.lastChecked);
+            process.exit(1);
         }
+
+        console.log(`Found Monitor: ${monitor.name} (${monitor.url})`);
+        console.log(`Current Status: ${monitor.status}`);
+        console.log(`Last Checked: ${monitor.lastChecked}`);
+
+        console.log('Scheduling immediate check...');
+        // This will add a job to the Redis queue, which the main app's worker should pick up
+        await schedulerService.scheduleMonitor(monitor);
+        console.log('✅ Monitor scheduled successfully.');
 
     } catch (error) {
         console.error('Error:', error);
     } finally {
         await mongoose.disconnect();
+        // schedulerService has Redis connections that need closing
+        if (schedulerService.queue) {
+            await schedulerService.queue.close();
+        }
+        if (schedulerService.redis) {
+            await schedulerService.redis.quit();
+        }
+        process.exit(0);
     }
 }
 
-checkMonitor();
+kickMonitor();

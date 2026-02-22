@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { resolveSecurely } from '../utils/resolver.js';
 import { classifyPingResult } from '../utils/status-classifier.js';
 
 const execAsync = promisify(exec);
@@ -69,6 +70,9 @@ export const checkPing = async (monitor, result, options = {}) => {
     const { parseUrl } = options;
     const { hostname } = parseUrl(monitor.url);
 
+    // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
+    const { address } = await resolveSecurely(hostname);
+
     // Default timeout from monitor config or fallback to 5000ms
     const timeoutMs = monitor.timeout || 5000;
 
@@ -77,21 +81,17 @@ export const checkPing = async (monitor, result, options = {}) => {
     // Use monitor.count if available, default to 4 for statistics
     const pingCount = monitor.count && monitor.count > 0 ? monitor.count : 4;
 
-    // SECURITY: Sanitize hostname to prevent Command Injection
-    const safeHostname = hostname.replace(/[^a-zA-Z0-9.-]/g, '');
-
-    if (!safeHostname || safeHostname !== hostname) {
-        throw new Error('Invalid hostname: contains unsafe characters');
-    }
+    // SECURITY: Use the resolved IP address directly to prevent SSRF and Command Injection
+    const safeTarget = address;
 
     let pingCommand;
     if (isWindows) {
         // Windows ping: -n = count, -w = timeout in ms
-        pingCommand = `ping -n ${pingCount} -w ${timeoutMs} ${safeHostname}`;
+        pingCommand = `ping -n ${pingCount} -w ${timeoutMs} ${safeTarget}`;
     } else {
         // Unix/Linux/Mac ping: -c = count, -W = timeout in seconds
         const timeoutSec = Math.ceil(timeoutMs / 1000);
-        pingCommand = `ping -c ${pingCount} -W ${timeoutSec} ${safeHostname}`;
+        pingCommand = `ping -c ${pingCount} -W ${timeoutSec} ${safeTarget}`;
     }
 
     try {

@@ -1,4 +1,5 @@
 import dns from 'dns';
+import { isPrivateIP } from '../utils/url-validator.js';
 
 export const checkDns = async (monitor, result, options = {}) => {
     const {
@@ -81,9 +82,22 @@ export const checkDns = async (monitor, result, options = {}) => {
                 const hsr = determineHealthStateFromError(result.errorType, null, 'DNS', responseTime, monitor);
                 result.healthState = hsr.healthState;
                 result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
-                console.log(`🌐 DNS [${monitor.url}] ❌ ${result.healthState} - Resolution Failed | Message: ${result.errorMessage} | ErrorType: ${result.errorType}`);
+                console.log(`🌐 DNS [${monitor.url}] ❌ Resolution Failed | Message: ${result.errorMessage} | ErrorType: ${result.errorType}`);
                 reject(err);
             } else {
+                // 🛡️ SSRF Protection: Block resolution to private IPs
+                const ipCheck = isPrivateIP(address);
+                if (ipCheck.isPrivate) {
+                    const securityErr = new Error(`SSRF_PROTECTION: Hostname "${urlInput}" resolved to restricted IP ${address} (${ipCheck.error})`);
+                    result.errorType = 'SSRF_BLOCKED';
+                    result.errorMessage = securityErr.message;
+                    result.healthState = 'DOWN';
+                    result.isUp = false;
+                    console.warn(`🛡️ DNS SSRF Blocked: ${urlInput} → ${address}`);
+                    reject(securityErr);
+                    return;
+                }
+
                 // Check for slow resolution (DEGRADED state)
                 const degradedThreshold = monitor.degradedThresholdMs || 2000;
 

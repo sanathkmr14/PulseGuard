@@ -6,152 +6,158 @@ import { URL } from 'url';
 import { classifyHttpResponse } from '../utils/status-classifier.js';
 import { isPrivateIP } from '../utils/url-validator.js';
 
-const lookup = promisify(dns.lookup);
-const MAX_BODY_SIZE = 512 * 1024; // 512KB limit to prevent OOM (Phase 10)
+import { resolveSecurely } from '../utils/resolver.js';
+
+const MAX_BODY_SIZE = 1024 * 1024; // 1MB limit to prevent DoS (Phase 12 Hardening)
+const MAX_REDIRECTS = 10;           // Industry standard: follow up to 10 redirects
 
 /**
  * Custom HTTP request handler that supports 'information' events for 1xx codes.
  * This fulfills the "Real-time Industry Standard" for uptime checkers.
  */
-const performRequest = (monitor, timeout) => {
+/**
+ * Make a single HTTP/HTTPS request. Does NOT follow redirects.
+ * Returns { status, headers, data, isInformational }
+ */
+const makeSingleRequest = async (url, timeout, allowUnauthorized) => {
+    const parsedUrl = new URL(url);
+
+    // 🛡️ SSRF & DNS Rebinding Protection: Resolve hostname securely BEFORE connecting
+    const { address, family } = await resolveSecurely(parsedUrl.hostname);
+
     return new Promise((resolve, reject) => {
-        const parsedUrl = new URL(monitor.url);
         const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
         const options = {
             method: 'GET',
-            hostname: parsedUrl.hostname,
+            hostname: address, // 🛡️ Connect directly to IP to prevent DNS Rebinding
             port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
             path: parsedUrl.pathname + parsedUrl.search,
             timeout: timeout,
+            family: family, // Use the family from the secure resolver
             headers: {
-                // Use a standard browser User-Agent to bypass bot detection on some servers (e.g. httpstat.us)
+                'Host': parsedUrl.hostname, // 🛡️ Maintain original Host header
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                // Add standard browser headers to avoid being blocked
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
-                'Connection': 'close' // Ensure connection is closed after request
+                'Connection': 'close'
             },
-            // SUPPORT: Skip SSL certificate validation if configured (Phase 10)
-            rejectUnauthorized: monitor.allowUnauthorized === true ? false : true
+            rejectUnauthorized: allowUnauthorized === true ? false : true,
+            // 🛡️ SNI (Server Name Indication) is essential when connecting by IP
+            servername: parsedUrl.hostname
         };
 
         const req = protocol.request(options);
-
-        // State tracking to prevent race conditions (e.g. timeout vs error)
         let isDone = false;
 
-        const cleanup = () => {
-            if (isDone) return;
-            isDone = true;
-            req.destroy();
-        };
-
-        // DNS Rebinding Protection: Resolve hostname first (Phase 10)
-        (async () => {
-            try {
-                const { address } = await lookup(options.hostname);
-                const ipCheck = isPrivateIP(address);
-                if (ipCheck.isPrivate) {
-                    cleanup();
-                    return reject(new Error(`Security: DNS resolved to restricted IP ${address} (${ipCheck.error})`));
-                }
-
-                // If it's a valid public IP, proceed with the request
-                req.end();
-            } catch (dnsErr) {
-                // If DNS fails, fallback to letting req.end() handle it or reject directly
-                cleanup();
-                reject(dnsErr);
-            }
-        })();
+        req.end(); // We can end immediately as we don't send a body in GET
 
         req.on('response', (res) => {
             if (isDone) return;
-            // Note: We don't set isDone=true here yet, because we need to read the body.
-            // But we have established a connection.
-
             let data = '';
             let hasLoggedCap = false;
             res.on('data', chunk => {
                 if (isDone) return;
-                // Cap body size to prevent OOM (Phase 10)
                 if (data.length + chunk.length > MAX_BODY_SIZE) {
                     const remaining = MAX_BODY_SIZE - data.length;
-                    if (remaining > 0) {
-                        data += chunk.slice(0, remaining);
-                    }
+                    if (remaining > 0) data += chunk.slice(0, remaining);
                     if (!hasLoggedCap) {
-                        console.warn(`[HTTP] Response body capped for ${monitor.url} at ${MAX_BODY_SIZE} bytes`);
+                        console.warn(`[HTTP] Response body capped at ${MAX_BODY_SIZE} bytes`);
                         hasLoggedCap = true;
                     }
-                    // We don't destroy yet, we just stop accumulating.
-                    // This allows the response to "end" naturally.
                 } else {
                     data += chunk;
                 }
             });
-
             res.on('end', () => {
                 if (isDone) return;
                 isDone = true;
-                resolve({
-                    status: res.statusCode,
-                    headers: res.headers,
-                    data: data
-                });
+                resolve({ status: res.statusCode, headers: res.headers, data });
             });
-
-            res.on('error', (err) => {
-                if (isDone) return;
-                isDone = true;
-                reject(err);
-            });
+            res.on('error', (err) => { if (!isDone) { isDone = true; reject(err); } });
         });
 
-        // CRITICAL: Capture 'information' events for 1xx codes
         req.on('information', (info) => {
             if (isDone) return;
-
             if (info.statusCode >= 100 && info.statusCode < 200) {
-                // We found an informational response! 
-                // In a real-time checker, this is proof of life.
                 isDone = true;
-                req.destroy(); // Stop waiting for the final response
-                resolve({
-                    status: info.statusCode,
-                    headers: info.headers,
-                    data: '',
-                    isInformational: true
-                });
+                req.destroy();
+                resolve({ status: info.statusCode, headers: info.headers, data: '', isInformational: true });
             }
         });
 
-        req.on('timeout', () => {
-            if (isDone) return;
-            isDone = true;
-            req.destroy();
-            reject(new Error('timeout'));
-        });
+        req.on('timeout', () => { if (!isDone) { isDone = true; req.destroy(); reject(new Error('timeout')); } });
 
         req.on('error', (err) => {
             if (isDone) return;
             isDone = true;
             req.destroy();
-
-            // SSL Diagnostic Logging
-            if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'CERT_HAS_EXPIRED' || err.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || err.code === 'CERT_CHAIN_ERROR') {
-                console.warn(`[SSL-DIAG] Error: ${err.code} for ${monitor.url}`);
-                // Note: The 'cert' might be available in some error contexts or via checking the socket
+            if (err.code === 'UNABLE_TO_GET_ISSUER_CERT' || err.code === 'CERT_HAS_EXPIRED' ||
+                err.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || err.code === 'CERT_CHAIN_ERROR') {
+                console.warn(`[SSL-DIAG] ${err.code} for ${url}`);
             }
-
             reject(err);
         });
-
-        // req.end() is called inside the async DNS resolver closure above
     });
+};
+
+/**
+ * Industry-standard HTTP request with automatic redirect following.
+ * Follows up to MAX_REDIRECTS hops (matching Pingdom / UptimeRobot / Site24x7 behaviour).
+ * Records the redirect chain so callers can detect redirect loops.
+ */
+const performRequest = async (monitor, timeout) => {
+    let currentUrl = monitor.url;
+    let redirectCount = 0;
+    const visitedUrls = new Set();
+
+    while (true) {
+        // Detect redirect loops
+        if (visitedUrls.has(currentUrl)) {
+            const err = new Error(`Redirect loop detected after ${redirectCount} hops`);
+            err.code = 'REDIRECT_LOOP';
+            err.redirectCount = redirectCount;
+            throw err;
+        }
+        if (redirectCount > MAX_REDIRECTS) {
+            const err = new Error(`Too many redirects (${redirectCount})`);
+            err.code = 'REDIRECT_LOOP';
+            err.redirectCount = redirectCount;
+            throw err;
+        }
+
+        visitedUrls.add(currentUrl);
+
+        const response = await makeSingleRequest(currentUrl, timeout, monitor.allowUnauthorized);
+
+        const isRedirect = response.status >= 300 && response.status < 400 && response.headers?.location;
+
+        if (!isRedirect || response.isInformational) {
+            // Final response (not a redirect, or 1xx informational)
+            // Attach redirect metadata for logging/debugging
+            response.redirectCount = redirectCount;
+            response.finalUrl = currentUrl;
+            return response;
+        }
+
+        // Follow the redirect
+        const location = response.headers.location;
+        redirectCount++;
+
+        try {
+            // Handle relative redirects (e.g. /login  or //example.com/path)
+            currentUrl = new URL(location, currentUrl).toString();
+        } catch {
+            // Malformed Location header — return what we have
+            response.redirectCount = redirectCount;
+            response.finalUrl = currentUrl;
+            return response;
+        }
+
+        console.log(`[HTTP] Redirect ${redirectCount}: ${monitor.url} → ${currentUrl} (${response.status})`);
+    }
 };
 
 export const checkHttp = async (monitor, result, options = {}) => {
@@ -246,22 +252,10 @@ export const checkHttp = async (monitor, result, options = {}) => {
 
         const degradedThresholdMs = monitor.degradedThresholdMs || 2000;
 
-        // Content check if applicable
-        let keywordMatch = null;
-        if (monitor.expectedContent && !response.isInformational) {
-            const contentString = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            keywordMatch = {
-                keyword: monitor.expectedContent,
-                found: contentString.includes(monitor.expectedContent)
-            };
-        }
-
         // Use our advanced classifier
         const classification = classifyHttpResponse(response.status, localResponseTime, {
             latencyThreshold: degradedThresholdMs,
-            keywordMatch: keywordMatch,
-            timeout: timeout,
-            expectedStatusCode: monitor.expectedStatusCode
+            timeout: timeout
         });
 
         // Compatibility with existing result structure
@@ -277,13 +271,6 @@ export const checkHttp = async (monitor, result, options = {}) => {
             result.errorMessage = classification.reason;
         }
 
-        // Special handling for keyword mismatch
-        if (keywordMatch && !keywordMatch.found) {
-            result.errorMessage = `Expected content "${monitor.expectedContent}" not found`;
-            result.healthState = 'DOWN';
-            result.isUp = false;
-        }
-
         console.log(`[HTTP] ${monitor.url} ${response.status} | Status: ${result.healthState} | ${localResponseTime}ms`);
 
     } catch (error) {
@@ -296,8 +283,18 @@ export const checkHttp = async (monitor, result, options = {}) => {
         const healthStateResult = determineHealthStateFromError(result.errorType, null, monitor.type, latency, monitor);
 
         result.healthState = healthStateResult.healthState;
-        result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
-        // FIX: Set responseTime for error cases too
+        // Connection errors are DOWN. Only allow isUp=true if error classifier
+        // explicitly returns DEGRADED (e.g. SSL chain warning, slow-but-connected).
+        // Network failures (ECONNRESET, DNS, ECONNREFUSED, etc.) must be DOWN.
+        const networkErrors = ['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED',
+            'CONNECTION_RESET', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH',
+            'ENETUNREACH', 'INVALID_URL', 'REDIRECT_LOOP'];
+        if (networkErrors.includes(result.errorType)) {
+            result.healthState = 'DOWN';
+            result.isUp = false;
+        } else {
+            result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
+        }
         result.responseTime = latency;
 
         console.log(`[HTTP] ${monitor.url} ERROR | Status: ${result.healthState} | ${result.errorType} | ${result.errorMessage}`);

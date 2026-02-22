@@ -153,7 +153,7 @@ class StatsService {
     // Get dashboard statistics
     async getDashboardStats(userId) {
         try {
-            const monitors = await Monitor.find({ user: userId }).select('_id status totalChecks successfulChecks');
+            const monitors = await Monitor.find({ user: userId }).select('_id status totalChecks successfulChecks uptimePercentage');
 
             const totalMonitors = monitors.length;
 
@@ -162,17 +162,9 @@ class StatsService {
             const downMonitors = monitors.filter(m => m.status === 'down').length;
             const degradedMonitors = monitors.filter(m => m.status === 'degraded').length;
 
-            // Calculate overall uptime from pre-aggregated fields on Monitor model
-            let totalChecksCount = 0;
-            let totalSuccessfulCount = 0;
-
-            monitors.forEach(monitor => {
-                totalChecksCount += monitor.totalChecks || 0;
-                totalSuccessfulCount += monitor.successfulChecks || 0;
-            });
-
-            const overallUptime = totalChecksCount > 0
-                ? parseFloat(((totalSuccessfulCount / totalChecksCount) * 100).toFixed(2))
+            // Calculate overall average uptime using persisted fields (Phase 11: Audit Fix)
+            const overallUptime = totalMonitors > 0
+                ? parseFloat((monitors.reduce((acc, m) => acc + (m.uptimePercentage || 100), 0) / totalMonitors).toFixed(2))
                 : 100;
 
             const monitorIds = monitors.map(m => m._id);

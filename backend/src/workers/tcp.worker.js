@@ -1,4 +1,5 @@
 import net from 'net';
+import { resolveSecurely } from '../utils/resolver.js';
 
 export const checkTcp = async (monitor, result, options = {}) => {
     const {
@@ -8,9 +9,13 @@ export const checkTcp = async (monitor, result, options = {}) => {
         parseUrl
     } = options;
 
+    const { hostname, port } = parseUrl(monitor.url, monitor.port);
+
+    // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
+    const { address } = await resolveSecurely(hostname);
+
     return new Promise((resolve, reject) => {
         const socket = new net.Socket();
-        const { hostname, port } = parseUrl(monitor.url, monitor.port);
         // FIXED: Respect monitor's configured timeout
         const timeout = monitor.timeout || 30000; // Default 30s
         const startTime = Date.now();
@@ -91,6 +96,6 @@ export const checkTcp = async (monitor, result, options = {}) => {
             reject(err);
         });
 
-        socket.connect(port, hostname);
+        socket.connect(port, address);
     });
 };

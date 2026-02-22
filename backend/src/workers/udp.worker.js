@@ -1,8 +1,6 @@
 import dgram from 'dgram';
-import dns from 'dns';
-import { promisify } from 'util';
+import { resolveSecurely } from '../utils/resolver.js';
 import { classifyUdpResponse, ERROR_TYPES, STATUS } from '../utils/status-classifier.js';
-const lookup = promisify(dns.lookup);
 
 /**
  * Build a proper DNS query packet for testing DNS servers
@@ -77,8 +75,7 @@ export const checkUdp = async (monitor, result, options = {}) => {
 
     // Helper function to perform DNS lookup
     const dnsLookup = async () => {
-        const { address, family } = await lookup(hostname);
-        return { address, family };
+        return await resolveSecurely(hostname);
     };
 
     // Initial DNS lookup for IP resolution (required for UDP probe)

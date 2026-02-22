@@ -45,7 +45,7 @@ export const ERROR_TYPES = {
     HTTP_TIMEOUT: 'HTTP_TIMEOUT',                   // Request timeout
     HIGH_LATENCY: 'HIGH_LATENCY',                   // Response too slow
     KEYWORD_MISMATCH: 'KEYWORD_MISMATCH',          // Content check failed
-    REDIRECT_LOOP: 'REDIRECT_LOOP',                // Infinite redirect
+    REDIRECT_LOOP: 'REDIRECT_LOOP',                // Too many redirects / loop
 
     // SSL/TLS Errors
     CERT_EXPIRED: 'CERT_EXPIRED',                   // Certificate expired
@@ -95,182 +95,190 @@ export const ERROR_TYPES = {
 export function classifyHttpResponse(statusCode, latency, options = {}) {
     const {
         latencyThreshold = 2000,
-        keywordMatch = null,
         redirectCount = 0,
-        maxRedirects = 5,
-        expectedStatusCode = null,
-        timeout = 30000 // Default 30s if not provided
+        maxRedirects = 10,
+        timeout = 30000
     } = options;
 
-    // Check for timeout first
+    // ── 0. Timeout ────────────────────────────────────────────────────────────
     if (!statusCode || latency > timeout) {
         return {
             status: STATUS.DOWN,
             confidence: CONFIDENCE.HIGH,
             errorType: ERROR_TYPES.HTTP_TIMEOUT,
-            reason: `Request timeout after ${latency}ms`,
+            reason: `Request timed out after ${latency}ms (limit: ${timeout}ms). The server did not respond in time.`,
             severity: 1.0
         };
     }
 
-    // ========================================
-    // 0. Handle Explicit Expected Status Code (Highest Priority)
-    // ========================================
-    if (expectedStatusCode !== null && expectedStatusCode !== undefined) {
-        if (statusCode === expectedStatusCode) {
-            // Check content matching even if status code matches
-            if (statusCode >= 200 && statusCode < 300 && keywordMatch !== null && !keywordMatch.found) {
-                return {
-                    status: STATUS.DOWN,
-                    confidence: CONFIDENCE.HIGH,
-                    errorType: ERROR_TYPES.KEYWORD_MISMATCH,
-                    reason: `Expected keyword "${keywordMatch.keyword}" not found in response body`,
-                    severity: 0.9
-                };
-            }
 
-            return {
-                status: STATUS.UP,
-                confidence: CONFIDENCE.HIGH,
-                errorType: ERROR_TYPES.HTTP_SUCCESS,
-                reason: `Service operational (HTTP ${statusCode} matches expected)`,
-                severity: 0.0
-            };
-        } else {
-            // Explicit mismatch
-            return {
-                status: STATUS.DOWN,
-                confidence: CONFIDENCE.HIGH,
-                errorType: ERROR_TYPES.HTTP_CLIENT_ERROR, // Or a more specific status code mismatch error
-                reason: `Status Code Mismatch: Expected ${expectedStatusCode}, received ${statusCode}`,
-                severity: 0.9
-            };
-        }
-    }
-
-    // ========================================
-    // 1. Handle Server Crashes (5xx) → DOWN
-    // ========================================
-    if (statusCode >= 500 && statusCode < 600) {
+    // ── 1. Informational (1xx) → DEGRADED ────────────────────────────────────
+    // 1xx responses are incomplete — the server has not sent a final response yet.
+    if (statusCode >= 100 && statusCode < 200) {
+        const codeDescriptions = {
+            100: 'Continue — server received request headers, client should proceed to send the request body.',
+            101: 'Switching Protocols — server is switching to a different protocol as requested.',
+            102: 'Processing — server has received the request but has not completed it yet (WebDAV).',
+            103: 'Early Hints — server is sending preliminary response headers before the final response.'
+        };
         return {
-            status: STATUS.DOWN,
-            confidence: CONFIDENCE.HIGH,
-            errorType: ERROR_TYPES.HTTP_SERVER_ERROR,
-            reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
-            severity: 1.0
+            status: STATUS.DEGRADED,
+            confidence: CONFIDENCE.MEDIUM,
+            errorType: ERROR_TYPES.HTTP_INFORMATIONAL,
+            reason: codeDescriptions[statusCode] || `Informational response (${statusCode}) — no final response received yet.`,
+            severity: 0.4
         };
     }
 
-    // ========================================
-    // 2. Handle Client Errors (4xx) → DOWN
-    // ========================================
-    if (statusCode >= 400 && statusCode < 500) {
-        // Special Case: Rate Limit
-        if (statusCode === 429) {
-            return {
-                status: STATUS.DEGRADED,
-                confidence: CONFIDENCE.MEDIUM,
-                errorType: ERROR_TYPES.HTTP_RATE_LIMIT,
-                reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
-                severity: 0.8
-            };
-        }
-
-        return {
-            status: STATUS.DOWN,
-            confidence: CONFIDENCE.HIGH,
-            errorType: ERROR_TYPES.HTTP_CLIENT_ERROR,
-            reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
-            severity: statusCode === 404 ? 1.0 : 0.9 // 404 is definitive down
-        };
-    }
-
-    // ========================================
-    // 4. Handle Performance Issues (Slow Response)
-    // Check latency for successful responses (2xx, 3xx)
-    // ========================================
-    if (statusCode >= 200 && statusCode < 400) {
-        // Check content matching for 2xx
-        if (statusCode >= 200 && statusCode < 300 && keywordMatch !== null && !keywordMatch.found) {
-            return {
-                status: STATUS.DOWN,
-                confidence: CONFIDENCE.HIGH,
-                errorType: ERROR_TYPES.KEYWORD_MISMATCH,
-                reason: `Expected keyword "${keywordMatch.keyword}" not found in response body`,
-                severity: 0.9
-            };
-        }
-
-        // Check latency
+    // ── 2. Success (2xx) → UP ────────────────────────────────────────────────
+    if (statusCode >= 200 && statusCode < 300) {
+        // Latency check (only for 2xx — final responses)
         if (latency > latencyThreshold) {
             return {
                 status: STATUS.DEGRADED,
                 confidence: CONFIDENCE.MEDIUM,
                 errorType: ERROR_TYPES.HIGH_LATENCY,
-                reason: `Slow response: ${latency}ms (threshold: ${latencyThreshold}ms)`,
-                severity: (latency - latencyThreshold) / latencyThreshold * 0.6
+                reason: `Slow response: ${latency}ms exceeds threshold of ${latencyThreshold}ms`,
+                severity: Math.min(0.9, ((latency - latencyThreshold) / latencyThreshold) * 0.6)
             };
         }
+        const codeDescriptions = {
+            200: 'OK — request succeeded.',
+            201: 'Created — resource created successfully.',
+            202: 'Accepted — request accepted for processing.',
+            203: 'Non-Authoritative Information — response from a third-party.',
+            204: 'No Content — request succeeded, no body returned.',
+            205: 'Reset Content — client should reset the document view.',
+            206: 'Partial Content — partial resource returned (range request).',
+            207: 'Multi-Status — WebDAV multi-status response.',
+            208: 'Already Reported — WebDAV binding already enumerated.',
+            226: 'IM Used — server fulfilled a GET request for the resource.'
+        };
+        return {
+            status: STATUS.UP,
+            confidence: CONFIDENCE.HIGH,
+            errorType: ERROR_TYPES.HTTP_SUCCESS,
+            reason: codeDescriptions[statusCode] || `HTTP ${statusCode} — ${getStatusCodeName(statusCode)}`,
+            severity: 0.0
+        };
     }
 
-    // ========================================
-    // 5. Handle Redirects (3xx)
-    // ========================================
+    // ── 3. Redirects (3xx) ───────────────────────────────────────────────────
+    // Normally redirects are followed automatically. This branch handles edge cases
+    // (redirect loops, non-standard redirects without Location header).
     if (statusCode >= 300 && statusCode < 400) {
         if (redirectCount > maxRedirects) {
             return {
                 status: STATUS.DOWN,
                 confidence: CONFIDENCE.HIGH,
                 errorType: ERROR_TYPES.REDIRECT_LOOP,
-                reason: `Too many redirects (${redirectCount})`,
+                reason: `Too many redirects (${redirectCount} hops). Possible redirect loop.`,
                 severity: 0.9
             };
         }
-
+        const codeDescriptions = {
+            300: 'Multiple Choices — multiple options for the resource.',
+            301: 'Moved Permanently — resource has moved to a new permanent URL.',
+            302: 'Found — resource temporarily redirected.',
+            303: 'See Other — redirect to another URI for the resource.',
+            304: 'Not Modified — cached version is still valid; no body returned.',
+            307: 'Temporary Redirect — resource temporarily at different URI; method must not change.',
+            308: 'Permanent Redirect — resource permanently at new URI; method must not change.'
+        };
         return {
             status: STATUS.UP,
             confidence: CONFIDENCE.MEDIUM,
             errorType: ERROR_TYPES.HTTP_REDIRECT,
-            reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
-            severity: 0.2
-        };
-    }
-
-    // ========================================
-    // 6. Handle Informational (1xx) → DEGRADED
-    // ========================================
-    if (statusCode >= 100 && statusCode < 200) {
-        return {
-            status: STATUS.DEGRADED,
-            confidence: CONFIDENCE.MEDIUM,
-            errorType: ERROR_TYPES.HTTP_INFORMATIONAL,
-            reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
-            severity: 0.6
-        };
-    }
-
-    // ========================================
-    // 7. Success (2xx) → UP
-    // ========================================
-    if (statusCode >= 200 && statusCode < 300) {
-        return {
-            status: STATUS.UP,
-            confidence: CONFIDENCE.HIGH,
-            errorType: ERROR_TYPES.HTTP_SUCCESS,
-            reason: `${getStatusCodeName(statusCode)} (${statusCode}) - ${getStatusCodeDescription(statusCode)}`,
+            reason: codeDescriptions[statusCode] || `HTTP ${statusCode} — ${getStatusCodeName(statusCode)}`,
             severity: 0.0
         };
     }
 
-    // Unknown status code - for malformed URLs/inputs, classify as DOWN
+    // ── 4. Client Errors (4xx) → DOWN ────────────────────────────────────────
+    if (statusCode >= 400 && statusCode < 500) {
+        // 429 Rate Limited → DEGRADED (temporary, server is reachable)
+        if (statusCode === 429) {
+            return {
+                status: STATUS.DEGRADED,
+                confidence: CONFIDENCE.MEDIUM,
+                errorType: ERROR_TYPES.HTTP_RATE_LIMIT,
+                reason: 'Too Many Requests (429) — rate limit exceeded. Server is reachable but throttling requests.',
+                severity: 0.6
+            };
+        }
+        const codeDescriptions = {
+            400: 'Bad Request (400) — server could not understand the request due to invalid syntax.',
+            401: 'Unauthorized (401) — authentication required. Client must authenticate to get the requested response.',
+            402: 'Payment Required (402) — payment is required to access this resource.',
+            403: 'Forbidden (403) — client does not have access rights to the content.',
+            404: 'Not Found (404) — server cannot find the requested resource. URL may be broken or the resource removed.',
+            405: 'Method Not Allowed (405) — request method is not supported by the target resource.',
+            406: 'Not Acceptable (406) — no content matching the requested criteria found.',
+            407: 'Proxy Authentication Required (407) — client must authenticate with the proxy.',
+            408: 'Request Timeout (408) — server timed out waiting for the request.',
+            409: 'Conflict (409) — request conflicts with current state of the server.',
+            410: 'Gone (410) — resource has been permanently deleted and will not be available again.',
+            411: 'Length Required (411) — Content-Length header field is required.',
+            412: 'Precondition Failed (412) — client precondition failed.',
+            413: 'Content Too Large (413) — request body is larger than limits defined by the server.',
+            414: 'URI Too Long (414) — the URI requested is longer than the server is willing to interpret.',
+            415: 'Unsupported Media Type (415) — media format of the request data is not supported.',
+            416: 'Range Not Satisfiable (416) — range specified by Content-Range header cannot be fulfilled.',
+            417: 'Expectation Failed (417) — expectation in Expect request header cannot be met.',
+            418: "I'm a Teapot (418) — server refuses to brew coffee with a teapot (RFC 2324).",
+            421: 'Misdirected Request (421) — request directed to a server unable to produce a response.',
+            422: 'Unprocessable Content (422) — request well-formed but unable to be followed due to semantic errors.',
+            423: 'Locked (423) — resource being accessed is locked (WebDAV).',
+            424: 'Failed Dependency (424) — request failed due to failure of a previous request (WebDAV).',
+            425: 'Too Early (425) — server unwilling to risk processing a request that might be replayed.',
+            426: 'Upgrade Required (426) — client must switch to a different protocol.',
+            428: 'Precondition Required (428) — origin server requires the request to be conditional.',
+            431: 'Request Header Fields Too Large (431) — request header fields are too large.',
+            451: 'Unavailable For Legal Reasons (451) — resource access denied for legal reasons.'
+        };
+        return {
+            status: STATUS.DOWN,
+            confidence: CONFIDENCE.HIGH,
+            errorType: ERROR_TYPES.HTTP_CLIENT_ERROR,
+            reason: codeDescriptions[statusCode] || `Client Error (${statusCode}) — ${getStatusCodeName(statusCode)}`,
+            severity: statusCode === 404 ? 1.0 : 0.9
+        };
+    }
+
+    // ── 5. Server Errors (5xx) → DOWN ────────────────────────────────────────
+    if (statusCode >= 500 && statusCode < 600) {
+        const codeDescriptions = {
+            500: 'Internal Server Error (500) — unexpected server condition prevented request fulfillment.',
+            501: 'Not Implemented (501) — request method is not supported by the server.',
+            502: 'Bad Gateway (502) — server acting as gateway received an invalid upstream response.',
+            503: 'Service Unavailable (503) — server not ready to handle the request (overloaded or down for maintenance).',
+            504: 'Gateway Timeout (504) — server acting as gateway did not get a response in time.',
+            505: 'HTTP Version Not Supported (505) — HTTP version used in request is not supported.',
+            506: 'Variant Also Negotiates (506) — server has an internal configuration error.',
+            507: 'Insufficient Storage (507) — server is unable to store the representation (WebDAV).',
+            508: 'Loop Detected (508) — server detected infinite loop while processing request (WebDAV).',
+            510: 'Not Extended (510) — further extensions to the request are required.',
+            511: 'Network Authentication Required (511) — client must authenticate to gain network access.'
+        };
+        return {
+            status: STATUS.DOWN,
+            confidence: CONFIDENCE.HIGH,
+            errorType: ERROR_TYPES.HTTP_SERVER_ERROR,
+            reason: codeDescriptions[statusCode] || `Server Error (${statusCode}) — ${getStatusCodeName(statusCode)}`,
+            severity: 1.0
+        };
+    }
+
+    // ── 6. Unknown / Non-standard ─────────────────────────────────────────────
     return {
         status: STATUS.DOWN,
-        confidence: CONFIDENCE.HIGH,
+        confidence: CONFIDENCE.MEDIUM,
         errorType: ERROR_TYPES.UNKNOWN_ERROR,
-        reason: `Unknown or invalid HTTP status: ${statusCode}`,
+        reason: `Unknown HTTP status code: ${statusCode}`,
         severity: 0.9
     };
 }
+
 
 // ========================================
 // DETAILED ERROR DESCRIPTIONS

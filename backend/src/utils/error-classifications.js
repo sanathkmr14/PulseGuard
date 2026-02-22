@@ -111,30 +111,30 @@ export const HTTP_ERROR_TYPES = {
         protocols: ['HTTPS', 'SSL']
     },
     'SSL_UNTRUSTED_CERT': {
-        severity: 0.8,
-        healthState: 'DEGRADED',
-        description: 'SSL certificate is not from a trusted authority',
+        severity: 0.1,
+        healthState: 'UP',
+        description: 'Untrusted Certificate Authority — site is reachable but cert is not from a public CA',
         examples: ['UNABLE_TO_VERIFY_LEAF_SIGNATURE'],
         protocols: ['HTTPS', 'SSL']
     },
     'SELF_SIGNED_CERT': {
-        severity: 0.5,
-        healthState: 'DEGRADED',
-        description: 'Untrusted Certificate Authority (self-signed)',
-        examples: ['self signed certificate'],
+        severity: 0.1,
+        healthState: 'UP',
+        description: 'Self-signed certificate — site is reachable but cert is not browser-trusted',
+        examples: ['self signed certificate', 'DEPTH_ZERO_SELF_SIGNED_CERT'],
         protocols: ['HTTPS', 'SSL']
     },
     'CERT_CHAIN_ERROR': {
-        severity: 0.9,
+        severity: 0.4,
         healthState: 'DEGRADED',
-        description: 'SSL certificate chain verification failed',
+        description: 'SSL certificate chain is incomplete — server is missing an intermediate CA certificate',
         examples: ['UNABLE_TO_GET_ISSUER_CERT', 'certificate chain error', 'SSL_CHAIN_ERROR'],
         protocols: ['HTTPS', 'SSL']
     },
     'SSL_CHAIN_ERROR': {
-        severity: 0.9,
-        healthState: 'DOWN',
-        description: 'SSL certificate chain verification failed',
+        severity: 0.4,
+        healthState: 'DEGRADED',
+        description: 'SSL certificate chain is incomplete — server is missing an intermediate CA certificate',
         examples: ['SSL_CHAIN_ERROR'],
         protocols: ['HTTPS', 'SSL']
     },
@@ -184,19 +184,33 @@ export const HTTP_ERROR_TYPES = {
     },
 
     // Partial failures (typically DEGRADED)
-    'KEYWORD_MISMATCH': {
-        severity: 0.9,
-        healthState: 'DOWN',
-        description: 'Expected content keyword not found in response body',
-        examples: ['Expected content not found'],
-        protocols: ['HTTP', 'HTTPS']
-    },
     'SLOW_RESPONSE': {
         severity: 0.5,
         healthState: 'DEGRADED',
         description: 'Response time exceeds threshold',
         examples: ['Response time too slow'],
         protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL']
+    },
+    'HIGH_LATENCY': {
+        severity: 0.5,
+        healthState: 'DEGRADED',
+        description: 'Response time exceeds configured latency threshold',
+        examples: ['Slow response', 'latency exceeded'],
+        protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING']
+    },
+    'REDIRECT_LOOP': {
+        severity: 0.9,
+        healthState: 'DOWN',
+        description: 'Too many redirects — server is caught in a redirect loop',
+        examples: ['Too many redirects', 'redirect loop'],
+        protocols: ['HTTP', 'HTTPS']
+    },
+    'SMTP_TEMPORARILY_UNAVAILABLE': {
+        severity: 0.5,
+        healthState: 'DEGRADED',
+        description: 'SMTP service temporarily unavailable (421) — server is reachable',
+        examples: ['421 Service Temporarily Unavailable'],
+        protocols: ['SMTP']
     },
     'PARTIAL_CONTENT': {
         severity: 0.3,
@@ -358,55 +372,25 @@ export function determineHealthStateFromError(errorType, statusCode, protocol, r
             // DEBUG
             // console.log(`[EC-DEBUG] Code: ${code}, Category: ${category}, Protocol: ${protocol}`);
 
-            // Handle special cases
-            if (monitor.expectedStatusCode && code !== monitor.expectedStatusCode) {
-                return {
-                    healthState: 'DEGRADED',
-                    severity: 0.4,
-                    reason: `Expected status ${monitor.expectedStatusCode}, got ${code}`
-                };
-            }
 
             switch (category) {
-                case 'INFORMATIONAL':
-                    // 1xx informational responses are interim, not final - treat as DEGRADED
-                    // A server that only sends 1xx is not fully responsive
-                    return {
-                        healthState: 'DEGRADED',
-                        severity: 0.6,
-                        reason: `Informational response (HTTP ${code}): Server sent interim response but no final response`
-                    };
-                case 'SUCCESS':
-                    // Check response time for success responses
-                    if (responseTime && responseTime > degradedThresholdMs) {
-                        return { healthState: 'DEGRADED', severity: Math.min(responseTime / 10000, 0.6), reason: `Slow response: ${responseTime}ms (threshold: ${degradedThresholdMs}ms)` };
-                    }
-                    return { healthState: 'UP', severity: 0.0, reason: 'Success response' };
-                case 'REDIRECT':
-                    // Check response time for redirects
-                    if (responseTime && responseTime > degradedThresholdMs) {
-                        return { healthState: 'DEGRADED', severity: Math.min(responseTime / 10000, 0.6), reason: `Slow response: ${responseTime}ms (threshold: ${degradedThresholdMs}ms)` };
-                    }
-                    return { healthState: 'UP', severity: 0.0, reason: 'Redirect response' };
-                case 'CLIENT_ERROR':
-                    // All 4xx errors indicate application failure, not just degradation
-                    // 400 Bad Request - Invalid client request
-                    // 401 Unauthorized - Authentication required/failed
-                    // 403 Forbidden - Access denied
-                    // 404 Not Found - Resource doesn't exist
-                    // 429 Too Many Requests - Rate limiting
-                    // These are all DOWN status in a "No-Guesswork" monitoring system
-                    return {
-                        healthState: 'DOWN',
-                        severity: 0.9,
-                        reason: `Client error: ${code} ${getStatusCodeName(code)} - Application configuration or authentication issue`
-                    };
                 case 'SERVER_ERROR':
                     return {
                         healthState: 'DOWN',
                         severity: 0.9,
                         reason: `Server error: ${code} ${getStatusCodeName(code)}`
                     };
+                case 'REDIRECT':
+                    // If we have a redirect error (loop/too many), it should be caught here 
+                    // or in the errorType check below.
+                    if (errorType === 'REDIRECT_LOOP') {
+                        return { healthState: 'DOWN', severity: 0.9, reason: 'Too many redirects (Redirect Loop)' };
+                    }
+                    // Regular redirects are UP if within threshold
+                    if (responseTime && responseTime > degradedThresholdMs) {
+                        return { healthState: 'DEGRADED', severity: Math.min(responseTime / 10000, 0.6), reason: `Slow response: ${responseTime}ms (threshold: ${degradedThresholdMs}ms)` };
+                    }
+                    return { healthState: 'UP', severity: 0.0, reason: 'Redirect response' };
                 default:
                     console.log(`[EC-DEBUG] Hit Default for category: ${category}`);
                     return { healthState: 'UNKNOWN', severity: 0.5, reason: 'Unknown status code' };
@@ -545,6 +529,10 @@ export function detectErrorType(error, protocol, response) {
     }
 
     // Protocol-specific errors
+    if (error.code === 'REDIRECT_LOOP' || error.message?.includes('redirect loop') || error.message?.includes('Too many redirects')) {
+        return 'REDIRECT_LOOP';
+    }
+
     if (protocol === 'SMTP' && error.message?.includes('SMTP')) {
         return 'SMTP_ERROR';
     }
