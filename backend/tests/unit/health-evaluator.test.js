@@ -22,7 +22,7 @@ describe('Health Evaluator Unit Tests', () => {
     });
 
     describe('determineStateWithHysteresis', () => {
-        it('should maintain UP state for single failure (hysteresis)', () => {
+        it('should maintain UP state for single failure (hysteresis)', async () => {
             const currentCheck = {
                 severity: 1, // Complete failure
                 status: 'down',
@@ -31,7 +31,7 @@ describe('Health Evaluator Unit Tests', () => {
 
             // Previous state UP, consecutive failures: 0
             // Should stay UP or go to DEGRADED, but NOT DOWN yet if threshold > 1
-            const result = healthStateService.determineStateWithHysteresis(
+            const result = await healthStateService.determineStateWithHysteresis(
                 currentCheck,
                 {}, // Pass empty baseline
                 [],
@@ -40,12 +40,13 @@ describe('Health Evaluator Unit Tests', () => {
             );
 
             expect(result.status).not.toBe('down');
-            expect(result.status).toBe('degraded'); // Expecting warning state first
+            expect(result.status).toBe('up'); // Expecting the state to be SUPPRESSED to up
+            expect(result.rawStatus).toBe('down'); // But the internal raw state is down
             // The service returns valid transition message
-            expect(result.transition.reason).toContain('Hysteresis: Valid state transition');
+            expect(result.transition.reason).toContain('Hysteresis: Need 2 consecutive failures');
         });
 
-        it('should switch to DOWN after threshold reached', () => {
+        it('should switch to DOWN after threshold reached', async () => {
             const currentCheck = {
                 severity: 1,
                 status: 'down',
@@ -53,10 +54,11 @@ describe('Health Evaluator Unit Tests', () => {
             };
 
             // Simulate 1 previous failure
-            stateHistory.consecutiveCount = 1;
+            stateHistory.rawState = 'down';
+            stateHistory.rawConsecutiveCount = 1;
             // Monitor threshold is 2, so this (2nd) failure should trigger DOWN
 
-            const result = healthStateService.determineStateWithHysteresis(
+            const result = await healthStateService.determineStateWithHysteresis(
                 currentCheck,
                 {}, // Pass empty baseline
                 [],
@@ -68,7 +70,7 @@ describe('Health Evaluator Unit Tests', () => {
             expect(result.reasons[0]).toBe('Connection refused');
         });
 
-        it('should treat SSL warning as UP (with warning)', () => {
+        it('should treat SSL warning as UP (with warning)', async () => {
             const currentCheck = {
                 healthStateSuggestion: 'up',
                 isSlowWarning: false,
@@ -77,7 +79,7 @@ describe('Health Evaluator Unit Tests', () => {
                 originalStatus: 'up' // Worker says up
             };
 
-            const result = healthStateService.determineStateWithHysteresis(
+            const result = await healthStateService.determineStateWithHysteresis(
                 currentCheck,
                 {}, // Pass empty baseline
                 [],

@@ -199,8 +199,6 @@ export const updateMonitor = async (req, res) => {
 
             // Reset consecutive counters + stats for fresh monitoring
             updateData.consecutiveFailures = 0;
-            updateData.consecutiveDegraded = 0;
-            updateData.consecutiveSlowCount = 0;
             updateData.totalChecks = 0;
             updateData.successfulChecks = 0;
             updateData.lastResponseTime = null;
@@ -423,14 +421,11 @@ export const checkMonitorNow = async (req, res) => {
 
         if (status === 'down') {
             updateData.$inc.consecutiveFailures = 1;
-            updateData.$set.consecutiveDegraded = 0;
         } else if (status === 'degraded') {
-            updateData.$inc.consecutiveDegraded = 1;
             updateData.$set.consecutiveFailures = 0;
             updateData.$inc.successfulChecks = 1;
         } else {
             updateData.$set.consecutiveFailures = 0;
-            updateData.$set.consecutiveDegraded = 0;
             updateData.$inc.successfulChecks = 1;
         }
 

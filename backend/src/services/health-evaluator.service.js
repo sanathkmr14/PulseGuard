@@ -335,39 +335,20 @@ class HealthStateService {
         const monitorId = monitor?._id?.toString() || 'default-monitor';
         const stateHistory = await this.getStateHistory(monitorId);
 
-        // Ensure consecutiveSlowCount is initialized
-        if (typeof monitor.consecutiveSlowCount === 'undefined') {
-            monitor.consecutiveSlowCount = 0;
-        }
-
-        // Count consecutive slow responses from monitor document (Phase 6: Distributed Fix)
-        const recentSlowCount = monitor.consecutiveSlowCount || 0;
-        analysis.consecutiveSlowCount = recentSlowCount;
-
-        console.log(`🔍 HEALTH CHECK: isUp=${checkResult.isUp}, errorType=${checkResult.errorType}, statusCode=${analysis.statusCode}, isSlowResponse=${isSlowResponse}, recentSlowCount=${recentSlowCount}`);
+        console.log(`🔍 HEALTH CHECK: isUp=${checkResult.isUp}, errorType=${checkResult.errorType}, statusCode=${analysis.statusCode}, isSlowResponse=${isSlowResponse}`);
 
         if (isSlowResponse && analysis.statusCode >= 200 && analysis.statusCode < 300) {
             // This is a successful response that's just slow
             // FIXED: Show DEGRADED immediately on first slow check
             // Alert threshold is handled separately by enhanced-alert.service.js
-            const willBeConsecutive = recentSlowCount + 1;
 
             console.log(`⚠️ DEGRADED: Slow response ${analysis.responseTimeMs}ms > threshold ${slowThreshold}ms`);
             analysis.isCompletelyUp = true; // The service IS responding
             analysis.severity = 0.4; // Moderate severity for slow response
             analysis.issues.push(`Slow response: ${analysis.responseTimeMs}ms (threshold: ${slowThreshold}ms)`);
             analysis.healthStateSuggestion = 'degraded';
-            analysis.isConsecutiveSlow = willBeConsecutive >= slowConsecutiveThreshold;
-
-            // Store slow count in monitor document
-            monitor.consecutiveSlowCount = willBeConsecutive;
 
             return analysis;
-        }
-
-        // Reset slow counter if response is not slow (Phase 6: Distributed Fix)
-        if (monitor.consecutiveSlowCount > 0) {
-            monitor.consecutiveSlowCount = 0;
         }
 
         // Complete failure analysis for non-slow responses
@@ -435,7 +416,6 @@ class HealthStateService {
                     analysis.severity = Math.max(analysis.severity, 0.6);
                     analysis.issues.push('Too Many Requests (429) — rate limit exceeded');
                     analysis.isSlowResponse = true;
-                    monitor.consecutiveSlowCount = (monitor.consecutiveSlowCount || 0) + 1;
                 }
                 // ── 4xx Client errors → DOWN ──────────────────────────────────
                 else if (analysis.statusCode >= 400 && analysis.statusCode < 500) {
@@ -656,7 +636,8 @@ class HealthStateService {
     async determineStateWithHysteresis(currentCheck, baseline, window, stateHistory, monitor) {
         const previousState = stateHistory.currentState || 'unknown';
         const timeInPreviousState = Date.now() - (stateHistory.lastStateChange || Date.now());
-        const consecutiveSameState = stateHistory.consecutiveCount || 0;
+        const rawConsecutiveSameState = stateHistory.rawConsecutiveCount || 0;
+        const previousRawState = stateHistory.rawState || previousState;
 
         let targetState = 'up';
         let reasons = ['All checks passing within thresholds'];
@@ -733,11 +714,13 @@ class HealthStateService {
 
         // Apply hysteresis for state transitions
         const confirmedThreshold = monitor.alertThreshold || this.config.consecutiveChecksForDegradation;
+        const currentRawConsecutive = (targetState === previousRawState) ? rawConsecutiveSameState + 1 : 1;
+
         const hysteresisResult = await this.applyHysteresis(
             targetState,
             previousState,
             timeInPreviousState,
-            consecutiveSameState,
+            currentRawConsecutive, // Use the real count of raw fails instead of the confirmed UP count
             currentCheck,
             window,
             confirmedThreshold,
@@ -753,6 +736,7 @@ class HealthStateService {
 
         return {
             status: hysteresisResult.status,
+            rawStatus: targetState, // Pass the raw status downstream to be saved in Redis
             reasons: finalReasons,
             confidence: (hysteresisResult.confidence > confidence) ? hysteresisResult.confidence : Math.min(confidence, hysteresisResult.confidence),
             transition: {
@@ -986,6 +970,8 @@ class HealthStateService {
         // Default or Fallback
         return {
             currentState: 'unknown',
+            rawState: 'unknown',
+            rawConsecutiveCount: 0,
             lastStateChange: Date.now(),
             consecutiveCount: 0,
             stateChanges: [],
@@ -993,14 +979,21 @@ class HealthStateService {
         };
     }
 
-    /**
-     * Update state history after state determination (Redis Persisted)
-     */
     async updateStateHistory(monitorId, stateDecision) {
         const history = await this.getStateHistory(monitorId);
         const now = Date.now();
         const key = `${this.REDIS_STATE_PREFIX}${monitorId}`;
 
+        // Update raw hidden state count (for hysteresis logic)
+        const rawTarget = stateDecision.rawStatus || stateDecision.status;
+        if (history.rawState === rawTarget) {
+            history.rawConsecutiveCount = (history.rawConsecutiveCount || 0) + 1;
+        } else {
+            history.rawState = rawTarget;
+            history.rawConsecutiveCount = 1;
+        }
+
+        // Update confirmed public state 
         if (history.currentState === stateDecision.status) {
             history.consecutiveCount++;
         } else {

@@ -381,33 +381,17 @@ class EnhancedAlertService {
      * - HTTP client errors (4xx): immediate alert (server returning error)
      */
     shouldCreateDegradedIncident(monitor, degradationType, confidence, healthStateResult, checkResult = null) {
-        // UNIFIED THRESHOLD: All degradation types now require alertThreshold (default: 2) checks
-        const alertThreshold = monitor.alertThreshold || 2;
-        const consecutiveDegraded = monitor.consecutiveDegraded || 0;
-
-        // Check if we've met the alertThreshold for degraded incidents
-        const meetsThreshold = consecutiveDegraded >= alertThreshold;
-
         // Rate limit (429) - check errorType directly
         const isRateLimit = checkResult?.errorType === 'HTTP_RATE_LIMIT' ||
             (healthStateResult?.reasons || []).some(r => r.toLowerCase().includes('429') || r.toLowerCase().includes('rate'));
 
-        if (isRateLimit && meetsThreshold && confidence >= this.config.lowConfidenceThreshold) {
-            console.log(`✅ Creating rate limit incident for ${monitor.name} (${consecutiveDegraded}/${alertThreshold})`);
+        if (isRateLimit && confidence >= this.config.lowConfidenceThreshold) {
+            console.log(`✅ Creating rate limit incident for ${monitor.name}`);
             return true;
         }
-        if (isRateLimit && !meetsThreshold) {
-            console.log(`⏳ Rate limit detected but waiting for ${alertThreshold - consecutiveDegraded} more checks (${consecutiveDegraded}/${alertThreshold})`);
-            return false;
-        }
 
-
-        // SSL/Security issues - require threshold
-        if (degradationType.category === 'security' && meetsThreshold && confidence >= this.config.lowConfidenceThreshold) return true;
-        if (degradationType.category === 'security' && !meetsThreshold) {
-            console.log(`⏳ Security issue detected but waiting for ${alertThreshold - consecutiveDegraded} more checks (${consecutiveDegraded}/${alertThreshold})`);
-            return false;
-        }
+        // SSL/Security issues
+        if (degradationType.category === 'security' && confidence >= this.config.lowConfidenceThreshold) return true;
 
         // HTTP Client Errors (4xx) - check errorType directly
         const isClientError = checkResult?.errorType?.includes('HTTP_CLIENT_ERROR') ||
@@ -424,20 +408,14 @@ class EnhancedAlertService {
                 r.toLowerCase().includes('http_client_error')
             );
 
-        if (isClientError && meetsThreshold && confidence >= this.config.lowConfidenceThreshold) {
-            console.log(`✅ Creating client error incident for ${monitor.name} (${consecutiveDegraded}/${alertThreshold})`);
+        if (isClientError && confidence >= this.config.lowConfidenceThreshold) {
+            console.log(`✅ Creating client error incident for ${monitor.name}`);
             return true;
         }
-        if (isClientError && !meetsThreshold) {
-            console.log(`⏳ Client error detected but waiting for ${alertThreshold - consecutiveDegraded} more checks (${consecutiveDegraded}/${alertThreshold})`);
-            return false;
-        }
 
-        // Slow response / performance issues - require threshold
+        // Slow response / performance issues
         if (degradationType.category === 'performance' && !isRateLimit) {
-            const recentSlowCount = monitor.consecutiveSlowCount || 0;
-            if (recentSlowCount >= alertThreshold && confidence >= this.config.mediumConfidenceThreshold) return true;
-            console.log(`⏳ Slow response detected but waiting for ${alertThreshold - recentSlowCount} more checks (${recentSlowCount}/${alertThreshold})`);
+            if (confidence >= this.config.mediumConfidenceThreshold) return true;
             return false;
         }
 

@@ -79,14 +79,6 @@ const monitorSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    consecutiveDegraded: {
-        type: Number,
-        default: 0
-    },
-    consecutiveSlowCount: {
-        type: Number,
-        default: 0
-    },
     totalChecks: {
         type: Number,
         default: 0

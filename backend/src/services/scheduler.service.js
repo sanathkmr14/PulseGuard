@@ -544,8 +544,7 @@ class SchedulerService {
                 $set: {
                     status: healthStateResult.status,
                     lastChecked: new Date(),
-                    lastResponseTime: result.responseTime,
-                    consecutiveSlowCount: monitor.consecutiveSlowCount || 0 // Persist slow count for hysteresis
+                    lastResponseTime: result.responseTime
                 },
                 $inc: {
                     totalChecks: 1
@@ -554,14 +553,11 @@ class SchedulerService {
 
             if (healthStateResult.status === 'down') {
                 updateData.$inc.consecutiveFailures = 1;
-                updateData.$set.consecutiveDegraded = 0;
             } else if (healthStateResult.status === 'degraded') {
-                updateData.$inc.consecutiveDegraded = 1;
                 updateData.$set.consecutiveFailures = 0;
                 updateData.$inc.successfulChecks = 1;
             } else {
                 updateData.$set.consecutiveFailures = 0;
-                updateData.$set.consecutiveDegraded = 0;
                 updateData.$inc.successfulChecks = 1;
             }
 
