@@ -49,7 +49,8 @@ export const checkHttps = async (monitor, result, options = {}) => {
     if (isCertChainErr(httpCheckError)) {
         console.log(`[HTTPS] ⚠️ Cert chain error for ${monitor.url} (${httpCheckError.code || httpCheckError.message}). Retrying without SSL verification...`);
 
-        const fallbackMonitor = { ...monitor, allowUnauthorized: true };
+        const monitorObj = typeof monitor.toObject === 'function' ? monitor.toObject() : monitor;
+        const fallbackMonitor = { ...monitorObj, allowUnauthorized: true };
         const fallbackResult = { isUp: false, responseTime: 0, meta: {} };
 
         try {
@@ -116,7 +117,8 @@ async function _runSslCheck(monitor, result, options, httpIsUp, httpStatusCode =
     }
 
     try {
-        const sslMonitor = { ...monitor, url: `https://${sslHostname}` };
+        const monitorObj = typeof monitor.toObject === 'function' ? monitor.toObject() : monitor;
+        const sslMonitor = { ...monitorObj, url: `https://${sslHostname}` };
         const sslResult = { isUp: true, meta: {} };
 
         await new Promise((resolve) => {

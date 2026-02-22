@@ -26,9 +26,7 @@ const Monitors = () => {
         interval: 5,
         timeout: 30000,
         degradedThresholdMs: 2000,
-        sslExpiryThresholdDays: 30,
-        expectedContent: '',
-        expectedStatusCode: ''
+        sslExpiryThresholdDays: 30
     });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [togglingIds, setTogglingIds] = useState(new Set());
@@ -123,7 +121,7 @@ const Monitors = () => {
                 setTimeout(() => fetchMonitors(), 15000);
             }
             setShowForm(false);
-            setFormData({ name: '', type: 'HTTPS', url: '', interval: 5, timeout: 30000, degradedThresholdMs: 2000, sslExpiryThresholdDays: 30, expectedContent: '', expectedStatusCode: '' });
+            setFormData({ name: '', type: 'HTTPS', url: '', interval: 5, timeout: 30000, degradedThresholdMs: 2000, sslExpiryThresholdDays: 30 });
         } catch (e) {
             console.error('Submit error:', e);
             showNotification('error', `❌ ${e.response?.data?.message || 'Failed to save'}`);
@@ -141,9 +139,7 @@ const Monitors = () => {
             interval: monitor.interval,
             timeout: monitor.timeout || 30000,
             degradedThresholdMs: monitor.degradedThresholdMs || 2000,
-            sslExpiryThresholdDays: monitor.sslExpiryThresholdDays || 30,
-            expectedContent: monitor.expectedContent || '',
-            expectedStatusCode: monitor.expectedStatusCode || ''
+            sslExpiryThresholdDays: monitor.sslExpiryThresholdDays || 30
         });
         setShowForm(true);
         // UX Enhancement: Smooth scroll to form at the top
@@ -154,7 +150,7 @@ const Monitors = () => {
         setEditingMonitor(null);
         setShowForm(false);
         setShowAdvanced(false);
-        setFormData({ name: '', type: 'HTTPS', url: '', interval: 5, timeout: 30000, degradedThresholdMs: 2000, sslExpiryThresholdDays: 30, expectedContent: '', expectedStatusCode: '' });
+        setFormData({ name: '', type: 'HTTPS', url: '', interval: 5, timeout: 30000, degradedThresholdMs: 2000, sslExpiryThresholdDays: 30 });
     };
 
     const handlePauseResume = async (monitor) => {

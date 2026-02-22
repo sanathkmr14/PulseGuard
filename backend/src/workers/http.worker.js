@@ -244,7 +244,9 @@ export const checkHttp = async (monitor, result, options = {}) => {
 
     try {
         // Create a shallow copy of monitor with the normalized URL
-        const monitorWithProtocol = { ...monitor, url: urlToUse };
+        // Ensure monitor is a plain object if it's a Mongoose document to support spread
+        const monitorObj = typeof monitor.toObject === 'function' ? monitor.toObject() : monitor;
+        const monitorWithProtocol = { ...monitorObj, url: urlToUse };
         const response = await performRequest(monitorWithProtocol, timeout);
 
         const localResponseTime = Date.now() - result.checkStartTime;
