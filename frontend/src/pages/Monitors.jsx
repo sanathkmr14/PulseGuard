@@ -451,8 +451,8 @@ const Monitors = () => {
 
             {/* Pagination */}
             {pagination.pages > 1 && (
-                <div className="flex justify-between items-center mt-6 px-2">
-                    <div className="text-sm text-slate-400">
+                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4 px-2">
+                    <div className="text-sm text-slate-400 text-center sm:text-left">
                         Page {pagination.current} of {pagination.pages} ({pagination.total} total monitors)
                     </div>
                     <div className="flex gap-2">
