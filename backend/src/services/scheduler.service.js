@@ -18,7 +18,7 @@ import os from 'os';
 // Configuration
 const QUEUE_NAME = 'monitor-queue';
 const LOCK_KEY = 'scheduler:master:lock';
-const LOCK_TTL = 30000; // 30 seconds
+const LOCK_TTL = 60000; // 60 seconds
 
 // Dynamic Concurrency: Use CPU count or ENV, minimum 2, maximum 10 (to prevent overloading Redis)
 // For I/O bound tasks, we can go higher than CPU count.
