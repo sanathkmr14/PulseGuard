@@ -62,13 +62,15 @@ const DashboardLayout = () => {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [systemConfig, setSystemConfig] = useState(null);
     const userMenuRef = useRef(null);
+    const mobileMenuRef = useRef(null);
 
     const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
     // Close user menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target) &&
+                mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
                 setUserMenuOpen(false);
             }
         };
@@ -133,9 +135,28 @@ const DashboardLayout = () => {
                     </div>
                     <span className="text-lg font-bold text-white">PulseGuard</span>
                 </div>
-                <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
-                    {user?.name?.[0]?.toUpperCase() || 'U'}
-                </button>
+
+                <div className="relative" ref={mobileMenuRef}>
+                    <button onClick={() => setUserMenuOpen(!userMenuOpen)}
+                        className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-800/50 transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
+                            {user?.name?.[0]?.toUpperCase() || 'U'}
+                        </div>
+                        <span className="text-sm text-gray-300 font-medium hidden xs:block">{user?.name?.split(' ')[0]}</span>
+                    </button>
+                    {userMenuOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a24] border border-gray-800 rounded-xl shadow-xl py-2 z-[60]">
+                            <div className="px-4 py-2 border-b border-gray-800 lg:hidden">
+                                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                            </div>
+                            <Link to="/app/profile" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">Profile</Link>
+                            <Link to="/app/settings" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">Settings</Link>
+                            <hr className="my-2 border-gray-800" />
+                            <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors font-medium">Sign Out</button>
+                        </div>
+                    )}
+                </div>
             </header>
 
             {/* Mobile Sidebar Overlay */}
