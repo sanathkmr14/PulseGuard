@@ -279,8 +279,8 @@ class SchedulerService {
                         const state = await job.getState();
 
                         // FIX: Aggressive Zombie Purge
-                        // Any job ID that contains more than one '-' after 'scheduled-' is an old pattern
-                        const isOldPattern = job.id.startsWith('scheduled-') && job.id.split('-').length > 2;
+                        // Any job ID that contains a dashboard 'scheduled-' pattern is removed
+                        const isOldPattern = job.id.startsWith('scheduled-') && job.id.split('-').length > 1;
 
                         if (state === 'active') {
                             console.log(`   ⚠️ Skipping active job ${job.id}`);
@@ -388,8 +388,8 @@ class SchedulerService {
 
         console.log(`⏱️ Sync scheduling ${monitor.name}: Next check in ${Math.round(intervalMs / 1000)}s`);
 
-        // Add a delayed job for the next check using Deterministic Job ID (Phase 7 Fix)
-        const scheduledJobId = `scheduled-${monitor._id.toString()}`;
+        // Add a delayed job for the next check using Unique Job ID
+        const scheduledJobId = `scheduled-${monitor._id.toString()}-${Date.now()}`;
 
         await this.queue.add('check', {
             monitorId: monitor._id.toString(),
@@ -649,8 +649,8 @@ class SchedulerService {
                 console.log(`🔄 Attempting to reschedule ${updatedMonitor.name} in ${updatedMonitor.interval}m...`);
 
                 try {
-                    // FIX: Deterministic Job ID to prevent "Reschedule Zombie" jobs
-                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}`;
+                    // FIX: Unique Job ID to prevent "Reschedule Zombie" jobs
+                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}-${Date.now()}`;
 
                     // RETRY LOOP: Rescheduling is critical to the monitor's lifecycle.
                     // If Redis times out here, the monitor "stops" until auto-healed.

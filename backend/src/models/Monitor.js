@@ -25,7 +25,7 @@ const monitorSchema = new mongoose.Schema({
     interval: {
         type: Number,
         default: 5, // minutes
-        min: [5, 'Monitoring interval must be at least 5 minutes to prevent resource exhaustion'],
+        min: [1, 'Monitoring interval must be at least 1 minute'],
         max: 1440
     },
     timeout: {
