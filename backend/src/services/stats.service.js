@@ -164,7 +164,7 @@ class StatsService {
 
             // Calculate overall average uptime using persisted fields (Phase 11: Audit Fix)
             const overallUptime = totalMonitors > 0
-                ? parseFloat((monitors.reduce((acc, m) => acc + (m.uptimePercentage || 100), 0) / totalMonitors).toFixed(2))
+                ? parseFloat((monitors.reduce((acc, m) => acc + (m.uptimePercentage ?? 100), 0) / totalMonitors).toFixed(2))
                 : 100;
 
             const monitorIds = monitors.map(m => m._id);
