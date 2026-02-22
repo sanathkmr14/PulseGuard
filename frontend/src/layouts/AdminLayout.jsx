@@ -110,6 +110,7 @@ const AdminLayout = () => {
                             <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white text-sm font-medium border border-slate-600">
                                 {user?.name?.[0]?.toUpperCase() || 'A'}
                             </div>
+                            <span className="text-sm text-gray-300 font-medium hidden xs:block">{user?.name}</span>
                         </button>
 
                         {userMenuOpen && (
