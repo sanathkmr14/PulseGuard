@@ -359,7 +359,7 @@ const AdminUserDetail = () => {
                                     </div>
                                     {/* Pagination Controls */}
                                     {monitorsPagination.pages > 1 && (
-                                        <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-800">
+                                        <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                                             <div className="text-sm text-slate-500">
                                                 Page {monitorsPagination.current} of {monitorsPagination.pages} ({monitorsPagination.total} items)
                                             </div>
@@ -434,7 +434,7 @@ const AdminUserDetail = () => {
                                             ))}
                                             {/* Pagination Controls */}
                                             {incidentsPagination.pages > 1 && (
-                                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-800">
+                                                <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                                                     <div className="text-sm text-slate-500">
                                                         Page {incidentsPagination.current} of {incidentsPagination.pages} ({incidentsPagination.total} items)
                                                     </div>

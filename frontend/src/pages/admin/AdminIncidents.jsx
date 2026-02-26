@@ -219,7 +219,7 @@ const AdminIncidents = () => {
                 </div>
 
                 {/* Pagination */}
-                <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between">
+                <div className="px-6 py-4 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                     <div className="text-sm text-slate-400">
                         Showing page <span className="font-medium text-white">{pagination.page}</span> of <span className="font-medium text-white">{pagination.pages}</span>
                         <span className="ml-2 opacity-50">({pagination.total} total)</span>

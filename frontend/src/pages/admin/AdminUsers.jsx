@@ -145,8 +145,8 @@ const AdminUsers = () => {
 
                 {/* Pagination Controls */}
                 {pagination.pages > 1 && (
-                    <div className="border-t border-slate-700 bg-slate-800/30 px-6 py-4 flex items-center justify-between">
-                        <div className="text-sm text-slate-400">
+                    <div className="border-t border-slate-700 bg-slate-800/30 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="text-sm text-slate-400 text-center sm:text-left">
                             Showing page <span className="font-semibold text-white">{pagination.current}</span> of <span className="font-semibold text-white">{pagination.pages}</span>
                             <span className="ml-2 opacity-60">({pagination.total} total)</span>
                         </div>
