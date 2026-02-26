@@ -42,9 +42,12 @@ adminInstance.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Handle auth errors - redirect to login if unauthorized
-        if (error.response?.status === 401) {
+        // Handle auth errors - redirect to login if unauthorized or forbidden (banned)
+        if (error.response?.status === 401 || error.response?.status === 403) {
             localStorage.removeItem('token');
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(error);
     }

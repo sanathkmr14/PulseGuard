@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
                         const response = await authAPI.getMe();
                         setUser(response.data.data);
                     } catch (err) {
-                        if (err.response?.status === 401) {
+                        if (err.response?.status === 401 || err.response?.status === 403) {
                             localStorage.removeItem('token');
                             setUser(null);
                         } else if (!err.response && retries > 0) {
