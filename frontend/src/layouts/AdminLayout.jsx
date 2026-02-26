@@ -165,9 +165,9 @@ const AdminLayout = () => {
                         <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white font-semibold text-sm border border-slate-600">
                             {user?.name?.[0]?.toUpperCase() || 'A'}
                         </div>
-                        {/* Added: Show name on mobile header too */}
-                        <span className="text-sm text-slate-300 font-medium hidden sm:block">{user?.name}</span>
-                        <svg className="w-4 h-4 text-slate-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {/* Show name on mobile header too, truncated for space */}
+                        <span className="text-sm text-slate-300 font-medium truncate max-w-[100px] sm:max-w-none">{user?.name}</span>
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
