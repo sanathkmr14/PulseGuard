@@ -144,36 +144,34 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {pagination.pages > 1 && (
-                    <div className="border-t border-slate-700 bg-slate-800/30 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="text-sm text-slate-400 text-center sm:text-left">
-                            Showing page <span className="font-semibold text-white">{pagination.current}</span> of <span className="font-semibold text-white">{pagination.pages}</span>
-                            <span className="ml-2 opacity-60">({pagination.total} total)</span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => fetchUsers(pagination.current - 1)}
-                                disabled={pagination.current === 1}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === 1
-                                    ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
-                                    : 'bg-slate-700 hover:bg-slate-600 text-white hover:shadow-lg'
-                                    }`}
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={() => fetchUsers(pagination.current + 1)}
-                                disabled={pagination.current === pagination.pages}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === pagination.pages
-                                    ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
-                                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                                    }`}
-                            >
-                                Next
-                            </button>
-                        </div>
+                <div className="border-t border-slate-700 bg-slate-800/30 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-sm text-slate-400 text-center sm:text-left">
+                        Showing page <span className="font-semibold text-white">{pagination.current}</span> of <span className="font-semibold text-white">{pagination.pages}</span>
+                        <span className="ml-2 opacity-60">({pagination.total} total)</span>
                     </div>
-                )}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => fetchUsers(pagination.current - 1)}
+                            disabled={pagination.current === 1}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === 1
+                                ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+                                : 'bg-slate-700 hover:bg-slate-600 text-white hover:shadow-lg'
+                                }`}
+                        >
+                            Previous
+                        </button>
+                        <button
+                            onClick={() => fetchUsers(pagination.current + 1)}
+                            disabled={pagination.current === pagination.pages}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === pagination.pages
+                                ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
+                                }`}
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

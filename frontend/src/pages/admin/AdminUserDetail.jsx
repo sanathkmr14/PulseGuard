@@ -358,29 +358,27 @@ const AdminUserDetail = () => {
                                         </table>
                                     </div>
                                     {/* Pagination Controls */}
-                                    {monitorsPagination.pages > 1 && (
-                                        <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                                            <div className="text-sm text-slate-500">
-                                                Page {monitorsPagination.current} of {monitorsPagination.pages} ({monitorsPagination.total} items)
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setMonitorsPage(old => Math.max(old - 1, 1))}
-                                                    disabled={monitorsPage === 1}
-                                                    className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                >
-                                                    Previous
-                                                </button>
-                                                <button
-                                                    onClick={() => setMonitorsPage(old => Math.min(old + 1, monitorsPagination.pages))}
-                                                    disabled={monitorsPage === monitorsPagination.pages}
-                                                    className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                >
-                                                    Next
-                                                </button>
-                                            </div>
+                                    <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+                                        <div className="text-sm text-slate-500">
+                                            Page {monitorsPagination.current} of {monitorsPagination.pages} ({monitorsPagination.total} items)
                                         </div>
-                                    )}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setMonitorsPage(old => Math.max(old - 1, 1))}
+                                                disabled={monitorsPage === 1}
+                                                className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                onClick={() => setMonitorsPage(old => Math.min(old + 1, monitorsPagination.pages))}
+                                                disabled={monitorsPage === monitorsPagination.pages}
+                                                className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -433,29 +431,27 @@ const AdminUserDetail = () => {
                                                 </div>
                                             ))}
                                             {/* Pagination Controls */}
-                                            {incidentsPagination.pages > 1 && (
-                                                <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                                                    <div className="text-sm text-slate-500">
-                                                        Page {incidentsPagination.current} of {incidentsPagination.pages} ({incidentsPagination.total} items)
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => setIncidentsPage(old => Math.max(old - 1, 1))}
-                                                            disabled={incidentsPage === 1}
-                                                            className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                        >
-                                                            Previous
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setIncidentsPage(old => Math.min(old + 1, incidentsPagination.pages))}
-                                                            disabled={incidentsPage === incidentsPagination.pages}
-                                                            className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                        >
-                                                            Next
-                                                        </button>
-                                                    </div>
+                                            <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+                                                <div className="text-sm text-slate-500">
+                                                    Page {incidentsPagination.current} of {incidentsPagination.pages} ({incidentsPagination.total} items)
                                                 </div>
-                                            )}
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => setIncidentsPage(old => Math.max(old - 1, 1))}
+                                                        disabled={incidentsPage === 1}
+                                                        className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
+                                                    >
+                                                        Previous
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setIncidentsPage(old => Math.min(old + 1, incidentsPagination.pages))}
+                                                        disabled={incidentsPage === incidentsPagination.pages}
+                                                        className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </>
                                     ) : (
                                         <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
