@@ -1295,7 +1295,7 @@ class HealthStateService {
                     try {
                         await this.redis.xadd(
                             'monitor_updates_stream',
-                            'MAXLEN', '~', 10000,
+                            'MAXLEN', '~', 1000,
                             '*',
                             'userId', monitor.user._id.toString(),
                             'monitorId', monitor._id.toString(),

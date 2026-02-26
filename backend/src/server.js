@@ -149,11 +149,14 @@ async function startStreamProcessing() {
 
                                 // Acknowledge message processed
                                 await redisSubscriber.xack(STREAM_KEY, CONSUMER_GROUP, id);
+                                // Delete message to save memory
+                                await redisSubscriber.xdel(STREAM_KEY, id);
                             } catch (parseErr) {
                                 console.error('Error parsing stream message:', parseErr, messageData);
                                 // Ack anyway to not get stuck? Or move to DLQ? 
                                 // For now, Ack to avoid loops
                                 await redisSubscriber.xack(STREAM_KEY, CONSUMER_GROUP, id);
+                                await redisSubscriber.xdel(STREAM_KEY, id);
                             }
                         }
                     }

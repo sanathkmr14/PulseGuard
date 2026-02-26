@@ -401,7 +401,7 @@ class SchedulerService {
             delay: intervalMs,
             attempts: 1,
             removeOnComplete: true,
-            removeOnFail: { age: 604800 }
+            removeOnFail: { age: 86400 } // Keep failed jobs for 1 day, up from 7 days
         });
     }
 
@@ -441,7 +441,7 @@ class SchedulerService {
                 jobId: immediateJobId, // Enforce Singleton Job ID
                 priority: 100,         // High priority
                 removeOnComplete: true,
-                removeOnFail: { age: 604800 }
+                removeOnFail: { age: 86400 } // Keep failed jobs for 1 day
             });
 
             console.log(`   ⚡ Immediate check queued for ${monitor.name} (Job ID: ${immediateJobId})`);
@@ -666,7 +666,7 @@ class SchedulerService {
                                 delay: intervalMs,
                                 attempts: 1,
                                 removeOnComplete: true,
-                                removeOnFail: { age: 604800 }
+                                removeOnFail: { age: 86400 } // Keep failed jobs for 1 day
                             });
                             schedSuccess = true;
                         } catch (schedErr) {
