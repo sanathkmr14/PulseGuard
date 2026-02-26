@@ -153,20 +153,14 @@ const AdminUsers = () => {
                         <button
                             onClick={() => fetchUsers(pagination.current - 1)}
                             disabled={pagination.current === 1}
-                            className={`flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium transition-all ${pagination.current === 1
-                                ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
-                                : 'bg-slate-700 hover:bg-slate-600 text-white hover:shadow-lg'
-                                }`}
+                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
                         >
                             Previous
                         </button>
                         <button
                             onClick={() => fetchUsers(pagination.current + 1)}
                             disabled={pagination.current === pagination.pages}
-                            className={`flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium transition-all ${pagination.current === pagination.pages
-                                ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
-                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
-                                }`}
+                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
                         >
                             Next
                         </button>
