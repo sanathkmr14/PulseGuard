@@ -190,14 +190,12 @@ const AdminDashboard = () => {
 
                 {/* Main Chart Section */}
                 <div className="lg:col-span-3 bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl relative z-20">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-4">
-                            <h3 className="text-lg font-bold text-white tracking-wide">System Activity</h3>
-
-
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full md:w-auto">
+                            <h3 className="text-lg font-bold text-white tracking-wide shrink-0">System Activity</h3>
 
                             {/* Searchable User Filter */}
-                            <div className="relative w-64 ml-4">
+                            <div className="relative w-full sm:w-64 sm:ml-4">
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -266,18 +264,18 @@ const AdminDashboard = () => {
                                 )}
                             </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2 shrink-0">
                             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50 text-xs">
-                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
                                 <span className="text-slate-400">Incidents</span>
                             </div>
                             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/50 border border-slate-700/50 text-xs">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
                                 <span className="text-slate-400">Resolved</span>
                             </div>
                         </div>
                     </div>
-                    <div className="h-[300px] w-full">
+                    <div className="h-[300px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={stats?.systemActivity || []}>
                                 <defs>
