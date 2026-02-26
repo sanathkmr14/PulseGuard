@@ -249,22 +249,22 @@ const AdminUserDetail = () => {
                         </div>
                     </div>
 
-                    <div className="flex gap-3 w-full md:w-auto">
+                    <div className="flex flex-wrap gap-3 w-full md:w-auto justify-start md:justify-end">
                         <button
                             onClick={handleImpersonate}
-                            className="flex-1 md:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20"
+                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20"
                         >
                             Login as User
                         </button>
                         <button
                             onClick={handleResetPassword}
-                            className="flex-1 md:flex-none px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-lg text-sm font-medium transition-colors shadow-sm"
                         >
                             Reset Password
                         </button>
                         <button
                             onClick={handleBanToggle}
-                            className={`hidden md:block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${user.isBanned
+                            className={`flex-1 min-w-[120px] md:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${user.isBanned
                                 ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20'
                                 : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
                                 }`}
@@ -273,11 +273,12 @@ const AdminUserDetail = () => {
                         </button>
                         <button
                             onClick={handleDelete}
-                            className="flex-1 md:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-red-500/20"
+                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-red-500/20"
                         >
                             Delete User
                         </button>
                     </div>
+
                 </div>
             </div>
 
@@ -327,10 +328,10 @@ const AdminUserDetail = () => {
                                                         <td className="px-4 py-4 text-slate-400 font-mono text-xs max-w-[200px] truncate">{monitor.url}</td>
                                                         <td className="px-4 py-4">
                                                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${!monitor.isActive ? 'bg-slate-700 text-slate-400' :
-                                                                    monitor.status === 'up' ? 'bg-emerald-500/10 text-emerald-500' :
-                                                                        monitor.status === 'down' ? 'bg-red-500/10 text-red-500' :
-                                                                            monitor.status === 'degraded' ? 'bg-amber-500/10 text-amber-500' :
-                                                                                'bg-slate-700 text-slate-400'
+                                                                monitor.status === 'up' ? 'bg-emerald-500/10 text-emerald-500' :
+                                                                    monitor.status === 'down' ? 'bg-red-500/10 text-red-500' :
+                                                                        monitor.status === 'degraded' ? 'bg-amber-500/10 text-amber-500' :
+                                                                            'bg-slate-700 text-slate-400'
                                                                 }`}>
                                                                 {!monitor.isActive ? 'PAUSED' : (monitor.status || 'UNKNOWN').toUpperCase()}
                                                             </span>
@@ -404,14 +405,15 @@ const AdminUserDetail = () => {
                                                             </div>
                                                             <div>
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className={`text-sm font-bold uppercase tracking-wider ${inc.status === 'resolved' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    <span className={`text-sm font-bold uppercase tracking-wider shrink-0 ${inc.status === 'resolved' ? 'text-emerald-400' : 'text-red-400'}`}>
                                                                         {inc.status}
                                                                     </span>
-                                                                    <span className="text-slate-600 text-xs">•</span>
-                                                                    <span className="text-slate-300 font-medium text-sm">
+                                                                    <span className="text-slate-600 text-xs shrink-0">•</span>
+                                                                    <span className="text-slate-300 font-medium text-sm break-all">
                                                                         {inc.monitor?.name || 'Unknown Monitor'} ({inc.monitor?.url || 'No URL'})
                                                                     </span>
                                                                 </div>
+
                                                                 <p className="text-xs text-slate-500 mt-0.5">
                                                                     Started: {new Date(inc.startTime).toLocaleString()}
                                                                     {inc.endTime && ` • Resolved: ${new Date(inc.endTime).toLocaleString()}`}
