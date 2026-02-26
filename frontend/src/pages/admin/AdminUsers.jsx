@@ -149,11 +149,11 @@ const AdminUsers = () => {
                         Showing page <span className="font-semibold text-white">{pagination.current}</span> of <span className="font-semibold text-white">{pagination.pages}</span>
                         <span className="ml-2 opacity-60">({pagination.total} total)</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                         <button
                             onClick={() => fetchUsers(pagination.current - 1)}
                             disabled={pagination.current === 1}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === 1
+                            className={`flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium transition-all ${pagination.current === 1
                                 ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
                                 : 'bg-slate-700 hover:bg-slate-600 text-white hover:shadow-lg'
                                 }`}
@@ -163,7 +163,7 @@ const AdminUsers = () => {
                         <button
                             onClick={() => fetchUsers(pagination.current + 1)}
                             disabled={pagination.current === pagination.pages}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${pagination.current === pagination.pages
+                            className={`flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium transition-all ${pagination.current === pagination.pages
                                 ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
                                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'
                                 }`}
