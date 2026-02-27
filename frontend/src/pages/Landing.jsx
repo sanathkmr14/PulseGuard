@@ -55,7 +55,7 @@ const Landing = () => {
                         <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Everything you need</h2>
                         <p className="text-gray-500">Simple, powerful monitoring tools</p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="flex flex-wrap justify-center gap-6">
                         {[
                             {
                                 icon: (
@@ -104,7 +104,7 @@ const Landing = () => {
                             },
 
                         ].map((item, i) => (
-                            <div key={i} className="p-6 bg-gray-900/50 border border-gray-800/50 rounded-2xl hover:border-gray-700/50 transition-colors">
+                            <div key={i} className="w-full md:w-[calc(33.333%-16px)] p-6 bg-gray-900/50 border border-gray-800/50 rounded-2xl hover:border-gray-700/50 transition-colors">
                                 <div className="w-11 h-11 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 mb-4">
                                     {item.icon}
                                 </div>
