@@ -119,16 +119,16 @@ const Landing = () => {
             {/* Stats */}
             <section className="py-20 px-6 border-t border-gray-800/50">
                 <div className="max-w-4xl mx-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                         {[
                             { value: '99.99%', label: 'Uptime' },
                             { value: '50ms', label: 'Avg Response' },
                             { value: '10K+', label: 'Users' },
                             { value: '1M+', label: 'Daily Checks' },
                         ].map((stat, i) => (
-                            <div key={i}>
-                                <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-                                <div className="text-sm text-gray-500">{stat.label}</div>
+                            <div key={i} className="p-6 bg-gray-900/50 border border-gray-800/50 rounded-2xl hover:border-gray-700/50 transition-colors flex flex-col items-center justify-center">
+                                <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
+                                <div className="text-sm font-medium text-indigo-400">{stat.label}</div>
                             </div>
                         ))}
                     </div>
