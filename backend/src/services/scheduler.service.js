@@ -70,7 +70,14 @@ class SchedulerService {
         // Shared state
         this.nodeId = Math.random().toString(36).substring(2, 6).toUpperCase();
         this.redis = lockConnection; // Master lock operations
-        this.queue = new Queue(QUEUE_NAME, { connection: queueConnection });
+        this.queue = new Queue(QUEUE_NAME, {
+            connection: queueConnection,
+            streams: {
+                events: {
+                    maxLen: 1000 // Cap event history to reduce memory usage (default is 10000)
+                }
+            }
+        });
         this.worker = null;
         this.isMaster = false;
         this.hasInitialSync = false;
