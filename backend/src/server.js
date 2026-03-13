@@ -246,7 +246,8 @@ app.get('/health', async (req, res) => {
         const overallStatus = (isDbHealthy && schedulerHealthy) ? 'UP' : 'DEGRADED';
 
         if (overallStatus === 'DEGRADED') {
-            console.warn(`[Health-Check] Returning 503 DEGRADED. DB: ${dbStatus}, Scheduler: ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
+            const schedulerState = schedulerService.isMaster ? 'Master' : 'Standby';
+            console.warn(`[Health-Check] Returning 503 DEGRADED. DB: ${dbStatus}, Scheduler (${schedulerState}): ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
         }
 
         res.status(isDbHealthy && schedulerHealthy ? 200 : 503).json({

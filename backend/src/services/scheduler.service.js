@@ -123,6 +123,7 @@ class SchedulerService {
         this.lockInterval = setInterval(() => this.tryAcquireLock(), LOCK_TTL / 2);
 
         console.log(`✅ [Node: ${this.nodeId}] Scheduler Initialized. Is Master? ${this.isMaster}`);
+        this.isReady = true; // Mark as ready after base initialization
 
         // Consolidate initialization and sync logic to prevent race conditions
         // In local/dev environments, we often want to become master immediately
