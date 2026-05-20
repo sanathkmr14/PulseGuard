@@ -4,6 +4,7 @@ import { SocketProvider } from './context/SocketContext';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 
 // Pages
 import Landing from './pages/Landing';
@@ -102,6 +103,7 @@ function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             <SpeedInsights />
+            <Analytics />
         </SocketProvider>
     );
 }

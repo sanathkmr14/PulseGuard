@@ -331,16 +331,16 @@ const startServer = async () => {
         // Connect to database
         await connectDB();
 
-        // Start HTTP server
-        httpServer.listen(env.PORT, () => {
-            console.log(`Server running on port ${env.PORT}`);
-        });
-
         // Initialize Redis Stream Consumer (Reliable Event Processing)
         initRedisStreamConsumer();
 
         // Initialize Scheduler
         await schedulerService.initialize();
+
+        // Start HTTP server AFTER dependencies are ready
+        httpServer.listen(env.PORT, () => {
+            console.log(`Server running on port ${env.PORT}`);
+        });
 
     } catch (error) {
         console.error('Server startup error:', error);
