@@ -52,17 +52,19 @@ export const getDashboardStats = async (req, res) => {
     try {
         const { userId } = req.query;
         let monitorFilter = {};
+        let monitorUserFilter = {};
 
-        // If filtering by user, we need to limit the scope of Incidents
+        // If filtering by user, we need to limit the scope of Incidents and Monitors
         if (userId) {
             const userMonitors = await Monitor.find({ user: userId }).select('_id');
             const monitorIds = userMonitors.map(m => m._id);
             monitorFilter = { monitor: { $in: monitorIds } };
+            monitorUserFilter = { user: userId };
         }
 
         const totalUsers = await User.countDocuments({ role: 'user' });
-        const totalMonitors = await Monitor.countDocuments();
-        const activeMonitors = await Monitor.countDocuments({ isActive: true });
+        const totalMonitors = await Monitor.countDocuments(monitorUserFilter);
+        const activeMonitors = await Monitor.countDocuments({ isActive: true, ...monitorUserFilter });
 
         // Incidents in last 24h
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -100,8 +102,13 @@ export const getDashboardStats = async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
 
-        // Monitor Type Distribution - Global or User? Let's keep global for now as user filter is usually for specific incident debugging.
+        // Monitor Type Distribution - Global or User?
+        const matchStage = {};
+        if (userId) {
+            matchStage.user = new mongoose.Types.ObjectId(userId);
+        }
         const monitorDistribution = await Monitor.aggregate([
+            { $match: matchStage },
             {
                 $group: {
                     _id: "$type",
@@ -171,8 +178,8 @@ export const getDashboardStats = async (req, res) => {
             .limit(5)
             .select('name email createdAt');
 
-        // Recent Critical Alerts (Incidents) - Showing ALL active incidents to match the count
-        const recentCriticalAlerts = await Incident.find({ status: 'ongoing' })
+        // Recent Critical Alerts (Incidents) - Showing active incidents for the filtered monitors if user selected, or all if global
+        const recentCriticalAlerts = await Incident.find({ status: 'ongoing', ...monitorFilter })
             .sort({ createdAt: -1 })
             .limit(10) // Increased limit to ensure visibility
             .populate({
@@ -213,7 +220,7 @@ export const getDashboardStats = async (req, res) => {
 // @access  Admin
 export const getUsers = async (req, res) => {
     try {
-        const { search, limit } = req.query;
+        const { search, limit = 50, page = 1 } = req.query;
         let query = { role: 'user' };
 
         if (search) {
@@ -224,15 +231,27 @@ export const getUsers = async (req, res) => {
             ];
         }
 
-        // Default limit 50, but allow override. 0 means all (be careful).
         const limitVal = parseInt(limit) || 50;
+        const pageVal = parseInt(page) || 1;
+        const skipVal = (pageVal - 1) * limitVal;
 
         const users = await User.find(query)
             .select('-password')
             .sort('-createdAt')
+            .skip(skipVal)
             .limit(limitVal);
 
-        res.json({ success: true, data: users });
+        const total = await User.countDocuments(query);
+
+        res.json({
+            success: true,
+            data: users,
+            pagination: {
+                current: pageVal,
+                pages: Math.ceil(total / limitVal),
+                total
+            }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -453,15 +472,17 @@ export const getMonitorLogs = async (req, res) => {
 export const getUserMonitors = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const skip = (page - 1) * limit;
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 20;
+        const skip = (pageNum - 1) * limitNum;
 
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         const monitors = await Monitor.find({ user: user._id })
             .sort('-createdAt')
-            .skip(parseInt(skip))
-            .limit(parseInt(limit));
+            .skip(skip)
+            .limit(limitNum);
 
         const total = await Monitor.countDocuments({ user: user._id });
 
@@ -469,8 +490,8 @@ export const getUserMonitors = async (req, res) => {
             success: true,
             data: monitors,
             pagination: {
-                current: parseInt(page),
-                pages: Math.ceil(total / limit),
+                current: pageNum,
+                pages: Math.ceil(total / limitNum),
                 total
             }
         });
@@ -485,7 +506,9 @@ export const getUserMonitors = async (req, res) => {
 export const getUserIncidents = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
-        const skip = (page - 1) * limit;
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 20;
+        const skip = (pageNum - 1) * limitNum;
 
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
@@ -496,8 +519,8 @@ export const getUserIncidents = async (req, res) => {
 
         const incidents = await Incident.find({ monitor: { $in: monitorIds } })
             .sort('-createdAt')
-            .skip(parseInt(skip))
-            .limit(parseInt(limit))
+            .skip(skip)
+            .limit(limitNum)
             .populate('monitor', 'name url');
 
         const total = await Incident.countDocuments({ monitor: { $in: monitorIds } });
@@ -506,8 +529,8 @@ export const getUserIncidents = async (req, res) => {
             success: true,
             data: incidents,
             pagination: {
-                current: parseInt(page),
-                pages: Math.ceil(total / limit),
+                current: pageNum,
+                pages: Math.ceil(total / limitNum),
                 total
             }
         });
