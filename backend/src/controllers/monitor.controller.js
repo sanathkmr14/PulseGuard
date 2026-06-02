@@ -292,7 +292,7 @@ export const deleteMonitor = async (req, res) => {
 export const getMonitorStats = async (req, res) => {
     try {
         const monitor = await Monitor.findById(req.params.id);
-        if (!monitor || monitor.user.toString() !== req.user._id.toString()) {
+        if (!monitor || (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
@@ -300,17 +300,18 @@ export const getMonitorStats = async (req, res) => {
             ? ((monitor.successfulChecks / monitor.totalChecks) * 100).toFixed(2)
             : 0;
 
-        const recentChecks = await Check.find({ monitor: monitor._id })
-            .sort({ timestamp: -1 })
-            .limit(100);
+        const [recentChecks, incidentCount, ongoingIncidents] = await Promise.all([
+            Check.find({ monitor: monitor._id })
+                .sort({ timestamp: -1 })
+                .limit(100),
+            Incident.countDocuments({ monitor: monitor._id }),
+            Incident.countDocuments({ monitor: monitor._id, status: 'ongoing' })
+        ]);
 
         const checksWithResponseTime = recentChecks.filter(check => check.responseTime !== null && check.responseTime !== undefined);
         const avgResponseTime = checksWithResponseTime.length > 0
             ? checksWithResponseTime.reduce((sum, check) => sum + check.responseTime, 0) / checksWithResponseTime.length
             : 0;
-
-        const incidentCount = await Incident.countDocuments({ monitor: monitor._id });
-        const ongoingIncidents = await Incident.countDocuments({ monitor: monitor._id, status: 'ongoing' });
 
         res.json({
             success: true,
@@ -335,7 +336,7 @@ export const getMonitorStats = async (req, res) => {
 export const getMonitorChecks = async (req, res) => {
     try {
         const monitor = await Monitor.findById(req.params.id);
-        if (!monitor || monitor.user.toString() !== req.user._id.toString()) {
+        if (!monitor || (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
@@ -343,12 +344,13 @@ export const getMonitorChecks = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const skip = (page - 1) * limit;
 
-        const checks = await Check.find({ monitor: monitor._id })
-            .sort({ timestamp: -1 })
-            .limit(limit)
-            .skip(skip);
-
-        const total = await Check.countDocuments({ monitor: monitor._id });
+        const [checks, total] = await Promise.all([
+            Check.find({ monitor: monitor._id })
+                .sort({ timestamp: -1 })
+                .limit(limit)
+                .skip(skip),
+            Check.countDocuments({ monitor: monitor._id })
+        ]);
 
         res.json({
             success: true,

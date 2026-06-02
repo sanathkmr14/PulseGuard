@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import os from 'os';
 import jwt from 'jsonwebtoken';
 import enhancedAlertService from '../services/enhanced-alert.service.js';
+import redisClient from '../config/redis-cache.js';
 
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '12h' }); // Admin token 12h
@@ -51,6 +52,20 @@ export const adminLogin = async (req, res) => {
 export const getDashboardStats = async (req, res) => {
     try {
         const { userId } = req.query;
+        const cacheKey = userId ? `admin:stats:${userId}` : 'admin:stats:global';
+
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) {
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData)
+                });
+            }
+        } catch (cacheErr) {
+            console.error('[Redis Cache Get Error]:', cacheErr.message);
+        }
+
         let monitorFilter = {};
         let monitorUserFilter = {};
 
@@ -62,96 +77,109 @@ export const getDashboardStats = async (req, res) => {
             monitorUserFilter = { user: userId };
         }
 
-        const totalUsers = await User.countDocuments({ role: 'user' });
-        const totalMonitors = await Monitor.countDocuments(monitorUserFilter);
-        const activeMonitors = await Monitor.countDocuments({ isActive: true, ...monitorUserFilter });
-
-        // Incidents in last 24h
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        // Apply monitorFilter to incident counts if filtering
-        const incidents24h = await Incident.countDocuments({
-            createdAt: { $gte: oneDayAgo },
-            ...monitorFilter
-        });
-
-        // Active Critical Incidents (DOWN)
-        const activeIncidents = await Incident.countDocuments({
-            status: 'ongoing',
-            ...monitorFilter
-        });
-
-        const systemHealth = activeIncidents === 0 ? 'Operational' : 'Degraded';
-
-        // Growth Stats (Last 30 Days) - Growth stats are global (user signups), usually not filtered by user selection? 
-        // Actually, if I select a user, I probably still want to see their specific "activity" chart, 
-        // but "Growth Stats" (user signups) doesn't make sense to filter by a single user. 
-        // We will keep high-level stats global unless specifically chart-related?
-        // Let's keep cards global (Vital Signs) EXCEPT active incidents which is relevant to the user focus.
-        // Actually, let's keep it simple: The UI only requests filtering for the Chart. 
-        // But the API returns everything. Let's filter what we can logically filter.
-
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const growthStats = await User.aggregate([
-            { $match: { createdAt: { $gte: thirtyDaysAgo }, role: 'user' } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // Monitor Type Distribution - Global or User?
+        
         const matchStage = {};
         if (userId) {
             matchStage.user = new mongoose.Types.ObjectId(userId);
         }
-        const monitorDistribution = await Monitor.aggregate([
-            { $match: matchStage },
-            {
-                $group: {
-                    _id: "$type",
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
 
-        // System Activity Chart (Last 7 Days)
         const last7Days = new Date();
         last7Days.setDate(last7Days.getDate() - 6);
         last7Days.setHours(0, 0, 0, 0);
 
-        const incidentsRaw = await Incident.aggregate([
-            {
-                $match: {
-                    createdAt: { $gte: last7Days },
-                    ...monitorFilter
+        // Run all independent DB queries in parallel
+        const [
+            totalUsers,
+            totalMonitors,
+            activeMonitors,
+            incidents24h,
+            activeIncidents,
+            growthStats,
+            monitorDistribution,
+            incidentsRaw,
+            resolvedRaw,
+            recentSignups,
+            recentCriticalAlerts
+        ] = await Promise.all([
+            User.countDocuments({ role: 'user' }),
+            Monitor.countDocuments(monitorUserFilter),
+            Monitor.countDocuments({ isActive: true, ...monitorUserFilter }),
+            Incident.countDocuments({
+                createdAt: { $gte: oneDayAgo },
+                ...monitorFilter
+            }),
+            Incident.countDocuments({
+                status: 'ongoing',
+                ...monitorFilter
+            }),
+            User.aggregate([
+                { $match: { createdAt: { $gte: thirtyDaysAgo }, role: 'user' } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                        count: { $sum: 1 }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ]),
+            Monitor.aggregate([
+                { $match: matchStage },
+                {
+                    $group: {
+                        _id: "$type",
+                        count: { $sum: 1 }
+                    }
                 }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    count: { $sum: 1 }
+            ]),
+            Incident.aggregate([
+                {
+                    $match: {
+                        createdAt: { $gte: last7Days },
+                        ...monitorFilter
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                        count: { $sum: 1 }
+                    }
                 }
-            }
+            ]),
+            Incident.aggregate([
+                {
+                    $match: {
+                        endTime: { $gte: last7Days },
+                        status: 'resolved',
+                        ...monitorFilter
+                    }
+                },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: "%Y-%m-%d", date: "$endTime" } },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            User.find({ role: 'user' })
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .select('name email createdAt'),
+            Incident.find({ status: 'ongoing', ...monitorFilter })
+                .sort({ createdAt: -1 })
+                .limit(10)
+                .populate({
+                    path: 'monitor',
+                    select: 'name type url user',
+                    populate: {
+                        path: 'user',
+                        select: 'name email notificationPreferences'
+                    }
+                })
         ]);
 
-        const resolvedRaw = await Incident.aggregate([
-            {
-                $match: {
-                    endTime: { $gte: last7Days },
-                    status: 'resolved',
-                    ...monitorFilter
-                }
-            },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$endTime" } },
-                    count: { $sum: 1 }
-                }
-            }
-        ]);
+        const systemHealth = activeIncidents === 0 ? 'Operational' : 'Degraded';
 
         // Merge and Format for Chart
         const systemActivity = [];
@@ -172,42 +200,31 @@ export const getDashboardStats = async (req, res) => {
             });
         }
 
-        // Recent Signups
-        const recentSignups = await User.find({ role: 'user' })
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .select('name email createdAt');
+        const responseData = {
+            users: totalUsers,
+            monitors: {
+                total: totalMonitors,
+                active: activeMonitors
+            },
+            incidents24h,
+            activeIncidents,
+            systemHealth,
+            growthStats,
+            monitorDistribution,
+            systemActivity,
+            recentSignups,
+            recentCriticalAlerts
+        };
 
-        // Recent Critical Alerts (Incidents) - Showing active incidents for the filtered monitors if user selected, or all if global
-        const recentCriticalAlerts = await Incident.find({ status: 'ongoing', ...monitorFilter })
-            .sort({ createdAt: -1 })
-            .limit(10) // Increased limit to ensure visibility
-            .populate({
-                path: 'monitor',
-                select: 'name type url user',
-                populate: {
-                    path: 'user',
-                    select: 'name email notificationPreferences'
-                }
-            });
+        try {
+            await redisClient.set(cacheKey, JSON.stringify(responseData), 'EX', 5);
+        } catch (cacheErr) {
+            console.error('[Redis Cache Set Error]:', cacheErr.message);
+        }
 
         res.json({
             success: true,
-            data: {
-                users: totalUsers,
-                monitors: {
-                    total: totalMonitors,
-                    active: activeMonitors
-                },
-                incidents24h,
-                activeIncidents,
-                systemHealth,
-                growthStats,
-                monitorDistribution,
-                systemActivity,
-                recentSignups,
-                recentCriticalAlerts
-            }
+            data: responseData
         });
     } catch (error) {
         console.error('Admin Stats Error:', error);
@@ -262,10 +279,12 @@ export const getUsers = async (req, res) => {
 // @access  Admin
 export const getUserDetails = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        const [user, monitors] = await Promise.all([
+            User.findById(req.params.id).select('-password'),
+            Monitor.find({ user: req.params.id }).sort('-createdAt')
+        ]);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        const monitors = await Monitor.find({ user: user._id }).sort('-createdAt');
         const incidents = await Incident.find({ monitor: { $in: monitors.map(m => m._id) } }).sort('-createdAt').limit(10);
 
         res.json({
@@ -510,20 +529,23 @@ export const getUserIncidents = async (req, res) => {
         const limitNum = parseInt(limit) || 20;
         const skip = (pageNum - 1) * limitNum;
 
-        const user = await User.findById(req.params.id);
+        const [user, monitors] = await Promise.all([
+            User.findById(req.params.id),
+            Monitor.find({ user: req.params.id }).select('_id')
+        ]);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         // Find all monitor IDs for this user first
-        const monitors = await Monitor.find({ user: user._id }).select('_id');
         const monitorIds = monitors.map(m => m._id);
 
-        const incidents = await Incident.find({ monitor: { $in: monitorIds } })
-            .sort('-createdAt')
-            .skip(skip)
-            .limit(limitNum)
-            .populate('monitor', 'name url');
-
-        const total = await Incident.countDocuments({ monitor: { $in: monitorIds } });
+        const [incidents, total] = await Promise.all([
+            Incident.find({ monitor: { $in: monitorIds } })
+                .sort('-createdAt')
+                .skip(skip)
+                .limit(limitNum)
+                .populate('monitor', 'name url'),
+            Incident.countDocuments({ monitor: { $in: monitorIds } })
+        ]);
 
         res.json({
             success: true,
@@ -544,6 +566,19 @@ export const getUserIncidents = async (req, res) => {
 // @access  Admin
 export const getSystemHealth = async (req, res) => {
     try {
+        const cacheKey = 'admin:system:health';
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) {
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData)
+                });
+            }
+        } catch (cacheErr) {
+            console.error('[Redis Cache Get Error]:', cacheErr.message);
+        }
+
         // 1. Database Stats (MongoDB)
         let dbStats = { collections: 0, indexes: 0, uptime: 0 };
         let dbStatus = 'Disconnected';
@@ -614,39 +649,47 @@ export const getSystemHealth = async (req, res) => {
             cpuUsage: `${loadPercentage}% (System Load)`
         };
 
+        const responseData = {
+            database: {
+                status: dbStatus,
+                details: {
+                    collections: dbStats.collections,
+                    indexes: dbStats.indexes,
+                    uptime: formatUptime(dbStats.uptime)
+                }
+            },
+            queue: {
+                status: queueStatus,
+                details: queueStats
+            },
+            workers: {
+                status: workerStats.status,
+                details: {
+                    instances: workerStats.instances,
+                    cpuUsage: workerStats.cpuUsage,
+                    memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
+                }
+            },
+            system: {
+                status: 'Operational',
+                details: {
+                    platform: systemStats.platform,
+                    nodeVersion: systemStats.nodeVersion,
+                    uptime: formatUptime(systemStats.uptime)
+                }
+            },
+            alerts: await enhancedAlertService.getAlertStatistics()
+        };
+
+        try {
+            await redisClient.set(cacheKey, JSON.stringify(responseData), 'EX', 10);
+        } catch (cacheErr) {
+            console.error('[Redis Cache Set Error]:', cacheErr.message);
+        }
+
         res.json({
             success: true,
-            data: {
-                database: {
-                    status: dbStatus,
-                    details: {
-                        collections: dbStats.collections,
-                        indexes: dbStats.indexes,
-                        uptime: formatUptime(dbStats.uptime)
-                    }
-                },
-                queue: {
-                    status: queueStatus,
-                    details: queueStats
-                },
-                workers: {
-                    status: workerStats.status,
-                    details: {
-                        instances: workerStats.instances,
-                        cpuUsage: workerStats.cpuUsage,
-                        memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
-                    }
-                },
-                system: {
-                    status: 'Operational',
-                    details: {
-                        platform: systemStats.platform,
-                        nodeVersion: systemStats.nodeVersion,
-                        uptime: formatUptime(systemStats.uptime)
-                    }
-                },
-                alerts: await enhancedAlertService.getAlertStatistics()
-            }
+            data: responseData
         });
     } catch (error) {
         console.error('System Health Error:', error);

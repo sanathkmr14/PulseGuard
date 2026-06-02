@@ -303,6 +303,10 @@ console.log('\n' + '='.repeat(60));
 console.log(`Unit Tests Complete: ${passed} passed, ${failed} failed`);
 console.log('='.repeat(60));
 
-if (failed > 0) {
-    process.exit(1);
-}
+import { describe, it, expect } from '@jest/globals';
+
+describe('Monitor Service Edge Cases Suite', () => {
+    it('should pass all edge case assertions', () => {
+        expect(failed).toBe(0);
+    });
+});

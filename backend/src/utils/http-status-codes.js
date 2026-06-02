@@ -148,6 +148,7 @@ export function shouldTreatAsDown(statusCode, monitor = {}) {
     // Server errors and client errors indicate down status
     // Note: INFORMATIONAL (1xx) codes are now treated as DEGRADED (not DOWN)
     // since they indicate the server is processing but not complete
+    if (code === 429) return false;
     return category === 'SERVER_ERROR' ||
         category === 'CLIENT_ERROR' ||
         (code >= 500 && code < 600);
@@ -162,6 +163,7 @@ export function shouldTreatAsDegraded(statusCode, monitor = {}) {
 
     // INFORMATIONAL (1xx) codes indicate server is processing but not complete - treat as DEGRADED
     if (category === 'INFORMATIONAL') return true;
+    if (code === 429) return true;
 
     // 4xx errors are treated as DOWN (not DEGRADED) by shouldTreatAsDown()
     // Only 1xx responses are DEGRADED in status code classification

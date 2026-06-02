@@ -36,3 +36,7 @@ docker-compose.override.yml
 .agent
 .cursor
 .gemini
+
+# Test Reports
+COMPREHENSIVE-TESTING-SUMMARY.md
+

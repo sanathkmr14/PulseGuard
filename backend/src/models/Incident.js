@@ -134,6 +134,8 @@ incidentSchema.index({ monitor: 1, startTime: -1 });
 incidentSchema.index({ status: 1 });
 incidentSchema.index({ monitor: 1, status: 1 }); // Compound index for frequent "ongoing incident for monitor" checks
 incidentSchema.index({ createdAt: -1 }); // For "Recent Incidents" global lists
+incidentSchema.index({ status: 1, createdAt: -1 });
+incidentSchema.index({ endTime: -1, status: 1 });
 
 // Calculate duration when incident is resolved
 incidentSchema.pre('save', function (next) {

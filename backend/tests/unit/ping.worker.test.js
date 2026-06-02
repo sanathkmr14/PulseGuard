@@ -1,23 +1,26 @@
 
 // Mock child_process before importing the worker
 import { jest } from '@jest/globals';
+import { promisify } from 'util';
 
 const mockExec = jest.fn();
+mockExec[promisify.custom] = (cmd, options) => {
+    return new Promise((resolve, reject) => {
+        mockExec(cmd, options, (err, stdout, stderr) => {
+            if (err) {
+                const error = err instanceof Error ? err : new Error(err.message || String(err));
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+            } else {
+                resolve({ stdout, stderr });
+            }
+        });
+    });
+};
+
 jest.unstable_mockModule('child_process', () => ({
     exec: mockExec
-}));
-
-jest.unstable_mockModule('util', () => ({
-    promisify: (fn) => {
-        return (...args) => {
-            return new Promise((resolve, reject) => {
-                fn(...args, (err, stdout, stderr) => {
-                    if (err) reject(err);
-                    else resolve({ stdout, stderr });
-                });
-            });
-        };
-    }
 }));
 
 // Dynamic import to apply mocks

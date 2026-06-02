@@ -429,6 +429,10 @@ console.log('='.repeat(60));
 console.log(`Property Tests Complete: ${passed} passed, ${failed} failed`);
 console.log('='.repeat(60));
 
-if (failed > 0) {
-    process.exit(1);
-}
+import { describe, it, expect } from '@jest/globals';
+
+describe('BullMQ Scheduler Service Property Tests Suite', () => {
+    it('should pass all property tests', () => {
+        expect(failed).toBe(0);
+    });
+});

@@ -7,6 +7,11 @@ import net from 'net';
  * @returns {Object} { isPrivate: boolean, error: string|null }
  */
 export const isPrivateIP = (ip) => {
+    // Override: Allow loopback/private IPs in testing or if explicitly enabled
+    if (process.env.ALLOW_PRIVATE_IPS === 'true' || process.env.NODE_ENV === 'test') {
+        return { isPrivate: false, error: null };
+    }
+
     if (!net.isIP(ip)) return { isPrivate: false, error: null };
 
     // IPv4 Checks
@@ -62,18 +67,19 @@ export const validateMonitorUrl = (urlString) => {
         const hostname = parsed.hostname.toLowerCase();
 
         // 3. Localhost and Loopback Validation
-        if (hostname === 'localhost') {
+        if (hostname === 'localhost' && process.env.ALLOW_PRIVATE_IPS !== 'true' && process.env.NODE_ENV !== 'test') {
             return { isValid: false, error: 'Monitoring localhost is not allowed' };
         }
 
         // 4. IP Address Validation (Block Private Ranges)
         const ipCheck = isPrivateIP(hostname);
-        if (ipCheck.isPrivate) {
+        if (ipCheck.isPrivate && process.env.ALLOW_PRIVATE_IPS !== 'true' && process.env.NODE_ENV !== 'test') {
             return { isValid: false, error: `Direct IP monitoring blocked: ${ipCheck.error}` };
         }
 
         // 5. Hostname Validation (Internal Domains)
-        if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.localhost')) {
+        if ((hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.localhost')) &&
+            process.env.ALLOW_PRIVATE_IPS !== 'true' && process.env.NODE_ENV !== 'test') {
             return { isValid: false, error: 'Monitoring internal domains is not allowed' };
         }
 

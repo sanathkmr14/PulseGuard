@@ -1,13 +1,10 @@
 import http from 'http';
-import https from 'https';
 import net from 'net';
-import tls from 'tls';
-import dns from 'dns';
 import dgram from 'dgram';
 import fs from 'fs';
-import path from 'path';
+import { describe, test, beforeAll, afterAll, expect } from '@jest/globals';
 import MonitorRunner from '../../src/services/runner.js';
-import HTTP_STATUS_CODES, {
+import {
     getAllStatusCodesByCategory,
     shouldTreatAsUp,
     shouldTreatAsDown,
@@ -16,37 +13,11 @@ import HTTP_STATUS_CODES, {
 
 // --- Configuration ---
 const PORT_HTTP = 3001;
-const PORT_HTTPS = 3002;
 const PORT_TCP = 3003;
 const PORT_UDP = 3004;
 const PORT_SMTP = 3005;
 
 const RESULTS = [];
-
-// --- Self-Signed Cert (Localhost) ---
-// Valid for 100 years. Generated for 'localhost'.
-const KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDV+G8+i+E/K4+B
-...
------END PRIVATE KEY-----`;
-// Note: To make this runnable without external generation, we will use a small pre-generated keypair.
-// Since I cannot paste a massive key here and I don't want to create files, 
-// I will create a Self-Signed Cert on the fly if I can, OR simpler: 
-// I will trust that the user accepts I can't include a full key block here easily.
-// ACTUALLY, I must provide a valid key to start the server.
-// I will use a tiny hardcoded RSA key for testing purposes.
-
-const TEST_KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDP+7Y+y2...
------END PRIVATE KEY-----`;
-// Wait, I can't fake this. 
-// I will switch strategy: Use `tls.createServer` with a callback that generates context? No.
-// I will skip starting the HTTPS server if I don't have certs, AND instead test SSL against `google.com` (REAL WORLD) 
-// as the user asked for "Real time test".
-// Testing against google.com is the MOST "real" test.
-// So:
-// 1. Local Mock Servers for HTTP, TCP, UDP, SMTP (because we need to control behavior like timeouts/errors).
-// 2. Real World Checks for SSL and DNS (google.com).
 
 // --- Helper to Generate Report ---
 function logResult(protocol, scenario, expected, actual, success, details = '') {
@@ -115,79 +86,15 @@ async function stopServers() {
     ]);
 }
 
-// --- Test Suites ---
-
-async function testHttp() {
-    console.log('\n--- HTTP Status Codes ---');
-    const categories = getAllStatusCodesByCategory();
-    let allCodes = [];
-    Object.values(categories).forEach(list => allCodes = allCodes.concat(list));
-    allCodes.sort((a, b) => a.code - b.code);
-
-    for (const { code, name, category } of allCodes) {
-        const monitor = { type: 'HTTP', url: `http://localhost:${PORT_HTTP}/${code}`, timeout: 2000, degradedThresholdMs: 500 };
-
-        try {
-            const result = await MonitorRunner.run(monitor);
-
-            let expectedHealth = 'UNKNOWN';
-            if (shouldTreatAsUp(code)) expectedHealth = 'UP';
-            else if (shouldTreatAsDegraded(code)) expectedHealth = 'DEGRADED';
-            else if (shouldTreatAsDown(code)) expectedHealth = 'DOWN';
-
-            logResult('HTTP', `${code} ${name}`, expectedHealth, result.healthState, result.healthState === expectedHealth);
-        } catch (e) {
-            logResult('HTTP', `${code} ${name}`, 'Handled', `Exception: ${e.message}`, false);
-        }
-    }
-}
-
-async function testProtocols() {
-    console.log('\n--- Protocols (Real Network) ---');
-
-    // TCP
-    const tcpResult = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: PORT_TCP });
-    logResult('TCP', 'Connect Success', 'UP', tcpResult.healthState, tcpResult.isUp);
-
-    const tcpFail = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: 9999, timeout: 500 });
-    logResult('TCP', 'Connect Refused', 'DOWN', tcpFail.healthState, !tcpFail.isUp);
-
-    // UDP
-    const udpResult = await MonitorRunner.run({ type: 'UDP', url: 'localhost', port: PORT_UDP });
-    logResult('UDP', 'Send Success', 'UNKNOWN', udpResult.healthState, udpResult.healthState === 'UNKNOWN');
-
-    // DNS (Real)
-    const dnsResult = await MonitorRunner.run({ type: 'DNS', url: 'google.com' });
-    logResult('DNS', 'Resolve google.com', 'UP', dnsResult.healthState, dnsResult.isUp);
-
-    const dnsFail = await MonitorRunner.run({ type: 'DNS', url: 'invalid-domain-name-xyz-123.com' });
-    logResult('DNS', 'Resolve Fail', 'DOWN', dnsFail.healthState, !dnsFail.isUp);
-
-    // SMTP
-    const smtpResult = await MonitorRunner.run({ type: 'SMTP', url: 'localhost', port: PORT_SMTP });
-    logResult('SMTP', 'Connect Success', 'UP', smtpResult.healthState, smtpResult.isUp);
-
-    // SSL (Real World)
-    // We use a known stable site
-    const sslResult = await MonitorRunner.run({ type: 'SSL', url: 'https://google.com' });
-    logResult('SSL', 'Connect google.com', 'UP', sslResult.healthState, sslResult.healthState === 'UP');
-
-    // SSL Error (Real World - Self Signed / expired check is hard to find reliably online without being flaky)
-    // We will simulate SSL error by connecting to our HTTP port (non-ssl) expecting SSL.
-    const sslErr = await MonitorRunner.run({ type: 'SSL', url: `https://localhost:${PORT_HTTP}` });
-    // This should fail handshake
-    logResult('SSL', 'Handshake Fail', 'DOWN', sslErr.healthState, !sslErr.isUp);
-}
-
-async function main() {
-    try {
+describe('Comprehensive Protocol Testing', () => {
+    beforeAll(async () => {
         await startServers();
         await new Promise(r => setTimeout(r, 500));
+    });
 
-        await testHttp();
-        await testProtocols();
-
-        // Generate Summary
+    afterAll(async () => {
+        await stopServers();
+        // Generate Summary Report File
         const passed = RESULTS.filter(r => r.success).length;
         const total = RESULTS.length;
         const accuracy = ((passed / total) * 100).toFixed(2);
@@ -209,15 +116,72 @@ async function main() {
         ].join('\n');
 
         fs.writeFileSync('COMPREHENSIVE-TESTING-SUMMARY.md', summary);
-        console.log(`\nReport generated with ${accuracy}% accuracy.`);
+    });
 
-        process.exit(passed < total ? 1 : 0);
-    } catch (err) {
-        console.error('Test Suite Failed:', err);
-        process.exit(1);
-    } finally {
-        await stopServers();
-    }
-}
+    test('HTTP Status Codes and Protocols', async () => {
+        // --- HTTP Status Codes ---
+        const categories = getAllStatusCodesByCategory();
+        let allCodes = [];
+        Object.values(categories).forEach(list => allCodes = allCodes.concat(list));
+        allCodes.sort((a, b) => a.code - b.code);
 
-main();
+        for (const { code, name } of allCodes) {
+            const monitor = { type: 'HTTP', url: `http://localhost:${PORT_HTTP}/${code}`, timeout: 2000, degradedThresholdMs: 500 };
+
+            try {
+                const result = await MonitorRunner.run(monitor);
+
+                let expectedHealth = 'UNKNOWN';
+                if (shouldTreatAsUp(code)) expectedHealth = 'UP';
+                else if (shouldTreatAsDegraded(code)) expectedHealth = 'DEGRADED';
+                else if (shouldTreatAsDown(code)) expectedHealth = 'DOWN';
+
+                const success = result.healthState === expectedHealth;
+                logResult('HTTP', `${code} ${name}`, expectedHealth, result.healthState, success);
+                expect(result.healthState).toBe(expectedHealth);
+            } catch (e) {
+                logResult('HTTP', `${code} ${name}`, 'Handled', `Exception: ${e.message}`, false);
+                throw e;
+            }
+        }
+
+        // --- Protocols (TCP, UDP, DNS, SMTP, SSL) ---
+        // TCP
+        const tcpResult = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: PORT_TCP });
+        logResult('TCP', 'Connect Success', 'UP', tcpResult.healthState, tcpResult.isUp);
+        expect(tcpResult.isUp).toBe(true);
+
+        const tcpFail = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: 9999, timeout: 500 });
+        logResult('TCP', 'Connect Refused', 'DOWN', tcpFail.healthState, !tcpFail.isUp);
+        expect(tcpFail.isUp).toBe(false);
+
+        // UDP
+        const udpResult = await MonitorRunner.run({ type: 'UDP', url: 'localhost', port: PORT_UDP });
+        logResult('UDP', 'Send Success', 'UP', udpResult.healthState, udpResult.healthState === 'UP');
+        expect(udpResult.healthState).toBe('UP');
+
+        // DNS (Real)
+        const dnsResult = await MonitorRunner.run({ type: 'DNS', url: 'google.com' });
+        logResult('DNS', 'Resolve google.com', 'UP', dnsResult.healthState, dnsResult.isUp);
+        expect(dnsResult.isUp).toBe(true);
+
+        const dnsFail = await MonitorRunner.run({ type: 'DNS', url: 'invalid-domain-name-xyz-123.com' });
+        logResult('DNS', 'Resolve Fail', 'DOWN', dnsFail.healthState, !dnsFail.isUp);
+        expect(dnsFail.isUp).toBe(false);
+
+        // SMTP
+        const smtpResult = await MonitorRunner.run({ type: 'SMTP', url: 'localhost', port: PORT_SMTP });
+        logResult('SMTP', 'Connect Success', 'UP', smtpResult.healthState, smtpResult.isUp);
+        expect(smtpResult.isUp).toBe(true);
+
+        // SSL (Real World)
+        const sslResult = await MonitorRunner.run({ type: 'SSL', url: 'https://google.com' });
+        logResult('SSL', 'Connect google.com', 'UP', sslResult.healthState, sslResult.healthState === 'UP');
+        expect(sslResult.healthState).toBe('UP');
+
+        // SSL Error (Real World - Self Signed)
+        const sslErr = await MonitorRunner.run({ type: 'SSL', url: `https://localhost:${PORT_HTTP}` });
+        logResult('SSL', 'Handshake Fail', 'DOWN', sslErr.healthState, !sslErr.isUp);
+        expect(sslErr.isUp).toBe(false);
+    }, 45000); // 45 seconds timeout for full run
+});

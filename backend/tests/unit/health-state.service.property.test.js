@@ -498,6 +498,10 @@ console.log('='.repeat(60));
 console.log(`ALL PROPERTY TESTS COMPLETE: ${passed} passed, ${failed} failed`);
 console.log('='.repeat(60));
 
-if (failed > 0) {
-    process.exit(1);
-}
+import { describe, it, expect } from '@jest/globals';
+
+describe('Health State Service Property Tests Suite', () => {
+    it('should pass all property tests', () => {
+        expect(failed).toBe(0);
+    });
+});
