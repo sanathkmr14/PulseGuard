@@ -16,6 +16,7 @@ import {
     getUserMonitors,
     getUserIncidents
 } from '../controllers/admin.controller.js';
+import { updateMonitor, deleteMonitor } from '../controllers/monitor.controller.js';
 
 const router = express.Router();
 
@@ -40,6 +41,8 @@ router.post('/users/:id/impersonate', impersonateUser);
 router.put('/users/:id/ban', toggleUserBan);
 router.delete('/users/:id', deleteUser);
 router.get('/monitors/:id/logs', getMonitorLogs);
+router.put('/monitors/:id', updateMonitor);
+router.delete('/monitors/:id', deleteMonitor);
 router.get('/incidents', getIncidents);
 
 export default router;

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
 import CheckLogsDrawer from '../../components/CheckLogsDrawer';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import AdminMonitorEditModal from '../../components/AdminMonitorEditModal';
 
 const AdminUserDetail = () => {
     const { id } = useParams();
@@ -29,6 +30,9 @@ const AdminUserDetail = () => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [selectedMonitor, setSelectedMonitor] = useState(null);
     const [monitorLogs, setMonitorLogs] = useState([]);
+
+    // Edit Monitor State
+    const [editModal, setEditModal] = useState({ isOpen: false, monitor: null });
 
     // Modal State
     const [modal, setModal] = useState({
@@ -190,6 +194,30 @@ const AdminUserDetail = () => {
         });
     };
 
+    const handleEditMonitor = (monitor) => {
+        setEditModal({ isOpen: true, monitor });
+    };
+
+    const handleDeleteMonitor = (monitor) => {
+        openModal({
+            title: 'Delete Monitor',
+            message: `CRITICAL WARNING: Are you sure you want to delete ${monitor.name}? All checks and incidents will be lost forever.`,
+            confirmText: 'Delete Monitor',
+            confirmColor: 'red',
+            onConfirm: async () => {
+                try {
+                    await adminAPI.deleteMonitor(monitor._id);
+                    closeModal();
+                    fetchMonitors(monitorsPage);
+                } catch (error) {
+                    console.error('Delete monitor failed:', error);
+                    closeModal();
+                    alert(error.response?.data?.message || 'Failed to delete monitor');
+                }
+            }
+        });
+    };
+
     const handleViewLogs = async (monitor) => {
         setSelectedMonitor(monitor);
         setDrawerOpen(true);
@@ -340,12 +368,26 @@ const AdminUserDetail = () => {
                                                             {monitor.lastChecked ? new Date(monitor.lastChecked).toLocaleString() : 'Never'}
                                                         </td>
                                                         <td className="px-4 py-4 text-right">
-                                                            <button
-                                                                onClick={() => handleViewLogs(monitor)}
-                                                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs rounded-md transition-colors"
-                                                            >
-                                                                View Logs
-                                                            </button>
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => handleViewLogs(monitor)}
+                                                                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs rounded-md transition-colors"
+                                                                >
+                                                                    View Logs
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleEditMonitor(monitor)}
+                                                                    className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-xs rounded-md transition-colors"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteMonitor(monitor)}
+                                                                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs rounded-md transition-colors"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -481,6 +523,13 @@ const AdminUserDetail = () => {
                 message={modal.message}
                 confirmText={modal.confirmText}
                 confirmColor={modal.confirmColor}
+            />
+
+            <AdminMonitorEditModal
+                isOpen={editModal.isOpen}
+                onClose={() => setEditModal({ isOpen: false, monitor: null })}
+                monitor={editModal.monitor}
+                onSuccess={() => fetchMonitors(monitorsPage)}
             />
         </div>
     );

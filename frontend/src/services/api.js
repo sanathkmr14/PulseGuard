@@ -122,6 +122,8 @@ export const adminAPI = {
     // Trigger the public forgot-password flow for a user
     sendPasswordReset: (email) => api.post('/auth/forgot-password', { email }),
     getMonitorLogs: (id) => adminInstance.get(`/admin/monitors/${id}/logs`),
+    updateMonitor: (id, data) => adminInstance.put(`/admin/monitors/${id}`, data),
+    deleteMonitor: (id) => adminInstance.delete(`/admin/monitors/${id}`),
     getIncidents: (params) => adminInstance.get('/admin/incidents', { params }),
     getSystemHealth: () => adminInstance.get('/admin/stats/health'),
     // Dashboard

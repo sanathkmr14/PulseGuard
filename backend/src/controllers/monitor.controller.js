@@ -163,7 +163,7 @@ export const updateMonitor = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
-        if (monitor.user.toString() !== req.user._id.toString()) {
+        if (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
@@ -256,7 +256,7 @@ export const deleteMonitor = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
-        if (monitor.user.toString() !== req.user._id.toString()) {
+        if (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
