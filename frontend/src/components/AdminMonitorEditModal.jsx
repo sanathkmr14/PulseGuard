@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { adminAPI } from '../../services/api';
+import { adminAPI } from '../services/api';
 
 const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
     const [saving, setSaving] = useState(false);
