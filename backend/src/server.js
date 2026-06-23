@@ -296,17 +296,19 @@ app.use('/api/admin', adminRoutes);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id, 'User:', socket.user._id);
+    const userName = socket.user.name || socket.user.email || socket.user._id;
+    console.log(`Client connected: ${socket.id} (User: ${userName})`);
 
     // SECURITY FIX: User joins their own room automatically using auth context
     socket.join(`user_${socket.user._id}`);
-    console.log(`User ${socket.user._id} securely joined their room`);
+    console.log(`User ${userName} securely joined their room`);
 
     // Security: Limit listeners to prevent leaks
     socket.setMaxListeners(5);
 
     socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
+        const userName = socket.user.name || socket.user.email || socket.user._id;
+        console.log(`Client disconnected: ${socket.id} (User: ${userName})`);
         socket.removeAllListeners(); // Explicit cleanup
     });
 });
