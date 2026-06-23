@@ -1124,6 +1124,20 @@ class HealthStateService {
             return;
         }
 
+        // Skip global verification for SSL degradation on non-SSL monitors (e.g. HTTPS)
+        // check-host.net only checks HTTP UP/DOWN, so it will return UP and falsely flag SSL issues as "Routing Issues"
+        const isSslWarning = checkResult && (
+            checkResult.errorType === 'CERT_EXPIRING_SOON' || 
+            checkResult.errorType === 'SSL_WARNING' ||
+            (checkResult.meta && checkResult.meta.warning) ||
+            (healthResult && healthResult.reasons && healthResult.reasons.some(r => typeof r === 'string' && r.toLowerCase().includes('ssl')))
+        );
+        
+        if (monitor.type !== 'SSL' && checkResult && checkResult.isUp && isSslWarning) {
+            console.log(`ℹ️ Skipping global verification for ${monitor.name}: Issue is SSL-related, which is globally consistent.`);
+            return;
+        }
+
         const verificationId = `${monitor._id}-${Date.now()}`;
         const lockKey = `${this.REDIS_STATE_PREFIX}verify_lock:${monitor._id}`;
 
