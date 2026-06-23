@@ -225,6 +225,8 @@ app.use((req, res, next) => {
 });
 
 
+// Keep-alive ping endpoint (Always returns 200, used to keep Render awake)
+app.get('/ping', (req, res) => res.status(200).send('pong'));
 
 // Enhanced Health Check: Reports DB and Scheduler status
 app.get('/health', async (req, res) => {
