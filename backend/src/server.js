@@ -249,22 +249,26 @@ app.get('/health', async (req, res) => {
 
         if (overallStatus === 'DEGRADED') {
             const schedulerState = schedulerService.isMaster ? 'Master' : 'Standby';
-            console.warn(`[Health-Check] Returning 503 DEGRADED. DB: ${dbStatus}, Scheduler (${schedulerState}): ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
+            console.warn(`[Health-Check] DEGRADED State Detected. DB: ${dbStatus}, Scheduler (${schedulerState}): ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
         }
 
-        res.status(isDbHealthy && schedulerHealthy ? 200 : 503).json({
+        // Always return 200 to Render's internal checks so it doesn't kill the container,
+        // but report the true status inside the JSON payload.
+        res.status(200).json({
             success: true,
             status: overallStatus,
             services: {
                 database: {
                     status: dbStatus,
+                    readyState: mongoose.connection.readyState,
                     healthy: isDbHealthy
                 },
                 server: 'UP',
                 scheduler: {
                     status: schedulerService.isMaster !== undefined ? (schedulerHealthy ? 'running' : 'initializing') : 'offline',
                     healthy: schedulerHealthy,
-                    isMaster: schedulerService.isMaster
+                    isMaster: schedulerService.isMaster,
+                    isReady: schedulerService.isReady
                 }
             },
             timestamp: new Date().toISOString()
