@@ -169,13 +169,21 @@ class HealthStateService {
     getThresholdForMonitor(monitor) {
         if (!monitor) return this.config.defaultSlowThresholdMs;
 
-        // If monitor has explicit threshold, use it
-        if (monitor.degradedThresholdMs && monitor.degradedThresholdMs > 0) {
+        // If monitor has explicit threshold > 0, use it (consistent with all workers)
+        if (monitor.degradedThresholdMs > 0) {
             return monitor.degradedThresholdMs;
         }
 
-        // Otherwise, use protocol-specific default
+        // FIX: HTTP/HTTPS monitors must use 2000ms as fallback to match HTTP worker behavior.
+        // The HTTP worker uses `monitor.degradedThresholdMs || 2000` as its threshold.
+        // Using a different value here (e.g. 5000ms protocol default) causes false
+        // `isSlowResponse=false` logs even when the worker already flagged DEGRADED.
         const protocolType = monitor.type?.toUpperCase();
+        if (protocolType === 'HTTP' || protocolType === 'HTTPS') {
+            return this.config.defaultSlowThresholdMs; // 2000ms — matches HTTP worker
+        }
+
+        // For other protocols, use their specific defaults (PING:1500, DNS:2000, etc.)
         return this.config.protocolThresholds[protocolType] || this.config.defaultSlowThresholdMs;
     }
 
@@ -335,7 +343,7 @@ class HealthStateService {
         const monitorId = monitor?._id?.toString() || 'default-monitor';
         const stateHistory = await this.getStateHistory(monitorId);
 
-        console.log(`🔍 HEALTH CHECK: isUp=${checkResult.isUp}, errorType=${checkResult.errorType}, statusCode=${analysis.statusCode}, isSlowResponse=${isSlowResponse}`);
+        console.log(`🔍 HEALTH CHECK: isUp=${checkResult.isUp}, errorType=${checkResult.errorType}, statusCode=${analysis.statusCode}, responseTime=${analysis.responseTimeMs}ms, threshold=${slowThreshold}ms, isSlowResponse=${isSlowResponse}`);
 
         if (isSlowResponse && analysis.statusCode >= 200 && analysis.statusCode < 300) {
             // This is a successful response that's just slow

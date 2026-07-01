@@ -520,6 +520,7 @@ class SchedulerService {
         let result = null;
         let healthStateResult = null;
         let check = null;
+        let jobError = null; // Captures errors so we can re-throw AFTER finally (rescheduling) runs
 
         try {
             result = await MonitorRunner.run(monitor);
@@ -646,17 +647,20 @@ class SchedulerService {
                 this.emitEnhancedSocketEvents(updatedMonitor, check, oldStatus, healthStateResult, newIncident);
             }
         } catch (err) {
+            jobError = err;
             console.error(`🔴 Critical failure in processJob for ${monitor.name}:`, err.message);
         } finally {
             // --- RECURSIVE SCHEDULING (SAFETY NET) --- //
-            // Ensure next check is ALWAYS scheduled, even if the current one crashed
+            // Ensure next check is ALWAYS scheduled, even if the current one crashed.
+            // NOTE: No return here — return is AFTER the try/catch/finally block so
+            // BullMQ can correctly mark jobs as failed when an error occurs.
             if (updatedMonitor && updatedMonitor.isActive) {
                 const intervalMs = this.generateIntervalMs(updatedMonitor.interval);
                 console.log(`🔄 Attempting to reschedule ${updatedMonitor.name} in ${updatedMonitor.interval}m...`);
 
                 try {
-                    // FIX: Unique Job ID to prevent "Reschedule Zombie" jobs
-                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}-${Date.now()}`;
+                    // Use random suffix to prevent collisions (same fix as scheduleMonitorForSync)
+                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
                     // RETRY LOOP: Rescheduling is critical to the monitor's lifecycle.
                     // If Redis times out here, the monitor "stops" until auto-healed.
@@ -694,19 +698,22 @@ class SchedulerService {
                     } else {
                         console.error(`🔴 [Node: ${this.nodeId}] Failed to reschedule ${updatedMonitor.name} after ${maxRetries} attempts. Monitor may stall until Safety Net heals it.`);
                     }
-                } catch (err) { // This catch block was missing for the inner try around queue.add
+                } catch (err) {
                     console.error(`🔴 [Node: ${this.nodeId}] Unexpected error during reschedule attempt for ${updatedMonitor.name}:`, err.message);
                 }
             } else {
                 console.warn(`⚠️ Reschedule failed: updatedMonitor=${!!updatedMonitor}, isActive=${updatedMonitor?.isActive}`);
             }
-
-            return {
-                ...result,
-                healthState: healthStateResult,
-                checkId: check ? check._id : null
-            };
         }
+
+        // Propagate error AFTER finally (rescheduling) so BullMQ marks job as failed
+        if (jobError) throw jobError;
+
+        return {
+            ...result,
+            healthState: healthStateResult,
+            checkId: check ? check._id : null
+        };
     }
 
     /**
