@@ -335,6 +335,11 @@ app.use((req, res) => {
 
 // Start server
 const startServer = async () => {
+    // Start HTTP server immediately to bind the port and prevent Render cold-start timeouts
+    httpServer.listen(env.PORT, () => {
+        console.log(`Server listening on port ${env.PORT}`);
+    });
+
     try {
         // Connect to database
         await connectDB();
@@ -345,13 +350,9 @@ const startServer = async () => {
         // Initialize Scheduler
         await schedulerService.initialize();
 
-        // Start HTTP server AFTER dependencies are ready
-        httpServer.listen(env.PORT, () => {
-            console.log(`Server running on port ${env.PORT}`);
-        });
-
+        console.log('✅ All backend services initialized successfully');
     } catch (error) {
-        console.error('Server startup error:', error);
+        console.error('Server startup initialization error:', error);
         process.exit(1);
     }
 };
