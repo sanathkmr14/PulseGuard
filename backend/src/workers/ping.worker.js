@@ -214,8 +214,13 @@ export const checkPing = async (monitor, result, options = {}) => {
         } else if (error.code === 'ENOENT' || errorMsg.includes('not found')) {
             result.errorType = 'PING_ERROR';
             result.errorMessage = 'Ping command not available on this system';
-        } else if (error.code === 2 || error.code === 68 || errorMsg.includes('command failed')) {
-            // ping exit code 2/68 usually means timeout or host unreachable
+        } else if (error.code === 2) {
+            // Linux: exit code 2 = network unreachable / destination unreachable (NOT timeout)
+            result.errorType = 'PING_NETWORK_UNREACHABLE';
+        } else if (error.code === 68) {
+            // macOS: exit code 68 = host not found / timeout
+            result.errorType = 'PING_TIMEOUT';
+        } else if (errorMsg.includes('command failed')) {
             result.errorType = 'PING_TIMEOUT';
         } else {
             result.errorType = 'PING_ERROR';

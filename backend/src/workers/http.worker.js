@@ -121,7 +121,8 @@ const performRequest = async (monitor, timeout) => {
             err.redirectCount = redirectCount;
             throw err;
         }
-        if (redirectCount > MAX_REDIRECTS) {
+        // FIX: >= MAX_REDIRECTS (not >) — prevents following one extra redirect beyond the limit
+        if (redirectCount >= MAX_REDIRECTS) {
             const err = new Error(`Too many redirects (${redirectCount})`);
             err.code = 'REDIRECT_LOOP';
             err.redirectCount = redirectCount;

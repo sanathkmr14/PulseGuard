@@ -149,7 +149,12 @@ async function _runSslCheck(monitor, result, options, httpIsUp, httpStatusCode =
                 // Hard SSL failures → DEGRADED
                 result.healthState = 'DEGRADED';
                 result.isUp = true;
-                result.severity = isExpired ? 0.8 : 0.5;
+                // FIX: Scale severity by urgency — 1 day to expiry is more critical than 13 days
+                // Expired certs → 0.9 (near-critical), expiring soon → scales from 0.5 (threshold) to 0.85 (1 day)
+                const urgencySeverity = isExpiringSoon && daysUntilExpiry !== null
+                    ? Math.max(0.5, 0.85 - (daysUntilExpiry / expiryThreshold) * 0.35)
+                    : 0.5;
+                result.severity = isExpired ? 0.9 : urgencySeverity;
 
                 if (isExpired) {
                     result.errorType = 'CERT_EXPIRED';

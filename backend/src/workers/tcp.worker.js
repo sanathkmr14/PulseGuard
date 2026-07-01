@@ -12,7 +12,20 @@ export const checkTcp = async (monitor, result, options = {}) => {
     const { hostname, port } = parseUrl(monitor.url, monitor.port);
 
     // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
-    const { address } = await resolveSecurely(hostname);
+    // FIX: Wrap in try/catch so SSRF blocks and DNS errors set a clean DOWN result
+    let address;
+    try {
+        ({ address } = await resolveSecurely(hostname));
+    } catch (ssrfErr) {
+        result.healthState = 'DOWN';
+        result.isUp = false;
+        result.errorType = ssrfErr.message?.includes('SSRF') ? 'SSRF_BLOCKED' : 'DNS_ERROR';
+        result.errorMessage = ssrfErr.message;
+        result.responseTime = 0;
+        result.statusCode = null;
+        console.log(`🔌 TCP [${hostname}:${port}] ❌ DOWN - ${result.errorType} | ${ssrfErr.message}`);
+        throw ssrfErr;
+    }
 
     return new Promise((resolve, reject) => {
         const socket = new net.Socket();
