@@ -123,7 +123,8 @@ class SchedulerService {
         this.lockInterval = setInterval(() => this.tryAcquireLock(), LOCK_TTL / 2);
 
         console.log(`✅ [Node: ${this.nodeId}] Scheduler Initialized. Is Master? ${this.isMaster}`);
-        this.isReady = true; // Mark as ready after base initialization
+        // NOTE: isReady is only set true AFTER syncMonitors() completes to avoid false positives
+        // this.isReady = true; ← DO NOT set here; syncMonitors() will set it
 
         // Consolidate initialization and sync logic to prevent race conditions
         // In local/dev environments, we often want to become master immediately
@@ -397,7 +398,8 @@ class SchedulerService {
         console.log(`⏱️ Sync scheduling ${monitor.name}: Next check in ${Math.round(intervalMs / 1000)}s`);
 
         // Add a delayed job for the next check using Unique Job ID
-        const scheduledJobId = `scheduled-${monitor._id.toString()}-${Date.now()}`;
+        // Use random suffix to prevent collisions when multiple monitors are scheduled at the same millisecond
+        const scheduledJobId = `scheduled-${monitor._id.toString()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
         await this.queue.add('check', {
             monitorId: monitor._id.toString(),
@@ -1019,7 +1021,10 @@ class SchedulerService {
             }
         }
 
-        // Close shared Redis connections
+        // Close the shared Redis connections
+        // NOTE: this.redis === lockConnection, which is already closed above.
+        // Calling quit() again would cause 'Connection is already closed' error.
+        // We only need to ensure queueConnection and workerConnection are closed.
         try {
             if (queueConnection.status !== 'end') await queueConnection.quit();
             if (workerConnection.status !== 'end') await workerConnection.quit();
@@ -1027,16 +1032,6 @@ class SchedulerService {
             console.log('   Shared Redis connections closed');
         } catch (err) {
             console.warn('   Error closing shared Redis connections:', err.message);
-        }
-
-        // Close the shared Redis connection
-        if (this.redis) {
-            try {
-                await this.redis.quit();
-                console.log('   Redis connection closed');
-            } catch (err) {
-                console.warn('   Error closing Redis connection:', err.message);
-            }
         }
 
         console.log('✅ Scheduler Service shutdown complete');

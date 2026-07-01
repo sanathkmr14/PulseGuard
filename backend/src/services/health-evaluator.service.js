@@ -1307,11 +1307,13 @@ class HealthStateService {
 
                     // NEW: Redis Streams (Reliable Delivery)
                     try {
+                        // Safely resolve user ID — monitor.user may be a raw ObjectId or a populated User doc
+                        const userId = (monitor.user?._id || monitor.user)?.toString();
                         await this.redis.xadd(
                             'monitor_updates_stream',
                             'MAXLEN', '~', 1000,
                             '*',
-                            'userId', monitor.user._id.toString(),
+                            'userId', userId,
                             'monitorId', monitor._id.toString(),
                             'data', JSON.stringify({
                                 monitorId: monitor._id,

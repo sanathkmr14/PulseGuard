@@ -362,7 +362,9 @@ const gracefulShutdown = async (signal) => {
         console.log(`${signal} received, shutting down gracefully...`);
 
         // Close Redis subscriber first (if connected)
-        if (redisSubscriber && redisSubscriber.status === 'ready') {
+        // FIX: lazyConnect clients may be in 'connect'/'connecting' state, not just 'ready'
+        const subscriberConnected = redisSubscriber && ['ready', 'connect', 'connecting'].includes(redisSubscriber.status);
+        if (subscriberConnected) {
             try {
                 await redisSubscriber.quit();
                 console.log('Redis subscriber closed');
