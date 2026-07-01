@@ -30,7 +30,7 @@ router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/reset-password', authLimiter, resetPassword);
-router.get('/check-email', authLimiter, checkEmail);
+router.get('/check-email', protect, authLimiter, checkEmail);
 router.delete('/delete', protect, deleteAccount);
 
 export default router;

@@ -120,10 +120,10 @@ export const updateProfile = async (req, res) => {
         }
 
         if (profileData.contactEmails !== undefined) {
-            let incoming = Array.isArray(profileData.contactEmails) ? profileData.contactEmails.map(e => e.trim()).filter(Boolean) : [];
+            let incoming = Array.isArray(profileData.contactEmails) ? profileData.contactEmails.map(e => e.trim().toLowerCase()).filter(Boolean) : [];
             if (incoming.length > 0) {
                 const registered = await User.find({ email: { $in: incoming } }).select('email');
-                const registeredEmails = registered.map(r => r.email);
+                const registeredEmails = registered.map(r => r.email.toLowerCase());
                 if (incoming.some(e => !registeredEmails.includes(e))) {
                     return res.status(400).json({ success: false, message: 'Please add registered email ID.' });
                 }

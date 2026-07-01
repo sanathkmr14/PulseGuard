@@ -14,7 +14,7 @@ export const adminProtect = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id).select('+passwordChangedAt');
 
         if (!user) {
             return res.status(401).json({ success: false, message: 'No user found with this id' });
@@ -22,6 +22,16 @@ export const adminProtect = async (req, res, next) => {
 
         if (user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Access denied: Admins only' });
+        }
+
+        // Check if admin is banned
+        if (user.isBanned) {
+            return res.status(403).json({ success: false, message: 'Your account has been banned. Please contact support.' });
+        }
+
+        // Check if admin recently changed password
+        if (user.changedPasswordAfter(decoded.iat)) {
+            return res.status(401).json({ success: false, message: 'User recently changed password! Please log in again.' });
         }
 
         req.user = user;

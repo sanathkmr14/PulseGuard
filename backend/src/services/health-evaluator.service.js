@@ -582,8 +582,10 @@ class HealthStateService {
         let degradationWeight = 0;
 
         // Analyze checks with exponential decay (recent checks weighted more)
+        // Since windowChecks is sorted newest-first (index 0 is newest),
+        // we use Math.pow(0.8, index) so that index 0 has weight 1.0, index 1 has weight 0.8, etc.
         windowChecks.forEach((check, index) => {
-            const weight = Math.pow(0.8, (windowSize - index - 1)); // Recent checks have higher weight
+            const weight = Math.pow(0.8, index);
 
             switch (check.status) {
                 case 'down':
@@ -599,7 +601,7 @@ class HealthStateService {
             }
         });
 
-        const totalWeight = windowChecks.reduce((sum, _, index) => sum + Math.pow(0.8, (windowSize - index - 1)), 0);
+        const totalWeight = windowChecks.reduce((sum, _, index) => sum + Math.pow(0.8, index), 0);
         const failureRate = Math.max(0, failureWeight / totalWeight);
         const degradationRate = Math.max(0, degradationWeight / totalWeight);
 
@@ -610,7 +612,8 @@ class HealthStateService {
         // Pattern detection
         let pattern = 'stable';
         if (windowChecks.length >= 3) {
-            const recentStatuses = windowChecks.slice(-3).map(c => c.status);
+            // Get the 3 most recent checks (indices 0, 1, 2)
+            const recentStatuses = windowChecks.slice(0, 3).map(c => c.status);
             if (recentStatuses.every(status => status === 'down')) {
                 pattern = 'consistently_down';
             } else if (recentStatuses.every(status => status === 'up')) {

@@ -20,8 +20,8 @@ export const protect = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Get user from token
-        req.user = await User.findById(decoded.id);
+        // Get user from token (explicitly select passwordChangedAt due to select: false in schema)
+        req.user = await User.findById(decoded.id).select('+passwordChangedAt');
 
         if (!req.user) {
             return res.status(401).json({

@@ -252,9 +252,9 @@ app.get('/health', async (req, res) => {
             console.warn(`[Health-Check] DEGRADED State Detected. DB: ${dbStatus}, Scheduler (${schedulerState}): ${schedulerHealthy ? 'ready' : 'not-ready/init'}`);
         }
 
-        // Always return 200 to Render's internal checks so it doesn't kill the container,
-        // but report the true status inside the JSON payload.
-        res.status(200).json({
+        // Return 200 if healthy, or 503 if DEGRADED/unhealthy
+        const httpStatus = overallStatus === 'UP' ? 200 : 503;
+        res.status(httpStatus).json({
             success: true,
             status: overallStatus,
             services: {
