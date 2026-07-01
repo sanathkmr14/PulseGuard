@@ -119,7 +119,8 @@ export const checkSsl = async (monitor, result, options = {}) => {
                 }
 
                 // NEW: Use advanced SSL classifier
-                const domain = monitor.url.split('//')[1]?.split(':')[0] || hostname;
+                // FIX: Strip path and port from domain — split('//')[1] includes /path which breaks CN matching
+                const domain = monitor.url.split('//')[1]?.split('/')[0]?.split(':')[0] || hostname;
 
                 // Check Common Name (CN)
                 let hostnameMatch = cert.subject?.CN === domain;

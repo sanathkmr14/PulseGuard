@@ -201,8 +201,21 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
  */
 export const checkSmtp = async (monitor, result, options = {}) => {
     const { parseUrl, detectErrorType, formatErrorMessage, determineHealthStateFromError } = options;
+    const startTime = Date.now(); // FIX: Track elapsed time for failure reporting
     const timeout = monitor.timeout || 30000;
     const { hostname, port } = parseUrl(monitor.url, monitor.port || 25);
+
+    // FIX: Port 465 uses implicit SSL (SMTPS) — plain TCP handshake will always fail.
+    // Users should create an SSL monitor for port 465 instead.
+    if (port === 465) {
+        result.healthState = 'DOWN';
+        result.isUp = false;
+        result.errorType = 'INVALID_CONFIG';
+        result.errorMessage = 'Port 465 uses implicit SSL (SMTPS). Create an SSL monitor targeting port 465 instead of an SMTP monitor.';
+        result.responseTime = 0;
+        console.log(`[SMTP] ❌ Port 465 not supported — use an SSL monitor for SMTPS`);
+        return;
+    }
 
     try {
         // Resolve ALL addresses
@@ -259,7 +272,8 @@ export const checkSmtp = async (monitor, result, options = {}) => {
         throw lastError || new Error('All connection attempts failed');
 
     } catch (err) {
-        const responseTime = 0;
+        // FIX: Use actual elapsed time instead of hardcoded 0
+        const responseTime = Date.now() - startTime;
         result.responseTime = responseTime;
         result.errorType = detectErrorType(err, 'SMTP', null);
         result.errorMessage = formatErrorMessage(err, 'SMTP');

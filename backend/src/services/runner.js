@@ -42,8 +42,10 @@ async function loadComprehensiveSystem() {
         // Fallback functions
         getStatusCodeCategory = (code) => code >= 500 ? 'SERVER_ERROR' : code >= 400 ? 'CLIENT_ERROR' : 'SUCCESS';
         shouldTreatAsUp = (code) => code >= 200 && code < 400;
-        shouldTreatAsDown = (code) => code >= 400;
-        shouldTreatAsDegraded = (code) => [400, 401, 403, 404, 408, 429].includes(code);
+        shouldTreatAsDown = (code) => code >= 400 && code !== 429;
+        // FIX: Only 1xx and 429 are DEGRADED — matches actual http-status-codes.js behavior
+        // 400, 401, 403, 404, 408 are DOWN (via shouldTreatAsDown), NOT DEGRADED
+        shouldTreatAsDegraded = (code) => code === 429 || (code >= 100 && code < 200);
         detectErrorType = (error) => error.message?.includes('timeout') ? 'TIMEOUT' : 'UNKNOWN_ERROR';
         determineHealthStateFromError = () => ({ healthState: 'DOWN', severity: 0.8 });
         formatErrorMessage = (error) => error.message || 'Unknown error';
@@ -200,7 +202,18 @@ class MonitorRunner {
         }
 
         try {
-            switch (monitor.type.toUpperCase()) {
+            // FIX: Guard against null/undefined monitor.type to prevent crash
+            const monitorType = (monitor.type || '').toUpperCase();
+            if (!monitorType) {
+                result.healthState = 'DOWN';
+                result.isUp = false;
+                result.errorType = 'INVALID_CONFIG';
+                result.errorMessage = 'Monitor type is not configured';
+                result.responseTime = Date.now() - startTime;
+                return result;
+            }
+
+            switch (monitorType) {
                 case 'HTTP':
                     await checkHttp(monitor, result, workerOptions);
                     break;

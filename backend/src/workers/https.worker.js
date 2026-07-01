@@ -62,7 +62,8 @@ export const checkHttps = async (monitor, result, options = {}) => {
 
         // Carry over HTTP-layer data from the fallback
         if (fallbackResult.statusCode) result.statusCode = fallbackResult.statusCode;
-        if (fallbackResult.responseTime) result.responseTime = fallbackResult.responseTime;
+        // FIX: Use != null check — responseTime=0 is valid but falsy, so `if (value)` would skip it
+        if (fallbackResult.responseTime != null) result.responseTime = fallbackResult.responseTime;
 
         // Site is reachable but has an SSL chain config issue → DEGRADED
         result.isUp = true;
