@@ -74,19 +74,28 @@ Ensure you have the following installed on your system:
 
 ### Environment Variables
 
-You will need to set up your environment variables for the backend to function correctly. Create a `.env` file in the `backend` directory and configure the required keys. A typical configuration looks like this:
+You will need to set up environment variables for both the backend and frontend to function correctly.
 
+**1. Backend (`backend/.env`)**
+Create a `.env` file in the `backend` directory:
 ```env
 PORT=5000
 MONGODB_URI=your_mongodb_connection_string
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your_jwt_secret
 
-# Email Service Configuration (e.g., Nodemailer/Brevo)
+# Email Service Configuration
 SMTP_HOST=your_smtp_host
 SMTP_PORT=your_smtp_port
 SMTP_USER=your_smtp_user
 SMTP_PASS=your_smtp_pass
+```
+
+**2. Frontend (`frontend/.env`)**
+Create a `.env` file in the `frontend` directory:
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_SOCKET_URL=http://localhost:5000
 ```
 
 ### Running the Application
