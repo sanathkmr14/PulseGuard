@@ -4,17 +4,11 @@
 
 [![PulseGuard](https://img.shields.io/badge/Project-PulseGuard-blue?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard) [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/) [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/) [![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/) [![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/) [![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
-<br />
+</div>
 
-<p>
-  <strong>PulseGuard</strong> is a robust, real-time uptime monitoring solution designed to track the availability and performance of your services. Built with a modern tech stack, it offers instant alerts, detailed analytics, and a live dashboard to ensure your systems are always up and running.
-</p>
-
-<br />
+**PulseGuard** is a robust, real-time uptime monitoring solution designed to track the availability and performance of your services. Built with a modern tech stack, it offers instant alerts, detailed analytics, and a live dashboard to ensure your systems are always up and running.
 
 [![Try Now](https://img.shields.io/badge/TRY%20NOW%20%E2%9E%94-007BFF?style=for-the-badge)](https://pulse-guard-flame.vercel.app)
-
-</div>
 
 ---
 
