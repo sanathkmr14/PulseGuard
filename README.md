@@ -1,6 +1,17 @@
 # PulseGuard ⚡️
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<div align="center">
+
+[![Contributors](https://img.shields.io/github/contributors/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/graphs/contributors)
+[![Forks](https://img.shields.io/github/forks/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/network/members)
+[![Stargazers](https://img.shields.io/github/stars/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/stargazers)
+[![Issues](https://img.shields.io/github/issues/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/issues)
+[![MIT License](https://img.shields.io/github/license/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/blob/main/LICENSE)
+<br />
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+
+</div>
 
 **PulseGuard** is a robust, real-time uptime monitoring solution designed to track the availability and performance of your services. Built with a modern tech stack, it offers instant alerts, detailed analytics, and a live dashboard to ensure your systems are always up and running.
 
