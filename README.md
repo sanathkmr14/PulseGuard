@@ -10,7 +10,9 @@
 
 <div align="center">
   <br />
-  [![Try Now](https://img.shields.io/badge/TRY%20NOW%20%E2%9E%94-007BFF?style=for-the-badge)](https://pulse-guard-flame.vercel.app)
+  <a href="https://pulse-guard-flame.vercel.app">
+    <img src="https://img.shields.io/badge/TRY%20NOW%20%E2%9E%94-007BFF?style=for-the-badge" alt="Try Now" />
+  </a>
 </div>
 
 ---
