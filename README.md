@@ -104,4 +104,8 @@ npm run dev
 
 ## 🤝 Contributing
 
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+We welcome and deeply appreciate contributions from the open-source community! Whether you are fixing bugs, improving documentation, or proposing new features, your efforts help make PulseGuard a better tool for everyone.
+
+To ensure a smooth and collaborative workflow, we recommend opening an issue to discuss significant changes or new feature ideas before submitting a pull request. This helps align your work with the project's roadmap and saves everyone valuable time.
+
+Thank you for your interest in improving PulseGuard and being part of our community!
