@@ -2,14 +2,14 @@
 
 <div align="center">
 
-[![Contributors](https://img.shields.io/github/contributors/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/graphs/contributors)
-[![Forks](https://img.shields.io/github/forks/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/network/members)
-[![Stargazers](https://img.shields.io/github/stars/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/stargazers)
-[![Issues](https://img.shields.io/github/issues/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/issues)
+[![PulseGuard](https://img.shields.io/badge/Project-PulseGuard-blue?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard)
 [![MIT License](https://img.shields.io/github/license/sanathkmr14/PulseGuard.svg?style=for-the-badge)](https://github.com/sanathkmr14/PulseGuard/blob/main/LICENSE)
 <br />
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
+[![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
 </div>
 
