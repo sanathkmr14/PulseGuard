@@ -102,6 +102,18 @@ npm run dev
 
 ---
 
+## 💡 How to Use PulseGuard
+
+Once your application is up and running, you can start monitoring your services immediately:
+
+1. **Access the Dashboard:** Open your browser and navigate to the frontend URL (e.g., `http://localhost:5173`).
+2. **Create an Account:** Register for a new account or log in.
+3. **Add a Monitor:** Click on "Create Monitor", select your desired protocol (HTTP, TCP, PING, DNS, etc.), and enter the target URL or IP.
+4. **Configure Alerts:** Set up your email notifications to get pinged instantly if a service goes down or latency spikes.
+5. **View Analytics:** Visit the Analytics page to view real-time charts of your uptime and response times.
+
+---
+
 ## 🤝 Contributing
 
 We welcome and deeply appreciate contributions from the open-source community! Whether you are fixing bugs, improving documentation, or proposing new features, your efforts help make PulseGuard a better tool for everyone.
