@@ -108,4 +108,4 @@ We welcome and deeply appreciate contributions from the open-source community! W
 
 To ensure a smooth and collaborative workflow, we recommend opening an issue to discuss significant changes or new feature ideas before submitting a pull request. This helps align your work with the project's roadmap and saves everyone valuable time.
 
-Thank you for your interest in improving PulseGuard and being part of our community!
+Let's connect and collaborate!
