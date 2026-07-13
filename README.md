@@ -102,37 +102,6 @@ npm run dev
 
 ---
 
-## 🧪 Testing
-
-The backend includes a comprehensive suite of unit and integration tests built with Jest.
-
-To run the test suite, navigate to the `backend` directory:
-```bash
-cd backend
-npm run test           # Run all tests
-npm run test:watch     # Run tests in watch mode
-npm run test:coverage  # Generate test coverage report
-```
-
-Alternatively, run tests from the root directory:
-```bash
-npm run test:all       # Run comprehensive protocol and e2e tests
-```
-
----
-
 ## 🤝 Contributing
 
 Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📝 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
