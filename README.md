@@ -6,12 +6,15 @@
 
 <br />
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_It_Out-2ea44f?style=for-the-badge)](https://pulse-guard-flame.vercel.app)
+<h3>
+  <a href="https://pulse-guard-flame.vercel.app">🚀 Try out the Live Demo 🚀</a>
+</h3>
+
+<p>
+  <strong>PulseGuard</strong> is a robust, real-time uptime monitoring solution designed to track the availability and performance of your services. Built with a modern tech stack, it offers instant alerts, detailed analytics, and a live dashboard to ensure your systems are always up and running.
+</p>
 
 </div>
-
-**PulseGuard** is a robust, real-time uptime monitoring solution designed to track the availability and performance of your services. Built with a modern tech stack, it offers instant alerts, detailed analytics, and a live dashboard to ensure your systems are always up and running.
-
 ---
 
 ## 🚀 Key Features
