@@ -130,3 +130,9 @@ We welcome and deeply appreciate contributions from the open-source community! W
 To ensure a smooth and collaborative workflow, we recommend opening an issue to discuss significant changes or new feature ideas before submitting a pull request. This helps align your work with the project's roadmap and saves everyone valuable time.
 
 Let's connect and collaborate!
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
