@@ -77,6 +77,7 @@ export const login = async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Login Error:', error);
         res.status(400).json({ success: false, message: safeErrorMessage(error, 'Login failed') });
     }
 };
