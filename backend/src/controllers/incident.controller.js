@@ -56,8 +56,10 @@ export const getIncident = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Incident not found' });
         }
 
-        if (incident.monitor.user.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ success: false, message: 'Not authorized' });
+        // [M4 SECURITY FIX] Guard against orphaned incidents (monitor was deleted).
+        // Previously calling .user on a null monitor threw TypeError → 500 crash.
+        if (!incident.monitor || incident.monitor.user.toString() !== req.user._id.toString()) {
+            return res.status(404).json({ success: false, message: 'Incident not found' });
         }
 
         res.json({ success: true, data: incident });

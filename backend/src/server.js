@@ -209,6 +209,11 @@ app.use('/api/', maintenanceMode); // Phase 11: Global maintenance mode enforcem
 
 
 // Middleware
+// [M6 SECURITY FIX] Guard against accidental wildcard CORS with credentials.
+// browsers reject origin:'*' + credentials:true, but this makes the misconfiguration explicit.
+if (env.FRONTEND_URL === '*') {
+    throw new Error('FATAL: FRONTEND_URL cannot be wildcard (*) when credentials:true is set on CORS.');
+}
 app.use(cors({
     origin: env.FRONTEND_URL,
     credentials: true

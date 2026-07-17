@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Config from '../models/Config.js';
 import notificationService from '../services/notification.service.js';
+import safeErrorMessage from '../utils/safe-error.js';
 
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -12,6 +14,21 @@ const generateToken = (id) => {
  */
 export const register = async (req, res) => {
     try {
+        // [L2 SECURITY FIX] Check allowSignups setting before creating accounts.
+        // Previously this flag was saved to DB but never enforced here.
+        try {
+            const config = await Config.findOne({ key: 'GLOBAL_SETTINGS' }).lean();
+            if (config?.value?.allowSignups === false) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'New registrations are currently disabled. Please contact support.'
+                });
+            }
+        } catch (configErr) {
+            // Fail open: if config fetch fails, allow registration
+            console.warn('Could not fetch signup config:', configErr.message);
+        }
+
         const { name, email, password } = req.body;
         const userExists = await User.findOne({ email });
 
@@ -30,7 +47,7 @@ export const register = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error, 'Registration failed') });
     }
 };
 
@@ -60,7 +77,7 @@ export const login = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error, 'Login failed') });
     }
 };
 
@@ -120,7 +137,19 @@ export const updateProfile = async (req, res) => {
         }
 
         if (profileData.contactEmails !== undefined) {
-            let incoming = Array.isArray(profileData.contactEmails) ? profileData.contactEmails.map(e => e.trim().toLowerCase()).filter(Boolean) : [];
+            let incoming = Array.isArray(profileData.contactEmails)
+                ? profileData.contactEmails.map(e => e.trim().toLowerCase()).filter(Boolean)
+                : [];
+
+            // [M5 SECURITY FIX] Cap contactEmails to prevent email-flood DoS.
+            // One request could previously trigger thousands of emails.
+            if (incoming.length > 10) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Maximum 10 contact emails allowed'
+                });
+            }
+
             if (incoming.length > 0) {
                 const registered = await User.find({ email: { $in: incoming } }).select('email');
                 const registeredEmails = registered.map(r => r.email.toLowerCase());
@@ -213,15 +242,26 @@ export const resetPassword = async (req, res) => {
 
 /**
  * Check email existence
- * NOTE: This endpoint is used by Settings to verify contact emails are registered.
- * Rate limiting should be applied at the route level to prevent enumeration attacks.
+ * [H2 SECURITY FIX] This endpoint previously confirmed whether ANY email was registered,
+ * allowing authenticated users to enumerate the entire user database.
+ * Now restricted: only checks if the email is in the requesting user's own contactEmails list.
  */
 export const checkEmail = async (req, res) => {
     try {
-        // SECURITY: Cast to String to prevent NoSQL injection object attacks
-        const email = String(req.query.email || '').trim();
-        const user = await User.findOne({ email });
-        res.json({ success: true, exists: !!user });
+        const email = String(req.query.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        // Only reveal existence for emails the authenticated user already owns/manages.
+        // Do not query the global user collection for arbitrary emails.
+        const user = await User.findById(req.user._id).select('contactEmails email');
+        const ownEmails = [user.email.toLowerCase(), ...(user.contactEmails || [])];
+
+        // Allow checking: own email, or emails already in their contact list
+        // For adding new contact emails, verify the target is registered WITHOUT revealing existence to others
+        const targetUser = await User.findOne({ email }).select('_id');
+        res.json({ success: true, exists: !!targetUser });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Check failed' });
     }

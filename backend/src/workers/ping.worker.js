@@ -78,8 +78,10 @@ export const checkPing = async (monitor, result, options = {}) => {
 
     // Platform-specific ping command
     const isWindows = process.platform === 'win32';
-    // Use monitor.count if available, default to 4 for statistics
-    const pingCount = monitor.count && monitor.count > 0 ? monitor.count : 4;
+    // [L3 SECURITY FIX] Clamp to strict integer ranges before shell interpolation.
+    // If monitor.count or monitor.timeout contained shell metacharacters, they could
+    // inject arbitrary commands via the exec() call below.
+    const pingCount = Math.max(1, Math.min(10, parseInt(monitor.count, 10) || 4));
 
     // SECURITY: Use the resolved IP address directly to prevent SSRF and Command Injection
     const safeTarget = address;
@@ -87,10 +89,11 @@ export const checkPing = async (monitor, result, options = {}) => {
     let pingCommand;
     if (isWindows) {
         // Windows ping: -n = count, -w = timeout in ms
-        pingCommand = `ping -n ${pingCount} -w ${timeoutMs} ${safeTarget}`;
+        const timeoutMs_safe = Math.max(1000, Math.min(30000, parseInt(timeoutMs, 10) || 5000));
+        pingCommand = `ping -n ${pingCount} -w ${timeoutMs_safe} ${safeTarget}`;
     } else {
         // Unix/Linux/Mac ping: -c = count, -W = timeout in seconds
-        const timeoutSec = Math.ceil(timeoutMs / 1000);
+        const timeoutSec = Math.max(1, Math.min(30, Math.ceil(timeoutMs / 1000)));
         pingCommand = `ping -c ${pingCount} -W ${timeoutSec} ${safeTarget}`;
     }
 

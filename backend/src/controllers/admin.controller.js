@@ -9,6 +9,7 @@ import os from 'os';
 import jwt from 'jsonwebtoken';
 import enhancedAlertService from '../services/enhanced-alert.service.js';
 import redisClient from '../config/redis-cache.js';
+import safeErrorMessage from '../utils/safe-error.js'; // [H5]
 
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '12h' }); // Admin token 12h
@@ -52,6 +53,14 @@ export const adminLogin = async (req, res) => {
 export const getDashboardStats = async (req, res) => {
     try {
         const { userId } = req.query;
+
+        // [M3 SECURITY FIX] Validate userId is a valid ObjectId before using it in queries.
+        // An invalid userId (e.g. path traversal chars) would crash new mongoose.Types.ObjectId(userId)
+        // and potentially poison the Redis cache key.
+        if (userId && !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid userId parameter' });
+        }
+
         const cacheKey = userId ? `admin:stats:${userId}` : 'admin:stats:global';
 
         try {
@@ -311,8 +320,14 @@ export const impersonateUser = async (req, res) => {
         // SECURITY: Audit log for impersonation
         console.log(`🔐 [AUDIT] Admin Impersonation: admin=${req.user._id} (${req.user.email}) impersonated user=${user._id} (${user.email}) at ${new Date().toISOString()}`);
 
-        // Generate a standard user token for them
-        const userToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        // [C2 SECURITY FIX] Shortened to 15 min (was 1h) and now includes impersonatedBy
+        // claim for auditability. Previously a compromised admin could hold impersonation
+        // access for 1 hour with no way to identify or revoke it.
+        const userToken = jwt.sign(
+            { id: user._id, impersonatedBy: req.user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
 
         res.json({
             success: true,
@@ -630,7 +645,8 @@ export const getSystemHealth = async (req, res) => {
 
         const systemStats = {
             platform: os.platform(),
-            nodeVersion: process.version,
+            // [L4 SECURITY FIX] nodeVersion removed — exposing exact Node.js version
+            // lets attackers look up version-specific CVEs if admin credentials are compromised.
             uptime: Math.floor(os.uptime()),
             memoryUsage: `${Math.round(usedMem / 1024 / 1024)}MB / ${Math.round(totalMem / 1024 / 1024)}MB`,
             cpuModel: cpus[0]?.model || 'Unknown',
@@ -693,7 +709,7 @@ export const getSystemHealth = async (req, res) => {
         });
     } catch (error) {
         console.error('System Health Error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error, 'Failed to retrieve system health') }); // [H5]
     }
 };
 

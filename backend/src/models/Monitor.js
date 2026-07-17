@@ -10,7 +10,8 @@ const monitorSchema = new mongoose.Schema({
     name: {
         type: String,
         required: [true, 'Please provide a monitor name'],
-        trim: true
+        trim: true,
+        maxlength: [200, 'Monitor name cannot exceed 200 characters'] // [H1]
     },
     type: {
         type: String,
@@ -20,7 +21,8 @@ const monitorSchema = new mongoose.Schema({
     },
     url: {
         type: String,
-        required: [true, 'Please provide a URL or hostname']
+        required: [true, 'Please provide a URL or hostname'],
+        maxlength: [2048, 'URL cannot exceed 2048 characters'] // [H1] Standard browser URL max
     },
     interval: {
         type: Number,
@@ -43,7 +45,8 @@ const monitorSchema = new mongoose.Schema({
     alertThreshold: {
         type: Number,
         default: 2, // Alert after 2 consecutive failures (confirm downtime)
-        min: 1
+        min: 1,
+        max: [20, 'Alert threshold cannot exceed 20'] // [H1] Prevent absurdly large values
     },
     status: {
         type: String,

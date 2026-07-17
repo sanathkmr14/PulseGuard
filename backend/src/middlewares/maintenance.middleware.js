@@ -9,12 +9,15 @@ export const maintenanceMode = async (req, res, next) => {
     try {
         // 1. Define routes that must ALWAYS be accessible (even in maintenance)
         const bypassRoutes = [
-            '/api/auth/login',         // Standard login
-            '/api/admin/auth/login',   // Admin login
-            '/health'                  // Infrastructure health check
+            '/api/auth/login',
+            '/api/admin/auth/login',
+            '/health'
         ];
 
-        if (bypassRoutes.some(route => req.originalUrl.startsWith(route))) {
+        // [M2 SECURITY FIX] Use req.path (Express-normalized) with exact matching instead of
+        // startsWith on req.originalUrl. startsWith('/api/auth/login') would match
+        // /api/auth/login/../monitors — bypassing maintenance mode via path traversal.
+        if (bypassRoutes.includes(req.path)) {
             return next();
         }
 

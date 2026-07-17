@@ -7,6 +7,8 @@ import enhancedAlertService from '../services/enhanced-alert.service.js';
 import healthStateService from '../services/health-evaluator.service.js';
 import mongoose from 'mongoose';
 import redisClient from '../config/redis-cache.js';
+import { validateMonitorUrl } from '../utils/url-validator.js'; // [C3]
+import safeErrorMessage from '../utils/safe-error.js'; // [H5]
 
 /**
  * Monitor Controller
@@ -71,6 +73,28 @@ export const createMonitor = async (req, res) => {
             if (req.body[field] !== undefined) monitorData[field] = req.body[field];
         });
 
+        // [L5 SECURITY FIX] Explicitly cast boolean fields to prevent string 'true' being stored.
+        if (monitorData.allowUnauthorized !== undefined) {
+            monitorData.allowUnauthorized = Boolean(monitorData.allowUnauthorized === true || monitorData.allowUnauthorized === 'true');
+        }
+        if (monitorData.strictMode !== undefined) {
+            monitorData.strictMode = Boolean(monitorData.strictMode === true || monitorData.strictMode === 'true');
+        }
+        if (monitorData.isActive !== undefined) {
+            monitorData.isActive = Boolean(monitorData.isActive === true || monitorData.isActive === 'true');
+        }
+
+        // [C3 SECURITY FIX] Validate URL before saving for HTTP/HTTPS monitors.
+        // validateMonitorUrl() existed but was never called here — SSRF protection
+        // only happened at execution time, not at input time.
+        const monitorType = (monitorData.type || 'HTTPS').toUpperCase();
+        if (['HTTP', 'HTTPS'].includes(monitorType) && monitorData.url) {
+            const urlValidation = validateMonitorUrl(monitorData.url);
+            if (!urlValidation.isValid) {
+                return res.status(400).json({ success: false, message: urlValidation.error });
+            }
+        }
+
         // Auto-extract port from URL if not explicitly provided
         if (!monitorData.port && monitorData.url) {
             const parsed = MonitorRunner.parseUrl(monitorData.url);
@@ -132,7 +156,7 @@ export const createMonitor = async (req, res) => {
         if (error.code === 11000) {
             return res.status(409).json({ success: false, message: 'Monitor already exists.' });
         }
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error, 'Failed to create monitor') }); // [H5]
     }
 };
 
@@ -172,6 +196,26 @@ export const updateMonitor = async (req, res) => {
         ALLOWED_MONITOR_FIELDS.forEach(field => {
             if (req.body[field] !== undefined) updateData[field] = req.body[field];
         });
+
+        // [L5 SECURITY FIX] Explicitly cast boolean fields on update too
+        if (updateData.allowUnauthorized !== undefined) {
+            updateData.allowUnauthorized = Boolean(updateData.allowUnauthorized === true || updateData.allowUnauthorized === 'true');
+        }
+        if (updateData.strictMode !== undefined) {
+            updateData.strictMode = Boolean(updateData.strictMode === true || updateData.strictMode === 'true');
+        }
+        if (updateData.isActive !== undefined) {
+            updateData.isActive = Boolean(updateData.isActive === true || updateData.isActive === 'true');
+        }
+
+        // [C3 SECURITY FIX] Validate URL before updating for HTTP/HTTPS monitors
+        const updateType = (updateData.type || monitor.type || 'HTTPS').toUpperCase();
+        if (['HTTP', 'HTTPS'].includes(updateType) && updateData.url) {
+            const urlValidation = validateMonitorUrl(updateData.url);
+            if (!urlValidation.isValid) {
+                return res.status(400).json({ success: false, message: urlValidation.error });
+            }
+        }
 
         // Smart Reset: Detect if monitoring target changed (URL, type, or port = fresh start)
         const oldUrl = monitor.url;

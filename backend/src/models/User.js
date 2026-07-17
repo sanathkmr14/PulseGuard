@@ -5,7 +5,8 @@ const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Please provide a name'],
-    trim: true
+    trim: true,
+    maxlength: [100, 'Name cannot exceed 100 characters'] // [H1]
   },
   email: {
     type: String,
@@ -13,6 +14,7 @@ const userSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true,
+    maxlength: [254, 'Email cannot exceed 254 characters'], // [H1] RFC 5321 max
     match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
   },
   role: {
@@ -27,7 +29,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Please provide a password'],
-    minlength: 6,
+    minlength: [8, 'Password must be at least 8 characters'], // [H4] Raised from 6 → 8 (NIST SP 800-63B)
     select: false
   },
   notificationPreferences: {
@@ -50,26 +52,41 @@ const userSchema = new mongoose.Schema({
   },
   slackWebhook: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: [500, 'Slack webhook URL too long'], // [H1]
+    validate: {
+      validator: v => !v || /^https:\/\/.+/.test(v),
+      message: 'Slack webhook must be a valid HTTPS URL'
+    }
   },
   phoneNumber: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: [20, 'Phone number too long'] // [H1]
   },
   webhookUrl: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: [500, 'Webhook URL too long'], // [H1]
+    validate: {
+      validator: v => !v || /^https:\/\/.+/.test(v),
+      message: 'Webhook URL must be a valid HTTPS URL'
+    }
   },
   // Additional contact emails that should receive alerts (optional)
   contactEmails: {
     type: [String],
     default: [],
-    validate: {
-      validator: function (arr) {
-        return arr.every(email => /^\S+@\S+\.\S+$/.test(email));
+    validate: [
+      {
+        validator: arr => arr.length <= 10, // [M5] Cap at 10 to prevent email-flood DoS
+        message: 'Maximum 10 contact emails allowed'
       },
-      message: 'One or more contact emails are invalid'
-    }
+      {
+        validator: arr => arr.every(email => /^\S+@\S+\.\S+$/.test(email)),
+        message: 'One or more contact emails are invalid'
+      }
+    ]
   },
   passwordResetToken: {
     type: String,

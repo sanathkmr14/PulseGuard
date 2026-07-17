@@ -22,7 +22,10 @@ if (!env.MONGODB_URI) {
 }
 
 if (!env.JWT_SECRET) {
-    console.warn('WARNING: JWT_SECRET is not defined in environment. Authentication may be insecure.');
+    // [L1 SECURITY FIX] A missing JWT_SECRET must be fatal.
+    // jsonwebtoken silently accepts `undefined` as a secret, issuing exploitable tokens.
+    console.error('FATAL: JWT_SECRET is not defined in environment. Refusing to start.');
+    process.exit(1);
 }
 
 export default env;
