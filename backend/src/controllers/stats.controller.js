@@ -13,7 +13,7 @@ export const getDashboardStats = async (req, res) => {
         res.json({ success: true, data: stats });
     } catch (error) {
         console.error('API: getDashboardStats error:', error);
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -52,7 +52,7 @@ export const getUptimeStats = async (req, res) => {
             data: { uptimePercentage, period, startDate, endDate, trend }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -91,7 +91,7 @@ export const getResponseTimeStats = async (req, res) => {
             data: { avgResponseTime, period, startDate, endDate, trend }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 

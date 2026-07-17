@@ -35,6 +35,18 @@ const httpServer = createServer(app);
 // Trust proxy: Essential if behind Load Balancer/Proxy (Heroku, AWS, Nginx)
 app.set('trust proxy', 1);
 
+// ✅ CORS must be the VERY FIRST middleware to handle OPTIONS preflight
+// requests before any other middleware (helmet, rate limiter, maintenance)
+// can interfere and cause 405/403 errors on cross-origin requests.
+// [M6 SECURITY FIX] Guard against accidental wildcard CORS with credentials.
+if (env.FRONTEND_URL === '*') {
+    throw new Error('FATAL: FRONTEND_URL cannot be wildcard (*) when credentials:true is set on CORS.');
+}
+app.use(cors({
+    origin: env.FRONTEND_URL,
+    credentials: true
+}));
+
 // ⚡ Keep-Alive ping endpoint — registered FIRST, before ALL middleware.
 // This ensures Render's health checks and cron-job.org keep-alive pings
 // always get a 200 response, even during startup or service degradation.
@@ -208,16 +220,7 @@ app.use('/api/', maintenanceMode); // Phase 11: Global maintenance mode enforcem
 
 
 
-// Middleware
-// [M6 SECURITY FIX] Guard against accidental wildcard CORS with credentials.
-// browsers reject origin:'*' + credentials:true, but this makes the misconfiguration explicit.
-if (env.FRONTEND_URL === '*') {
-    throw new Error('FATAL: FRONTEND_URL cannot be wildcard (*) when credentials:true is set on CORS.');
-}
-app.use(cors({
-    origin: env.FRONTEND_URL,
-    credentials: true
-}));
+// (CORS is now registered above as the first middleware)
 // Middleware - Phase 7: Payload size limits for DoS protection
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));

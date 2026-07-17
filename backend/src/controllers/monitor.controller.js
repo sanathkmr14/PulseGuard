@@ -61,7 +61,7 @@ export const getMonitors = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -175,7 +175,7 @@ export const getMonitor = async (req, res) => {
 
         res.json({ success: true, data: monitor });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -288,7 +288,7 @@ export const updateMonitor = async (req, res) => {
         res.json({ success: true, data: monitor });
     } catch (error) {
         console.error('Monitor update error:', error);
-        res.status(400).json({ success: false, message: error.message || 'Failed to update monitor' });
+        res.status(400).json({ success: false, message: safeErrorMessage(error, 'Failed to update monitor') });
     }
 };
 
@@ -329,7 +329,7 @@ export const deleteMonitor = async (req, res) => {
         res.json({ success: true, message: 'Monitor deleted' });
     } catch (error) {
         console.error('❌ Delete monitor error:', error);
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -373,7 +373,7 @@ export const getMonitorStats = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -405,7 +405,7 @@ export const getMonitorChecks = async (req, res) => {
             data: checks
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -527,7 +527,7 @@ export const checkMonitorNow = async (req, res) => {
 
         res.json({ success: true, data: { check, monitor: updatedMonitor } });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -536,7 +536,7 @@ export const getQueueStats = async (req, res) => {
         const stats = await schedulerService.getQueueStats?.() || { waiting: 0, active: 0 };
         res.json({ success: true, data: stats });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -545,6 +545,6 @@ export const verifyJobHealth = async (req, res) => {
         const health = await schedulerService.verifyJobHealth();
         res.json({ success: true, data: health });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };

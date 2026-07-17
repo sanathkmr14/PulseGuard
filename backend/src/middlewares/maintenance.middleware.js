@@ -7,16 +7,15 @@ import Config from '../models/Config.js';
  */
 export const maintenanceMode = async (req, res, next) => {
     try {
-        // 1. Define routes that must ALWAYS be accessible (even in maintenance)
+        // [M2 SECURITY FIX] Use req.path with exact matching.
+        // IMPORTANT: This middleware is mounted as app.use('/api/', maintenanceMode) in server.js,
+        // so Express strips the '/api/' prefix from req.path. For a request to /api/auth/login,
+        // req.path = '/auth/login' (NOT '/api/auth/login').
         const bypassRoutes = [
-            '/api/auth/login',
-            '/api/admin/auth/login',
-            '/health'
+            '/auth/login',
+            '/admin/auth/login',
         ];
 
-        // [M2 SECURITY FIX] Use req.path (Express-normalized) with exact matching instead of
-        // startsWith on req.originalUrl. startsWith('/api/auth/login') would match
-        // /api/auth/login/../monitors — bypassing maintenance mode via path traversal.
         if (bypassRoutes.includes(req.path)) {
             return next();
         }

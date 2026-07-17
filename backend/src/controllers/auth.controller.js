@@ -89,7 +89,7 @@ export const getMe = async (req, res) => {
         const user = await User.findById(req.user._id);
         res.json({ success: true, data: user });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -185,7 +185,7 @@ export const updateProfile = async (req, res) => {
         if (error.code === 11000) {
             return res.status(400).json({ success: false, message: 'Email address is already in use' });
         }
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 

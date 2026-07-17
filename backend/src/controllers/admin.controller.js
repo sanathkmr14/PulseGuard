@@ -43,7 +43,7 @@ export const adminLogin = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -237,7 +237,7 @@ export const getDashboardStats = async (req, res) => {
         });
     } catch (error) {
         console.error('Admin Stats Error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -279,7 +279,7 @@ export const getUsers = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -305,7 +305,7 @@ export const getUserDetails = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -342,7 +342,7 @@ export const impersonateUser = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -359,7 +359,7 @@ export const deleteUser = async (req, res) => {
 
         res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -384,7 +384,7 @@ export const toggleUserBan = async (req, res) => {
             data: { isBanned: user.isBanned }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -475,7 +475,7 @@ export const getIncidents = async (req, res) => {
         });
     } catch (error) {
         console.error('Get Incidents Error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -496,7 +496,7 @@ export const getMonitorLogs = async (req, res) => {
         res.json({ success: true, data: logs });
     } catch (error) {
         console.error(`   ❌ Error fetching logs for ${req.params.id}:`, error.message);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -530,7 +530,7 @@ export const getUserMonitors = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -572,7 +572,7 @@ export const getUserIncidents = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -746,7 +746,7 @@ export const getSettings = async (req, res) => {
             data: config.value
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -779,6 +779,6 @@ export const updateSettings = async (req, res) => {
             message: 'System settings updated successfully'
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: safeErrorMessage(error) });
     }
 };

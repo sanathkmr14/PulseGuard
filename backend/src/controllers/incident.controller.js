@@ -40,7 +40,7 @@ export const getIncidents = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -64,7 +64,7 @@ export const getIncident = async (req, res) => {
 
         res.json({ success: true, data: incident });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -91,7 +91,7 @@ export const getMonitorIncidents = async (req, res) => {
             data: incidents
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
 
@@ -120,6 +120,6 @@ export const getActiveMonitorIncident = async (req, res) => {
             data: incident
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
 };
