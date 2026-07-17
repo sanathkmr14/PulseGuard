@@ -20,7 +20,9 @@ const connectDB = async () => {
         return conn;
     } catch (error) {
         console.error(`Error connecting to MongoDB: ${error.message}`);
-        process.exit(1);
+        // Re-throw so the caller can decide whether to exit or run in degraded mode.
+        // Do NOT call process.exit(1) here — it prevents /ping from responding on Render.
+        throw error;
     }
 };
 

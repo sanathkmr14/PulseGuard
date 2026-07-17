@@ -17,8 +17,8 @@ export const env = {
 
 // Simple validation
 if (!env.MONGODB_URI) {
-    console.error('FATAL: MONGODB_URI is not defined in environment');
-    process.exit(1);
+    // Log clearly but don't exit — allows /ping to respond while the issue is investigated.
+    console.error('FATAL: MONGODB_URI is not defined in environment. DB connections will fail.');
 }
 
 if (!env.JWT_SECRET) {

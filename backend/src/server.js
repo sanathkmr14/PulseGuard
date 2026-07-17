@@ -35,6 +35,11 @@ const httpServer = createServer(app);
 // Trust proxy: Essential if behind Load Balancer/Proxy (Heroku, AWS, Nginx)
 app.set('trust proxy', 1);
 
+// ⚡ Keep-Alive ping endpoint — registered FIRST, before ALL middleware.
+// This ensures Render's health checks and cron-job.org keep-alive pings
+// always get a 200 response, even during startup or service degradation.
+app.get('/ping', (req, res) => res.status(200).send('pong'));
+
 // Phase 6: JWT Middleware for Socket.IO
 import jwt from 'jsonwebtoken';
 import User from './models/User.js';
@@ -225,8 +230,7 @@ app.use((req, res, next) => {
 });
 
 
-// Keep-alive ping endpoint (Always returns 200, used to keep Render awake)
-app.get('/ping', (req, res) => res.status(200).send('pong'));
+// NOTE: /ping is registered at the top of this file (before all middleware)
 
 // Enhanced Health Check: Reports DB and Scheduler status
 app.get('/health', async (req, res) => {
@@ -352,8 +356,12 @@ const startServer = async () => {
 
         console.log('✅ All backend services initialized successfully');
     } catch (error) {
-        console.error('Server startup initialization error:', error);
-        process.exit(1);
+        // DO NOT call process.exit(1) here — the HTTP server is already listening
+        // and /ping is responding. Exiting causes Render to restart in a crash loop
+        // and disables keep-alive crons. Instead, log the error and run in degraded mode.
+        // The /health endpoint will report DEGRADED status until services recover.
+        console.error('⚠️ Server startup initialization error (running in degraded mode):', error.message);
+        console.error('The server will continue to serve /ping and /health while services recover.');
     }
 };
 
