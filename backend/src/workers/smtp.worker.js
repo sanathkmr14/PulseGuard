@@ -122,6 +122,7 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         });
 
                         tlsSocket.on('error', (err) => {
+                            clearTimeout(totalTimeout);
                             cleanup();
                             reject(new Error(`TLS upgrade failed on ${ip}: ${err.message}`));
                         });
