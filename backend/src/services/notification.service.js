@@ -1,7 +1,27 @@
 import nodemailer from 'nodemailer';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import http from 'http';
+import https from 'https';
 import { validateMonitorUrl } from '../utils/url-validator.js';
+import { resolveSecurely } from '../utils/resolver.js';
+
+const secureLookup = async (hostname, options, callback) => {
+    try {
+        const { address, family } = await resolveSecurely(hostname);
+        callback(null, address, family);
+    } catch (err) {
+        callback(err);
+    }
+};
+
+const secureHttpAgent = new http.Agent({ lookup: secureLookup });
+const secureHttpsAgent = new https.Agent({ lookup: secureLookup });
+
+const secureAxios = axios.create({
+    httpAgent: secureHttpAgent,
+    httpsAgent: secureHttpsAgent
+});
 
 // Ensure .env variables are available even if this file is imported before server bootstrap
 dotenv.config();
@@ -243,7 +263,7 @@ class NotificationService {
         return { success: false, error: reason };
       }
 
-      await axios.post(webhookUrl, {
+      await secureAxios.post(webhookUrl, {
         text: message.text,
         attachments: message.attachments || []
       }, { timeout: 10000 }); // Phase 5: 10s timeout to prevent event loop blockage
@@ -287,7 +307,7 @@ class NotificationService {
         return { success: false, error: reason };
       }
 
-      await axios.post(url, data, { timeout: 10000 }); // Phase 5: 10s timeout to prevent event loop blockage
+      await secureAxios.post(url, data, { timeout: 10000 }); // Phase 5: 10s timeout to prevent event loop blockage
       return { success: true };
     } catch (error) {
       const errMsg = error.response?.data ? JSON.stringify(error.response.data) : error.message;

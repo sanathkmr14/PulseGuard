@@ -51,6 +51,7 @@ const Register = () => {
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 required
+                                autoComplete="name"
                                 placeholder="John Doe"
                                 className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                             />
@@ -64,6 +65,7 @@ const Register = () => {
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 required
+                                autoComplete="email"
                                 placeholder="you@example.com"
                                 className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                             />
@@ -79,6 +81,7 @@ const Register = () => {
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                     required
                                     minLength="6"
+                                    autoComplete="new-password"
                                     placeholder="••••••••"
                                     className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all pr-12"
                                 />
