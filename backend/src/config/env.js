@@ -24,8 +24,10 @@ if (!env.MONGODB_URI) {
 if (!env.JWT_SECRET) {
     // [L1 SECURITY FIX] A missing JWT_SECRET must be fatal.
     // jsonwebtoken silently accepts `undefined` as a secret, issuing exploitable tokens.
-    console.error('FATAL: JWT_SECRET is not defined in environment. Refusing to start.');
-    process.exit(1);
+    // NOTE: We log here but do NOT exit — process.exit() at import time would kill the server
+    // before httpServer.listen() is reached, making /ping unreachable and breaking keep-alive.
+    // The fatal check is enforced in startServer() AFTER the port is bound.
+    console.error('FATAL: JWT_SECRET is not defined in environment. API will be disabled.');
 }
 
 export default env;

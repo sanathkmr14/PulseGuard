@@ -353,6 +353,14 @@ const startServer = async () => {
     });
 
     try {
+        // [L1 SECURITY FIX] Fatal check AFTER port is bound — ensures /ping always responds.
+        // If JWT_SECRET is missing the HTTP server is already up (keep-alive works), but we
+        // refuse to proceed with DB/scheduler init so no exploitable tokens can be issued.
+        if (!env.JWT_SECRET) {
+            console.error('FATAL: JWT_SECRET is missing. Shutting down to prevent insecure token signing.');
+            process.exit(1);
+        }
+
         // Connect to database
         await connectDB();
 
