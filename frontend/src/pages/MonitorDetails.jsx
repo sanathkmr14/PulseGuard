@@ -105,6 +105,17 @@ const MonitorDetails = () => {
     }, [id]);
 
     useEffect(() => {
+        // Reset state immediately when switching monitors to prevent showing previous monitor data
+        const cached = location.state?.initialMonitor || swrCache.get(`monitor_${id}`);
+        setMonitor(cached || null);
+        setStats(null);
+        setChecks([]);
+        setActiveIncident(null);
+        setResponseData(null);
+        setLoading(!cached);
+        setFetchError(null);
+        setChecksPage(1);
+
         fetchData();
         // Use subscribe pattern for automatic cleanup
         const unsubs = [
