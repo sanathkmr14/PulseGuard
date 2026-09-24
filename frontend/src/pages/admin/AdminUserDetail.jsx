@@ -241,6 +241,24 @@ const AdminUserDetail = () => {
         });
     };
 
+    const handlePauseResumeMonitor = async (monitor) => {
+        try {
+            const newIsActive = !monitor.isActive;
+            const res = await adminAPI.updateMonitor(monitor._id, { isActive: newIsActive });
+            if (res.data.success) {
+                setMonitors(prev => prev.map(m => m._id === monitor._id ? {
+                    ...m,
+                    isActive: newIsActive,
+                    status: newIsActive ? (res.data.data?.status || 'up') : 'paused'
+                } : m));
+                showNotification('success', `Monitor "${monitor.name}" ${newIsActive ? 'resumed' : 'paused'}.`);
+            }
+        } catch (error) {
+            console.error('Pause/resume monitor failed:', error);
+            showNotification('error', error.response?.data?.message || 'Failed to toggle monitor state');
+        }
+    };
+
     const handleViewLogs = async (monitor) => {
         setSelectedMonitor(monitor);
         setDrawerOpen(true);
@@ -377,50 +395,89 @@ const AdminUserDetail = () => {
                                         <table className="w-full text-left text-xs text-slate-400">
                                             <thead className="bg-slate-900/50 text-[11px] uppercase font-semibold text-slate-400 border-b border-slate-700/40">
                                                 <tr>
-                                                    <th className="px-3.5 py-2.5">Monitor Name</th>
-                                                    <th className="px-3.5 py-2.5">URL</th>
+                                                    <th className="px-3.5 py-2.5">Monitor</th>
+                                                    <th className="px-3.5 py-2.5">Type</th>
                                                     <th className="px-3.5 py-2.5">Status</th>
                                                     <th className="px-3.5 py-2.5">Last Check</th>
-                                                    <th className="px-3.5 py-2.5 text-right">Action</th>
+                                                    <th className="px-3.5 py-2.5 text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-700/40">
                                                 {monitors.map(monitor => (
                                                     <tr key={monitor._id} className="group hover:bg-slate-700/25 transition-colors">
-                                                        <td className="px-3.5 py-2.5 sm:py-3 font-medium text-white text-xs sm:text-sm">{monitor.name}</td>
-                                                        <td className="px-3.5 py-2.5 sm:py-3 text-slate-400 font-mono text-[11px] max-w-[200px] truncate">{monitor.url}</td>
                                                         <td className="px-3.5 py-2.5 sm:py-3">
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${!monitor.isActive ? 'bg-slate-700/50 text-slate-400 border-slate-600/40' :
+                                                            <div className="font-medium text-white text-xs sm:text-sm">{monitor.name}</div>
+                                                            <div className="text-slate-400 font-mono text-[11px] max-w-[200px] sm:max-w-[260px] truncate">{monitor.url}</div>
+                                                        </td>
+                                                        <td className="px-3.5 py-2.5 sm:py-3 whitespace-nowrap">
+                                                            <span className="px-1.5 py-0.5 bg-slate-800 text-slate-300 font-mono text-[10px] font-semibold rounded border border-slate-700/60 uppercase tracking-wide">
+                                                                {monitor.type || 'HTTPS'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3.5 py-2.5 sm:py-3 whitespace-nowrap">
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${!monitor.isActive || monitor.status === 'paused' ? 'bg-slate-700/50 text-slate-400 border-slate-600/40' :
                                                                 monitor.status === 'up' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                                                     monitor.status === 'down' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                                                         monitor.status === 'degraded' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                                                                             'bg-slate-700/50 text-slate-400 border-slate-600/40'
                                                                 }`}>
-                                                                {!monitor.isActive ? 'PAUSED' : (monitor.status || 'UNKNOWN').toUpperCase()}
+                                                                {!monitor.isActive || monitor.status === 'paused' ? 'PAUSED' : (monitor.status || 'UNKNOWN').toUpperCase()}
                                                             </span>
                                                         </td>
                                                         <td className="px-3.5 py-2.5 sm:py-3 text-slate-400 text-xs font-mono whitespace-nowrap">
-                                                            {monitor.lastChecked ? new Date(monitor.lastChecked).toLocaleString() : 'Never'}
+                                                            {monitor.lastChecked ? new Date(monitor.lastChecked).toLocaleString(undefined, {
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            }) : 'Never'}
                                                         </td>
-                                                        <td className="px-3.5 py-2.5 sm:py-3 text-right">
-                                                            <div className="flex justify-end gap-1.5">
+                                                        <td className="px-3.5 py-2.5 sm:py-3 text-right whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-1.5">
                                                                 <button
                                                                     onClick={() => handleViewLogs(monitor)}
-                                                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs rounded transition-colors"
+                                                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-md transition-colors border border-slate-700/60"
+                                                                    title="View Real-Time Logs"
                                                                 >
-                                                                    View Logs
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePauseResumeMonitor(monitor)}
+                                                                    className={`p-1.5 rounded-md transition-colors border ${monitor.status === 'paused' || !monitor.isActive
+                                                                        ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                                                                        : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
+                                                                        }`}
+                                                                    title={monitor.status === 'paused' || !monitor.isActive ? 'Resume Monitor' : 'Pause Monitor'}
+                                                                >
+                                                                    {monitor.status === 'paused' || !monitor.isActive ? (
+                                                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                                                            <path d="M8 5v14l11-7z" />
+                                                                        </svg>
+                                                                    ) : (
+                                                                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                                                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                                                                        </svg>
+                                                                    )}
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleEditMonitor(monitor)}
-                                                                    className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 text-xs rounded transition-colors"
+                                                                    className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-md transition-colors border border-blue-500/20"
+                                                                    title="Edit Monitor"
                                                                 >
-                                                                    Edit
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                    </svg>
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDeleteMonitor(monitor)}
-                                                                    className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs rounded transition-colors"
+                                                                    className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-md transition-colors border border-red-500/20"
+                                                                    title="Delete Monitor"
                                                                 >
-                                                                    Delete
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
                                                                 </button>
                                                             </div>
                                                         </td>
