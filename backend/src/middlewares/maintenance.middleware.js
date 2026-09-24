@@ -14,6 +14,8 @@ export const maintenanceMode = async (req, res, next) => {
         const bypassRoutes = [
             '/auth/login',
             '/admin/auth/login',
+            '/auth/me',
+            '/stats/config',
         ];
 
         if (bypassRoutes.includes(req.path)) {
