@@ -124,7 +124,7 @@ const DashboardLayout = () => {
         <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
             {/* System Banner */}
             {(systemConfig?.globalAlert || systemConfig?.maintenanceMode) && (
-                <div className="bg-indigo-600/10 backdrop-blur-md border-b border-indigo-500/20 text-white px-4 py-3 relative z-[60] animate-fade-in-down shadow-lg shadow-indigo-500/10">
+                <div className="bg-blue-600/10 backdrop-blur-md border-b border-blue-500/20 text-white px-4 py-3 relative z-[60] animate-fade-in-down shadow-lg shadow-blue-500/10">
                     <div className="max-w-7xl mx-auto flex items-center justify-center gap-3">
                         {systemConfig.maintenanceMode ? (
                             <>
@@ -132,17 +132,17 @@ const DashboardLayout = () => {
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
                                 </span>
-                                <span className="font-medium text-sm md:text-base text-indigo-100">
+                                <span className="font-medium text-sm md:text-base text-blue-100">
                                     <span className="font-bold text-white tracking-wide uppercase text-xs px-2 py-0.5 rounded bg-white/10 mr-2 border border-white/10">Maintenance</span>
                                     {systemConfig.globalAlert || 'Scheduled maintenance is in progress.'}
                                 </span>
                             </>
                         ) : (
                             <>
-                                <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span className="font-medium text-sm text-indigo-100">{systemConfig.globalAlert}</span>
+                                <span className="font-medium text-sm text-blue-100">{systemConfig.globalAlert}</span>
                             </>
                         )}
                     </div>

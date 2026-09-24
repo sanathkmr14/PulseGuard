@@ -65,7 +65,7 @@ const AdminUsers = () => {
                     <input
                         type="text"
                         placeholder="Search users..."
-                        className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={searchTerm}
                         onChange={handleSearchChange}
                     />
@@ -91,7 +91,7 @@ const AdminUsers = () => {
                                 <tr>
                                     <td colSpan="4" className="px-6 py-12 text-center text-slate-500">
                                         <div className="flex items-center justify-center gap-2">
-                                            <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                             Loading users...
                                         </div>
                                     </td>
@@ -132,7 +132,7 @@ const AdminUsers = () => {
                                         <td className="px-6 py-4 text-right">
                                             <Link
                                                 to={`/admin/users/${user._id}`}
-                                                className="text-indigo-400 hover:text-indigo-300 font-medium text-sm transition-colors"
+                                                className="text-blue-400 hover:text-blue-300 font-medium text-sm transition-colors"
                                             >
                                                 View Details
                                             </Link>

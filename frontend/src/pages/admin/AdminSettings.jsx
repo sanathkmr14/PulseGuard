@@ -74,7 +74,7 @@ const AdminSettings = () => {
                             <label className="block text-sm font-medium text-slate-300 mb-2">Banner Message</label>
                             <input
                                 type="text"
-                                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="e.g., Scheduled maintenance at 10 PM UTC"
                                 value={globalAlert}
                                 onChange={(e) => setGlobalAlert(e.target.value)}

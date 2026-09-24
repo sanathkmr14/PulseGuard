@@ -29,7 +29,7 @@ const CheckLogsDrawer = ({ isOpen, onClose, logs, monitorName }) => {
                                                 <div className="ml-3 flex h-7 items-center">
                                                     <button
                                                         type="button"
-                                                        className="rounded-md bg-slate-800 text-slate-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        className="rounded-md bg-slate-800 text-slate-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                         onClick={onClose}
                                                     >
                                                         <span className="sr-only">Close panel</span>

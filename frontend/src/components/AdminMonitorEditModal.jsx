@@ -99,24 +99,24 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1.5">Name</label>
                             <input type="text" placeholder="My Website" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" />
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1.5">Type</label>
                             <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none">
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none">
                                 {['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING'].map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
                         <div className="sm:col-span-2">
                             <label className="block text-sm font-medium text-gray-400 mb-1.5">URL or Hostname</label>
                             <input type="text" placeholder="https://example.com" required value={formData.url} onChange={e => setFormData({ ...formData, url: e.target.value })}
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 outline-none" />
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-blue-500 outline-none" />
                         </div>
                         <div className="sm:col-span-2">
                             <label className="block text-sm font-medium text-gray-400 mb-1.5">Check Interval (minutes)</label>
                             <input type="number" placeholder="5" min="1" value={formData.interval} onChange={e => setFormData({ ...formData, interval: +e.target.value })}
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                         </div>
                     </div>
 
@@ -133,32 +133,32 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Port</label>
                                 <input type="number" placeholder="e.g. 443" min="1" max="65535" value={formData.port ?? ''} onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
-                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                                 <p className="text-xs text-gray-600 mt-1">Required for TCP/UDP/SMTP</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Alert Threshold</label>
                                 <input type="number" placeholder="2" min="1" max="20" value={formData.alertThreshold ?? 2} onChange={e => setFormData({ ...formData, alertThreshold: +e.target.value })}
-                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                                 <p className="text-xs text-gray-600 mt-1">Failures before alert</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Timeout (ms)</label>
                                 <input type="number" placeholder="30000" min="1000" value={formData.timeout} onChange={e => setFormData({ ...formData, timeout: +e.target.value })}
-                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                                 <p className="text-xs text-gray-600 mt-1">Max wait time before marking as down</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Degraded Threshold (ms)</label>
                                 <input type="number" placeholder="2000" min="0" value={formData.degradedThresholdMs} onChange={e => setFormData({ ...formData, degradedThresholdMs: +e.target.value })}
-                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                                 <p className="text-xs text-gray-600 mt-1">Response time above this = degraded status</p>
                             </div>
                             {(formData.type === 'SSL' || formData.type === 'HTTPS') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-1.5">SSL Expiry Alert (days)</label>
                                     <input type="number" placeholder="14" min="1" max="365" value={formData.sslExpiryThresholdDays} onChange={e => setFormData({ ...formData, sslExpiryThresholdDays: +e.target.value })}
-                                        className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                        className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-blue-500 outline-none" />
                                 </div>
                             )}
                         </div>
@@ -170,7 +170,7 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                             Cancel
                         </button>
                         <button type="submit" disabled={saving}
-                            className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                            className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                             {saving ? (
                                 <>
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

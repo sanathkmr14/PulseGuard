@@ -42,7 +42,7 @@ const AdminUserDetail = () => {
         title: '',
         message: '',
         confirmText: 'Confirm',
-        confirmColor: 'indigo',
+        confirmColor: 'blue',
         onConfirm: () => { }
     });
 
@@ -127,7 +127,7 @@ const AdminUserDetail = () => {
             title: 'Login as User',
             message: `Are you sure you want to log in as ${user.name}? You will be redirected to their dashboard.`,
             confirmText: 'Login',
-            confirmColor: 'indigo',
+            confirmColor: 'blue',
             onConfirm: async () => {
                 try {
                     const res = await adminAPI.impersonateUser(user._id);
@@ -290,7 +290,7 @@ const AdminUserDetail = () => {
                     <div className="flex flex-wrap gap-3 w-full md:w-auto justify-start md:justify-end">
                         <button
                             onClick={handleImpersonate}
-                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20"
+                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20"
                         >
                             Login as User
                         </button>
@@ -330,7 +330,7 @@ const AdminUserDetail = () => {
                                 className={`
                                     py-4 px-1 border-b-2 font-medium text-sm transition-colors
                                     ${activeTab === tab.toLowerCase()
-                                        ? 'border-indigo-500 text-indigo-400'
+                                        ? 'border-blue-500 text-blue-400'
                                         : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'
                                     }
                                 `}
@@ -387,7 +387,7 @@ const AdminUserDetail = () => {
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleEditMonitor(monitor)}
-                                                                    className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-xs rounded-md transition-colors"
+                                                                    className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 text-xs rounded-md transition-colors"
                                                                 >
                                                                     Edit
                                                                 </button>

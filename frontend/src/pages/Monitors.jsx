@@ -320,7 +320,7 @@ const Monitors = () => {
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
-            <div className="w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+            <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
         </div>
     );
 

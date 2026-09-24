@@ -1,11 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', confirmColor = 'indigo' }) => {
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', confirmColor = 'blue' }) => {
     if (!isOpen) return null;
 
     const colorClasses = {
-        indigo: 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500',
+        blue: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+        indigo: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
         red: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
         emerald: 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500',
         amber: 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500',
@@ -30,11 +31,11 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirm
                         <div className="flex flex-col sm:flex-row sm:items-start text-center sm:text-left">
                             <div className={`mx-auto mb-4 sm:mb-0 flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full sm:mx-0 sm:h-10 sm:w-10 ${confirmColor === 'red' ? 'bg-red-500/10' :
                                 confirmColor === 'amber' ? 'bg-amber-500/10' :
-                                    'bg-indigo-500/10'
+                                    'bg-blue-500/10'
                                 }`}>
                                 <svg className={`h-6 w-6 ${confirmColor === 'red' ? 'text-red-500' :
                                     confirmColor === 'amber' ? 'text-amber-500' :
-                                        'text-indigo-500'
+                                        'text-blue-500'
                                     }`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
@@ -55,14 +56,14 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirm
                     <div className="bg-slate-800/50 px-4 py-3 border-t border-slate-700/50 flex flex-col sm:flex-row-reverse gap-3 sm:gap-0 sm:px-6">
                         <button
                             type="button"
-                            className={`w-full inline-flex justify-center items-center rounded-lg border border-transparent shadow-sm px-4 py-2.5 sm:py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 sm:ml-3 sm:w-auto sm:text-sm transition-colors ${colorClasses[confirmColor] || colorClasses.indigo}`}
+                            className={`w-full inline-flex justify-center items-center rounded-lg border border-transparent shadow-sm px-4 py-2.5 sm:py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 sm:ml-3 sm:w-auto sm:text-sm transition-colors ${colorClasses[confirmColor] || colorClasses.blue}`}
                             onClick={onConfirm}
                         >
                             {confirmText}
                         </button>
                         <button
                             type="button"
-                            className="w-full inline-flex justify-center items-center rounded-lg border border-slate-600 shadow-sm px-4 py-2.5 sm:py-2 bg-slate-700 text-base font-medium text-slate-300 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 sm:w-auto sm:text-sm transition-colors"
+                            className="w-full inline-flex justify-center items-center rounded-lg border border-slate-600 shadow-sm px-4 py-2.5 sm:py-2 bg-slate-700 text-base font-medium text-slate-300 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-blue-500 sm:w-auto sm:text-sm transition-colors"
                             onClick={onClose}
                         >
                             Cancel

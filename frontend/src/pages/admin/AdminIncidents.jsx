@@ -73,7 +73,7 @@ const AdminIncidents = () => {
                     <input
                         type="text"
                         placeholder="Search monitor, user, or email..."
-                        className="bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={search}
                         onChange={handleSearchChange}
                     />
@@ -85,7 +85,7 @@ const AdminIncidents = () => {
                 <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px]"
                 >
                     <option value="ongoing">Ongoing (Critical)</option>
                     <option value="resolved">Resolved</option>
@@ -95,7 +95,7 @@ const AdminIncidents = () => {
                 <select
                     value={sort}
                     onChange={(e) => setSort(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[180px]"
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]"
                 >
                     <option value="createdAt">Newest First</option>
                     <option value="oldest">Oldest First</option>
@@ -122,7 +122,7 @@ const AdminIncidents = () => {
                                 <tr>
                                     <td colSpan="6" className="px-6 py-12 text-center">
                                         <div className="flex justify-center items-center gap-2 text-slate-400">
-                                            <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                             Loading alerts...
                                         </div>
                                     </td>
@@ -139,7 +139,7 @@ const AdminIncidents = () => {
                                                         setStatus('all');
                                                         fetchIncidents(1, '');
                                                     }}
-                                                    className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+                                                    className="text-blue-400 hover:text-blue-300 text-sm font-medium"
                                                 >
                                                     Clear filters
                                                 </button>
