@@ -86,18 +86,18 @@ const Pagination = ({
             )}
 
             {/* Controls */}
-            <div className={`flex flex-nowrap items-center justify-center shrink-0 max-w-full overflow-x-auto no-scrollbar py-0.5 ${compact ? 'gap-1' : 'gap-1 sm:gap-1.5'}`}>
+            <div className={`flex flex-nowrap items-center justify-center shrink-0 max-w-full px-2 overflow-x-auto no-scrollbar py-0.5 ${compact ? 'gap-1' : 'gap-1 sm:gap-1.5'}`}>
                 {/* Previous Button */}
                 <button
                     onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
                     disabled={currentPage === 1}
-                    className={`${compact ? 'px-2 h-7 text-[11px]' : 'px-2 sm:px-3 h-7 sm:h-8 text-xs'} flex items-center gap-1 rounded-lg font-medium bg-[#12121a] hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-800 hover:border-gray-700 transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0`}
+                    className={`${compact ? 'px-2 h-7 text-[11px]' : 'px-2.5 sm:px-3 h-7 sm:h-8 text-xs'} flex items-center gap-1 rounded-lg font-medium bg-[#12121a] hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-800 hover:border-gray-700 transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0`}
                     title="Previous page"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
-                    {!compact && <span className="hidden sm:inline">Previous</span>}
+                    {!compact && <span className="hidden md:inline">Previous</span>}
                 </button>
 
                 {/* Page Number Buttons */}
@@ -136,10 +136,10 @@ const Pagination = ({
                 <button
                     onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className={`${compact ? 'px-2 h-7 text-[11px]' : 'px-2 sm:px-3 h-7 sm:h-8 text-xs'} flex items-center gap-1 rounded-lg font-medium bg-[#12121a] hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-800 hover:border-gray-700 transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0`}
+                    className={`${compact ? 'px-2 h-7 text-[11px]' : 'px-2.5 sm:px-3 h-7 sm:h-8 text-xs'} flex items-center gap-1 rounded-lg font-medium bg-[#12121a] hover:bg-gray-800 text-gray-300 hover:text-white border border-gray-800 hover:border-gray-700 transition-colors disabled:opacity-30 disabled:pointer-events-none shrink-0`}
                     title="Next page"
                 >
-                    {!compact && <span className="hidden sm:inline">Next</span>}
+                    {!compact && <span className="hidden md:inline">Next</span>}
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>

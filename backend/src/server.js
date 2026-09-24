@@ -363,6 +363,7 @@ io.on('connection', (socket) => {
 
 // Pass Socket.IO instance to scheduler
 schedulerService.setIO(io);
+app.set('io', io);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

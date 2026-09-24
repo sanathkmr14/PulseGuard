@@ -256,11 +256,15 @@ const Dashboard = () => {
         const unsub2 = subscribe('monitor_status_change', () => fetchAllRef.current?.());
         const unsub3 = subscribe('incident_created', () => fetchAllRef.current?.());
         const unsub4 = subscribe('incident_resolved', () => fetchAllRef.current?.());
+        const unsub5 = subscribe('monitor_created', () => fetchAllRef.current?.());
+        const unsub6 = subscribe('monitor_deleted', () => fetchAllRef.current?.());
         return () => {
             unsub1();
             unsub2();
             unsub3();
             unsub4();
+            unsub5();
+            unsub6();
         };
     }, [subscribe]);
 
@@ -382,8 +386,8 @@ const Dashboard = () => {
                                             {stats?.downMonitors} {stats?.downMonitors === 1 ? 'Service Down' : 'Services Down'}
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">
-                                        Active incidents require attention. Review alerts below.
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                        Active incidents require immediate attention.
                                     </p>
                                 </div>
                             </div>
@@ -413,8 +417,8 @@ const Dashboard = () => {
                                             {stats?.degradedMonitors} Degraded
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">
-                                        Elevated latency or SSL expiry alerts detected on monitored endpoints.
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                        Elevated latency or SSL expiry alerts detected.
                                     </p>
                                 </div>
                             </div>
@@ -444,8 +448,8 @@ const Dashboard = () => {
                                             0 Active
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">
-                                        No endpoints configured yet. Add your first service to begin automated uptime telemetry and SLA tracking.
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                        Add your first service to begin automated uptime telemetry.
                                     </p>
                                 </div>
                             </div>
@@ -480,8 +484,8 @@ const Dashboard = () => {
                                         100% Healthy
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5">
-                                    All {stats?.totalMonitors ?? monitors.length} monitored service{(stats?.totalMonitors ?? monitors.length) === 1 ? '' : 's'} responding normally with zero active outages.
+                                <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                    All {stats?.totalMonitors ?? monitors.length} monitored service{(stats?.totalMonitors ?? monitors.length) === 1 ? '' : 's'} responding normally.
                                 </p>
                             </div>
                         </div>
@@ -648,7 +652,7 @@ const Dashboard = () => {
                                 </div>
 
                                 {/* Monitored Services Numbered Pagination & Limit Selector */}
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:px-4 border-t border-gray-800/40 bg-[#0d0d14]/30">
+                                <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 sm:px-4 border-t border-gray-800/40 bg-[#0d0d14]/30">
                                     <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
                                         <span>Per page:</span>
                                         <select

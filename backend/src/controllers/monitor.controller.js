@@ -180,6 +180,15 @@ export const createMonitor = async (req, res) => {
             .sort({ timestamp: -1 })
             .limit(1);
 
+        // Emit real-time monitor_created event
+        if (req.app.get('io')) {
+            try {
+                req.app.get('io').to(`user_${req.user._id}`).emit('monitor_created', { monitor });
+            } catch (socketErr) {
+                console.warn('Socket error on monitor_created:', socketErr.message);
+            }
+        }
+
         res.status(201).json({
             success: true,
             data: {
@@ -479,6 +488,15 @@ export const deleteMonitor = async (req, res) => {
 
         // Step 5: Clear alert suppression
         await enhancedAlertService.clearAlertSuppression(monitor._id);
+
+        // Emit real-time monitor_deleted event
+        if (req.app.get('io')) {
+            try {
+                req.app.get('io').to(`user_${monitor.user}`).emit('monitor_deleted', { monitorId: monitor._id });
+            } catch (socketErr) {
+                console.warn('Socket error on monitor_deleted:', socketErr.message);
+            }
+        }
 
         res.json({ success: true, message: 'Monitor deleted' });
     } catch (error) {
