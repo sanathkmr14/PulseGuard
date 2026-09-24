@@ -6,6 +6,8 @@ import redisCache from '../config/redis-cache.js';
 // In-memory L1 cache to avoid downloading/decoding CRLs repeatedly within short timeframes
 const l1Cache = new Map();
 const CRL_CACHE_TTL_SECONDS = 3600; // 1 hour
+const MAX_CRL_DOWNLOAD_BYTES = 512 * 1024; // 512 KB max download size (skips commercial mega-CRLs)
+const MAX_CRL_REDIS_BYTES = 64 * 1024; // 64 KB max Redis storage size (never bloats Redis Cloud)
 
 /**
  * Extract CRL Distribution Point URI from raw X.509 certificate buffer
@@ -38,7 +40,7 @@ const fetchCrlBuffer = async (url, timeoutMs = 5000) => {
         return memCached.buffer;
     }
 
-    // 2. Check Redis L2 Cache
+    // 2. Check Redis L2 Cache (only cached if small)
     const redisKey = `crl:cache:${url}`;
     try {
         if (redisCache?.get) {
@@ -53,33 +55,70 @@ const fetchCrlBuffer = async (url, timeoutMs = 5000) => {
         console.warn(`[CRL] Redis cache read failed for ${url}:`, redisErr.message);
     }
 
-    // 3. Network Fetch
+    // 3. Network Fetch with Strict Size Caps
     const buffer = await new Promise((resolve, reject) => {
+        let aborted = false;
         const client = url.startsWith('https:') ? https : http;
         const req = client.get(url, (res) => {
             if (res.statusCode < 200 || res.statusCode >= 300) {
                 return reject(new Error(`HTTP ${res.statusCode} fetching CRL from ${url}`));
             }
+
+            // Check Content-Length header if present
+            const clHeader = res.headers['content-length'];
+            if (clHeader) {
+                const len = parseInt(clHeader, 10);
+                if (len > MAX_CRL_DOWNLOAD_BYTES) {
+                    aborted = true;
+                    res.destroy();
+                    req.destroy();
+                    return reject(new Error(`CRL size (${(len / 1024).toFixed(0)}KB) exceeds safety limit of 512KB`));
+                }
+            }
+
             const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
-            res.on('end', () => resolve(Buffer.concat(chunks)));
+            let totalBytes = 0;
+            res.on('data', chunk => {
+                if (aborted) return;
+                totalBytes += chunk.length;
+                if (totalBytes > MAX_CRL_DOWNLOAD_BYTES) {
+                    aborted = true;
+                    res.destroy();
+                    req.destroy();
+                    return reject(new Error(`CRL stream exceeded safety limit of 512KB`));
+                }
+                chunks.push(chunk);
+            });
+            res.on('end', () => {
+                if (!aborted) {
+                    resolve(Buffer.concat(chunks));
+                }
+            });
         });
 
-        req.on('error', reject);
+        req.on('error', (err) => {
+            if (!aborted) reject(err);
+        });
+
         req.setTimeout(timeoutMs, () => {
+            aborted = true;
             req.destroy();
             reject(new Error(`CRL fetch timed out (${timeoutMs}ms) for ${url}`));
         });
     });
 
-    // Populate L1 & L2 caches
+    // Populate L1 cache (in-process memory)
     l1Cache.set(url, { buffer, expiresAt: now + (CRL_CACHE_TTL_SECONDS * 1000) });
-    try {
-        if (redisCache?.set) {
-            await redisCache.set(redisKey, buffer.toString('hex'), 'EX', CRL_CACHE_TTL_SECONDS);
+
+    // Populate Redis L2 cache ONLY if buffer is tiny (<= 64KB)
+    if (buffer.length <= MAX_CRL_REDIS_BYTES) {
+        try {
+            if (redisCache?.set) {
+                await redisCache.set(redisKey, buffer.toString('hex'), 'EX', CRL_CACHE_TTL_SECONDS);
+            }
+        } catch (redisSetErr) {
+            console.warn(`[CRL] Redis cache write failed for ${url}:`, redisSetErr.message);
         }
-    } catch (redisSetErr) {
-        console.warn(`[CRL] Redis cache write failed for ${url}:`, redisSetErr.message);
     }
 
     return buffer;
@@ -157,11 +196,16 @@ export const checkCrlRevocation = async (certRaw, serialNumber, timeoutMs = 5000
         };
 
     } catch (error) {
-        console.warn(`[CRL] CRL check skipped:`, error.message);
-        // Soft-fail: Do not treat CRL errors or network hiccups as revoked to prevent false positives
+        const isOversized = error.message?.includes('safety limit');
+        if (isOversized) {
+            console.log(`[CRL] Notice: ${error.message} (safe to skip for commercial CA)`);
+        } else {
+            console.warn(`[CRL] CRL check skipped:`, error.message);
+        }
+        // Soft-fail: Do not treat CRL errors or oversized CRLs as revoked to prevent false positives
         return {
             revoked: false,
-            status: 'error',
+            status: isOversized ? 'skipped_oversized' : 'error',
             message: `CRL check skipped: ${error.message}`
         };
     }

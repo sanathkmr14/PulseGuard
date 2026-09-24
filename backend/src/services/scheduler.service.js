@@ -1040,7 +1040,33 @@ class SchedulerService {
             // 3. Trim Redis event streams so memory is capped
             if (this.redis && this.redis.status === 'ready') {
                 await this.redis.xtrim('bull:monitor-queue:events', 'MAXLEN', '~', 100).catch(() => {});
-                await this.redis.xtrim('monitor_updates_stream', 'MAXLEN', '~', 200).catch(() => {});
+                await this.redis.xtrim('monitor_updates_stream', 'MAXLEN', '~', 100).catch(() => {});
+
+                // 4. Memory Guardian: purge any oversized CRL cache keys (> 128KB)
+                const crlKeys = await this.redis.keys('crl:cache:*').catch(() => []);
+                for (const key of crlKeys) {
+                    try {
+                        const usage = await this.redis.memory('USAGE', key);
+                        if (usage && usage > 128 * 1024) {
+                            console.warn(`[Redis Guardian] Purging oversized key: ${key} (${(usage / 1024).toFixed(1)} KB)`);
+                            await this.redis.del(key);
+                        }
+                    } catch {
+                        // Ignore individual key check errors
+                    }
+                }
+
+                // 5. Emergency threshold protection: if used_memory exceeds 15MB (50% of 30MB limit), flush all CRL caches
+                const memInfo = await this.redis.info('memory').catch(() => '');
+                const usedMatch = memInfo.match(/used_memory:(\d+)/);
+                if (usedMatch && parseInt(usedMatch[1], 10) > 15 * 1024 * 1024) {
+                    console.warn(`[Redis Guardian] Memory pressure detected (${(parseInt(usedMatch[1], 10) / 1024 / 1024).toFixed(1)}MB). Flushing volatile caches...`);
+                    for (const key of crlKeys) {
+                        await this.redis.del(key).catch(() => {});
+                    }
+                    await this.redis.xtrim('bull:monitor-queue:events', 'MAXLEN', '~', 20).catch(() => {});
+                    await this.redis.xtrim('monitor_updates_stream', 'MAXLEN', '~', 20).catch(() => {});
+                }
             }
         } catch (err) {
             console.debug('[Redis Auto-Clean] Non-fatal cleanup notification:', err.message);
