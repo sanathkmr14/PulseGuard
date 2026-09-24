@@ -200,6 +200,17 @@ async function startStreamProcessing() {
             }
         } catch (err) {
             console.error('❌ Stream Processing Error:', err.message);
+            // Self-heal: If consumer group or stream doesn't exist, recreate it
+            if (err.message?.includes('NOGROUP')) {
+                try {
+                    await redisSubscriber.xgroup('CREATE', STREAM_KEY, CONSUMER_GROUP, '$', 'MKSTREAM');
+                    console.log('✅ Auto-recovered and created Redis Stream Consumer Group');
+                } catch (groupErr) {
+                    if (!groupErr.message.includes('BUSYGROUP')) {
+                        console.warn('⚠️ Group recovery attempt:', groupErr.message);
+                    }
+                }
+            }
             // Wait a bit before retrying loop to avoid tight failure loops
             await new Promise(r => setTimeout(r, 2000));
         }
