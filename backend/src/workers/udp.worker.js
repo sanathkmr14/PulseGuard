@@ -40,6 +40,17 @@ function buildDnsQueryPacket() {
 }
 
 /**
+ * Build a standard NTP client query packet (Mode 3, 48 bytes)
+ * Used for testing NTP time servers (Port 123)
+ */
+function buildNtpQueryPacket() {
+    const packet = Buffer.alloc(48);
+    // LI = 0 (no warning), VN = 3 (version 3), Mode = 3 (client) -> 00 011 011 = 0x1b
+    packet[0] = 0x1b;
+    return packet;
+}
+
+/**
  * Check UDP port connectivity with DNS fallback
  */
 export const checkUdp = async (monitor, result, options = {}) => {
@@ -120,10 +131,17 @@ export const checkUdp = async (monitor, result, options = {}) => {
         return result;
     }
 
-    // Use proper DNS query for port 53, otherwise use custom payload or PING
-    const probeMessage = (safePort === 53)
-        ? buildDnsQueryPacket()
-        : Buffer.from(monitor.payload || 'PING');
+    // Use proper protocol packets for well-known UDP ports if no custom payload
+    let probeMessage;
+    if (monitor.payload) {
+        probeMessage = Buffer.from(monitor.payload);
+    } else if (safePort === 53) {
+        probeMessage = buildDnsQueryPacket();
+    } else if (safePort === 123) {
+        probeMessage = buildNtpQueryPacket();
+    } else {
+        probeMessage = Buffer.from('PING');
+    }
 
     return new Promise((resolve) => {
         // Move socket creation inside the promise
@@ -158,20 +176,21 @@ export const checkUdp = async (monitor, result, options = {}) => {
 
             const latency = Date.now() - startTime;
 
-            // For UDP port 53 probe, do NOT falsely classify timeout as UP via local DNS lookup;
-            // classify timeout on port 53 as DOWN.
-            if (safePort === 53) {
+            // For UDP port 53 (DNS) and 123 (NTP) probes, do NOT falsely classify timeout as UP via local DNS lookup;
+            // classify timeout on these dedicated ports as DOWN.
+            if (safePort === 53 || safePort === 123) {
+                const protocolName = safePort === 53 ? 'DNS' : 'NTP';
                 result.healthState = 'DOWN';
                 result.isUp = false;
                 result.errorType = 'TIMEOUT';
-                result.errorMessage = `UDP DNS probe to port 53 timed out after ${timeout}ms`;
+                result.errorMessage = `UDP ${protocolName} probe to port ${safePort} timed out after ${timeout}ms`;
                 result.responseTime = latency;
                 if (!result.meta) result.meta = {};
                 result.meta.hostname = hostname;
                 result.meta.port = port;
                 result.meta.strictMode = strictMode;
                 cleanup();
-                console.log(`📡 UDP [${hostname}:${port}] ❌ DOWN - DNS Port 53 Timeout | ResponseTime: ${latency}ms`);
+                console.log(`📡 UDP [${hostname}:${port}] ❌ DOWN - ${protocolName} Port ${safePort} Timeout | ResponseTime: ${latency}ms`);
                 resolve(result);
                 return;
             }
