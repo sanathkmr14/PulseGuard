@@ -4,34 +4,41 @@ import mongoose from 'mongoose';
 import app from '../../src/server.js';
 import schedulerService from '../../src/services/scheduler.service.js';
 
-// Mock scheduler service
-jest.mock('../../src/services/scheduler.service.js', () => ({
-    isMaster: true,
-    isReady: true,
-    setIO: jest.fn(),
-    initialize: jest.fn(),
-    shutdown: jest.fn()
-}));
+const origReadyStateDesc = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState')
+    || Object.getOwnPropertyDescriptor(Object.getPrototypeOf(mongoose.connection), 'readyState');
 
-// Mock mongoose
-jest.mock('mongoose', () => {
-    const original = jest.requireActual('mongoose');
-    return {
-        ...original,
-        connect: jest.fn(),
-        connection: {
-            readyState: 1 // Connected
-        }
-    };
-});
+function setReadyState(valueOrFn) {
+    if (typeof valueOrFn === 'function') {
+        Object.defineProperty(mongoose.connection, 'readyState', {
+            get: valueOrFn,
+            configurable: true
+        });
+    } else {
+        Object.defineProperty(mongoose.connection, 'readyState', {
+            get: () => valueOrFn,
+            configurable: true
+        });
+    }
+}
+
+function restoreReadyState() {
+    delete mongoose.connection.readyState;
+    if (origReadyStateDesc && Object.prototype.hasOwnProperty.call(mongoose.connection, 'readyState')) {
+        Object.defineProperty(mongoose.connection, 'readyState', origReadyStateDesc);
+    }
+}
 
 describe('Health Check Endpoint Diagnostics', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         // Reset defaults
-        mongoose.connection.readyState = 1;
+        setReadyState(1);
         schedulerService.isMaster = true;
         schedulerService.isReady = true;
+    });
+
+    afterEach(() => {
+        restoreReadyState();
     });
 
     it('should return 200 UP when DB and Scheduler are healthy', async () => {
@@ -44,7 +51,7 @@ describe('Health Check Endpoint Diagnostics', () => {
     });
 
     it('should return 503 DEGRADED when DB is disconnected', async () => {
-        mongoose.connection.readyState = 0; // Disconnected
+        setReadyState(0); // Disconnected
 
         const response = await request(app).get('/health');
 
@@ -78,9 +85,7 @@ describe('Health Check Endpoint Diagnostics', () => {
 
     it('should return 503 DOWN when an error occurs', async () => {
         // Force an error by making readyState access throw
-        Object.defineProperty(mongoose.connection, 'readyState', {
-            get: () => { throw new Error('DB Error'); }
-        });
+        setReadyState(() => { throw new Error('DB Error'); });
 
         const response = await request(app).get('/health');
 

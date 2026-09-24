@@ -11,7 +11,7 @@
  */
 export const safeErrorMessage = (error, fallback = 'An unexpected error occurred') => {
     if (process.env.NODE_ENV === 'production') {
-        return fallback + ' | DEBUG: ' + (error?.message || 'unknown error');
+        return fallback;
     }
     return error?.message || fallback;
 };

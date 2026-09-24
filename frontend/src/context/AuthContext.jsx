@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
             setUser(user.user || user);
             return { success: true, user: (user.user || user) };
         } catch (err) {
-            const message = err.response?.data?.message || 'Login failed';
+            const message = err.response?.data?.message || (err.message === 'Network Error' ? 'Unable to reach backend server. Please ensure backend is running.' : 'Login failed');
             setError(message);
             return { success: false, error: message };
         }

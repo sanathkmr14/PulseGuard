@@ -49,8 +49,9 @@ describe('Enhanced Alert Service - E2E Tests', () => {
     beforeAll(async () => {
         console.log('\n🔧 Setting up test environment...\n');
 
-        // Clear old test data
-        await Incident.deleteMany({ monitor: { $exists: true } });
+        // Clear old test data safely (scoped to test monitors only)
+        const oldTestMonitors = await Monitor.find({ name: /^TEST_/ }).select('_id');
+        await Incident.deleteMany({ monitor: { $in: oldTestMonitors.map(m => m._id) } });
         await Monitor.deleteMany({ name: /^TEST_/ });
         await User.deleteMany({ email: /^test-/ });
 
@@ -79,8 +80,9 @@ describe('Enhanced Alert Service - E2E Tests', () => {
         notificationService.sendSlack = originalSendSlack;
         notificationService.sendWebhook = originalSendWebhook;
 
-        // Clean up
-        await Incident.deleteMany({ monitor: { $exists: true } });
+        // Clean up safely (scoped to test monitors only)
+        const cleanupMonitors = await Monitor.find({ name: /^TEST_/ }).select('_id');
+        await Incident.deleteMany({ monitor: { $in: cleanupMonitors.map(m => m._id) } });
         await Monitor.deleteMany({ name: /^TEST_/ });
         await User.deleteMany({ email: /^test-/ });
 

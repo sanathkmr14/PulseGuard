@@ -1,5 +1,6 @@
 import { Queue, Worker, QueueEvents } from 'bullmq';
 import Redis from 'ioredis'; // Dedicated Redis for BullMQ
+import { EventEmitter } from 'events';
 import { request } from 'undici'; // High-performance HTTP client with 1xx support
 import net from 'net';
 import tls from 'tls';
@@ -9,6 +10,7 @@ import ping from 'ping';
 import MonitorRunner from './runner.js';
 import Monitor from '../models/Monitor.js';
 import Check from '../models/Check.js';
+import Incident from '../models/Incident.js';
 import enhancedAlertService from './enhanced-alert.service.js';
 import enhancedHealthStateService from './health-evaluator.service.js';
 import env from '../config/env.js';
@@ -28,36 +30,59 @@ const WORKER_CONCURRENCY = env.WORKER_CONCURRENCY > 0 ? env.WORKER_CONCURRENCY :
 
 console.log(`🚀 Scheduler Worker Concurrency set to: ${WORKER_CONCURRENCY} (CPUs: ${CPU_COUNT})`);
 
-// Create a dedicated Redis connection for BullMQ to avoid connection conflicts
-// BullMQ REQUIRES maxRetriesPerRequest: null for blocking operations (BLPOP, etc.)
-// Create base configuration for BullMQ Redis connections
-const redisOptions = {
-    maxRetriesPerRequest: null, // REQUIRED by BullMQ for blocking operations
-    retryDelayOnFailover: 100,
-    lazyConnect: false,
-    connectTimeout: 20000,
-    commandTimeout: 30000, // Increased to 30s to survive transient Redis lag
-    enableReadyCheck: true,
-    maxRetries: 10, // Allow some retries for general stability
-    retryStrategy: (times) => Math.min(times * 50, 2000), // Exponential backoff for reconnection
-    keepAlive: 30000,
-    family: 4,
-    db: 0
-};
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.REDIS_ENABLED === 'false';
 
-// 1. Connection for Queue operations (metadata, counts, adding jobs)
-const queueConnection = new Redis(env.REDIS_URL, { ...redisOptions });
+let queueConnection, workerConnection, lockConnection;
 
-// 2. Connection for Worker operations (blocking BRPOP, etc.) 
-const workerConnection = new Redis(env.REDIS_URL, { ...redisOptions });
+if (isTestEnv) {
+    const createMockConnection = (name) => {
+        const emitter = new EventEmitter();
+        emitter.status = 'ready';
+        emitter.options = { name };
+        emitter.set = async () => 'OK';
+        emitter.get = async () => null;
+        emitter.del = async () => 1;
+        emitter.eval = async () => 1;
+        emitter.quit = async () => 'OK';
+        emitter.disconnect = async () => 'OK';
+        emitter.ping = async () => 'PONG';
+        return emitter;
+    };
+    queueConnection = createMockConnection('queue');
+    workerConnection = createMockConnection('worker');
+    lockConnection = createMockConnection('lock');
+} else {
+    // Create a dedicated Redis connection for BullMQ to avoid connection conflicts
+    // BullMQ REQUIRES maxRetriesPerRequest: null for blocking operations (BLPOP, etc.)
+    // Create base configuration for BullMQ Redis connections
+    const redisOptions = {
+        maxRetriesPerRequest: null, // REQUIRED by BullMQ for blocking operations
+        retryDelayOnFailover: 100,
+        lazyConnect: false,
+        connectTimeout: 20000,
+        commandTimeout: 30000, // Increased to 30s to survive transient Redis lag
+        enableReadyCheck: true,
+        maxRetries: 10, // Allow some retries for general stability
+        retryStrategy: (times) => Math.min(times * 50, 2000), // Exponential backoff for reconnection
+        keepAlive: 30000,
+        family: 4,
+        db: 0
+    };
 
-// 3. Connection for Master Lock (standard operations)
-const lockConnection = new Redis(env.REDIS_URL, { ...redisOptions, maxRetriesPerRequest: 20 });
+    // 1. Connection for Queue operations (metadata, counts, adding jobs)
+    queueConnection = new Redis(env.REDIS_URL, { ...redisOptions });
 
-// Handle errors for all connections
-[queueConnection, workerConnection, lockConnection].forEach(conn => {
-    conn.on('error', (err) => console.debug(`Redis [${conn.options.name || 'Conn'}] Error:`, err.message));
-});
+    // 2. Connection for Worker operations (blocking BRPOP, etc.) 
+    workerConnection = new Redis(env.REDIS_URL, { ...redisOptions });
+
+    // 3. Connection for Master Lock (standard operations)
+    lockConnection = new Redis(env.REDIS_URL, { ...redisOptions, maxRetriesPerRequest: 20 });
+
+    // Handle errors for all connections
+    [queueConnection, workerConnection, lockConnection].forEach(conn => {
+        conn.on('error', (err) => console.debug(`Redis [${conn.options.name || 'Conn'}] Error:`, err.message));
+    });
+}
 
 
 /**
@@ -70,24 +95,53 @@ class SchedulerService {
         // Shared state
         this.nodeId = Math.random().toString(36).substring(2, 6).toUpperCase();
         this.redis = lockConnection; // Master lock operations
-        this.queue = new Queue(QUEUE_NAME, {
-            connection: queueConnection,
-            streams: {
-                events: {
-                    maxLen: 1000 // Cap event history to reduce memory usage (default is 10000)
+        if (isTestEnv) {
+            this.queue = {
+                add: async () => ({ id: 'mock-job-id', getState: async () => 'completed', remove: async () => { } }),
+                getJob: async () => null,
+                getJobs: async () => [],
+                getJobCounts: async () => ({ waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 }),
+                getRepeatableJobs: async () => [],
+                removeRepeatableByKey: async () => { },
+                clean: async () => [],
+                drain: async () => { },
+                close: async () => { },
+                on: () => { },
+                off: () => { }
+            };
+            this.worker = null;
+            this.isMaster = true;
+            this.hasInitialSync = true;
+            this.lockInterval = null;
+            this.io = null;
+            this.isReady = true;
+        } else {
+            this.queue = new Queue(QUEUE_NAME, {
+                connection: queueConnection,
+                streams: {
+                    events: {
+                        maxLen: 1000 // Cap event history to reduce memory usage (default is 10000)
+                    }
                 }
-            }
-        });
-        this.worker = null;
-        this.isMaster = false;
-        this.hasInitialSync = false;
-        this.lockInterval = null;
-        this.io = null;
-        this.isReady = false; // Add readiness indicator
+            });
+            this.worker = null;
+            this.isMaster = false;
+            this.hasInitialSync = false;
+            this.lockInterval = null;
+            this.io = null;
+            this.isReady = false; // Add readiness indicator
+        }
         console.log(`📡 Scheduler instance created [Node: ${this.nodeId}]`);
     }
 
     async initialize() {
+        if (isTestEnv) {
+            console.log('🔄 Initializing Scheduler Service (Test Mode - skipping Redis worker)...');
+            this.isMaster = true;
+            this.isReady = true;
+            this.hasInitialSync = true;
+            return;
+        }
         console.log('🔄 Initializing Scheduler Service...');
 
         // 1. Initialize Worker with concurrency=1 for consistent timing
@@ -126,6 +180,13 @@ class SchedulerService {
         // NOTE: isReady is only set true AFTER syncMonitors() completes to avoid false positives
         // this.isReady = true; ← DO NOT set here; syncMonitors() will set it
 
+        if (this.isMaster && !this.hasInitialSync) {
+            console.log(`👑 [Node: ${this.nodeId}] Master Node - Performing initial sync`);
+            await this.cleanQueue();
+            await this.syncMonitors();
+            this.isReady = true;
+        }
+
         // Consolidate initialization and sync logic to prevent race conditions
         // In local/dev environments, we often want to become master immediately
         const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev' || process.env.NODE_ENV === 'test';
@@ -137,36 +198,33 @@ class SchedulerService {
 
                 // If we're still not master and we suspect we are the only server
                 // (e.g. single-node prod or development environment), force it
-                const forceMaster = process.env.FORCE_MASTER === 'true' || isDevelopment;
+                // Only steal when explicitly forced via env — never unconditionally in dev,
+                // and always use NX so a live master is not overwritten.
+                const forceMaster = process.env.FORCE_MASTER === 'true';
                 if (!this.isMaster && forceMaster) {
                     console.log(`🔄 Forcing master election (ForceMaster=${forceMaster})...`);
                     try {
                         if (!this.lockId) {
                             this.lockId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
                         }
-                        await this.redis.set(LOCK_KEY, this.lockId, 'PX', LOCK_TTL);
-                        this.isMaster = true;
-                        console.log('👑 Forced Master Status - Lock Acquired');
+                        const forced = await this.redis.set(LOCK_KEY, this.lockId, 'NX', 'PX', LOCK_TTL);
+                        if (forced === 'OK') {
+                            this.isMaster = true;
+                            console.log('👑 Forced Master Status - Lock Acquired');
+                        } else {
+                            console.log('ℹ️ Force-master skipped: lock held by live master');
+                        }
                     } catch (err) {
                         console.error('Failed to force master status:', err.message);
                     }
                 }
+            }
 
-                if (this.isMaster && !this.hasInitialSync) {
-                    console.log(`👑 [Node: ${this.nodeId}] Became Master - Performing initial sync`);
-                    // IMPORTANT: Fixed. Don't set hasInitialSync here, let syncMonitors do it
-                    // this.hasInitialSync = true; 
-                    await this.cleanQueue();
-                    await this.syncMonitors();
-                    this.isReady = true;
-
-                    // Start Health Sentinel (Safety Net) upon becoming Master
-                    console.log('🛡️ Health Sentinel (Safety Net) Active');
-                    if (this.sentinelInterval) clearInterval(this.sentinelInterval);
-                    this.sentinelInterval = setInterval(() => {
-                        this.verifyJobHealth();
-                    }, 5 * 60 * 1000); // 5 minutes
-                }
+            if (this.isMaster && !this.hasInitialSync) {
+                console.log(`👑 [Node: ${this.nodeId}] Became Master - Performing initial sync`);
+                await this.cleanQueue();
+                await this.syncMonitors();
+                this.isReady = true;
             }
         }, syncTimeout);
     }
@@ -211,23 +269,31 @@ class SchedulerService {
                     }
                 }
             } else {
-                // Lock exists. Check if WE own it (e.g. restart or extend)
-                const currentLockValue = await this.redis.get(LOCK_KEY);
+                // Lock exists. Atomically renew only if WE still own it (Lua: no TOCTOU).
+                const renewed = await this.redis.eval(
+                    `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end`,
+                    1,
+                    LOCK_KEY,
+                    this.lockId,
+                    String(LOCK_TTL)
+                );
 
-                if (currentLockValue === this.lockId) {
-                    // We own the lock, refresh it
-                    // Use PEXPIRE to extend TTL
-                    await this.redis.pexpire(LOCK_KEY, LOCK_TTL);
+                if (renewed === 1) {
                     if (!this.isMaster) {
                         // We recovered our own lock (rare but possible during quick restart)
                         this.isMaster = true;
                         console.log(`👑 Recovered Master Lock [${this.lockId}]`);
                     }
                 } else {
+                    const currentLockValue = await this.redis.get(LOCK_KEY);
                     // We don't own the lock
                     if (this.isMaster) {
                         console.log(`ℹ️ [Node: ${this.nodeId}] Standby Mode: Master status transferred to another instance (Lock owned by: ${currentLockValue})`);
                         this.isMaster = false;
+                        if (this.sentinelInterval) {
+                            clearInterval(this.sentinelInterval);
+                            this.sentinelInterval = null;
+                        }
                     } else if (currentLockValue) {
                         // Periodic log only if lock is held by another instance
                         // We use a internal counter to avoid log spamming
@@ -269,13 +335,13 @@ class SchedulerService {
             console.log("🧹 Cleaning ALL jobs from queue...");
 
             // Get all jobs in all states
-            const allJobs = await this.queue.getJobs(['delayed', 'waiting', 'active', 'prioritized']);
+            const allJobs = await this.queue.getJobs(['delayed', 'waiting', 'active', 'prioritized', 'failed', 'completed']);
 
             if (allJobs.length > 0) {
                 console.log(`🧹 Found ${allJobs.length} total jobs, cleaning up...`);
 
                 // Wait for active jobs to complete (max 5 seconds)
-                const activeJobs = allJobs.filter(j => j.isActive && j.isActive());
+                const activeJobs = allJobs.filter(j => j.data); // Filter valid jobs only
                 if (activeJobs.length > 0) {
                     console.log(`⏳ Waiting for ${activeJobs.length} active jobs to complete...`);
                     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -288,8 +354,8 @@ class SchedulerService {
                         const state = await job.getState();
 
                         // FIX: Aggressive Zombie Purge
-                        // Any job ID that contains a dashboard 'scheduled-' pattern is removed
-                        const isOldPattern = job.id.startsWith('scheduled-') && job.id.split('-').length > 1;
+                        // Legacy hyphen/colon IDs are purged; current deterministic IDs use underscore prefix (scheduled_<id>, immediate_<id>).
+                        const isOldPattern = (job.id.startsWith('scheduled-') || job.id.startsWith('immediate-') || job.id.includes(':'));
 
                         if (state === 'active') {
                             console.log(`   ⚠️ Skipping active job ${job.id}`);
@@ -339,6 +405,14 @@ class SchedulerService {
 
         console.log(`✅ Sync complete - ${monitors.length} monitors scheduled.`);
         this.isReady = true; // Mark as ready
+
+        // Start Health Sentinel here so it activates on EVERY promotion path
+        // (both the delayed setTimeout path and the tryAcquireLock() promotion path).
+        console.log('🛡️ Health Sentinel (Safety Net) Active');
+        if (this.sentinelInterval) clearInterval(this.sentinelInterval);
+        this.sentinelInterval = setInterval(() => {
+            this.verifyJobHealth();
+        }, 5 * 60 * 1000); // 5 minutes
     }
 
     /**
@@ -373,6 +447,8 @@ class SchedulerService {
      * Used during server startup to prevent duplicate immediate checks
      */
     async scheduleMonitorForSync(monitor) {
+        // Prevent duplicate scheduled jobs for the same monitor
+        await this.removeMonitor(monitor._id);
 
         let intervalMs = this.generateIntervalMs(monitor.interval);
 
@@ -397,9 +473,8 @@ class SchedulerService {
 
         console.log(`⏱️ Sync scheduling ${monitor.name}: Next check in ${Math.round(intervalMs / 1000)}s`);
 
-        // Add a delayed job for the next check using Unique Job ID
-        // Use random suffix to prevent collisions when multiple monitors are scheduled at the same millisecond
-        const scheduledJobId = `scheduled-${monitor._id.toString()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        // Add a delayed job for the next check using a unique timestamped Job ID.
+        const scheduledJobId = `scheduled_${monitor._id.toString()}_${Date.now()}`;
 
         await this.queue.add('check', {
             monitorId: monitor._id.toString(),
@@ -407,11 +482,11 @@ class SchedulerService {
             url: monitor.url,
             isScheduled: true
         }, {
-            jobId: scheduledJobId, // DETERMINISTIC ID
+            jobId: scheduledJobId,
             delay: intervalMs,
             attempts: 1,
             removeOnComplete: true,
-            removeOnFail: { age: 86400 } // Keep failed jobs for 1 day, up from 7 days
+            removeOnFail: { age: 3600, count: 50 }
         });
     }
 
@@ -421,37 +496,23 @@ class SchedulerService {
      * User gets instant feedback before interval-based checks begin
      */
     async addImmediateCheck(monitor) {
-        const immediateJobId = `immediate-${monitor._id}`;
+        const immediateJobId = `immediate_${monitor._id.toString()}_${Date.now()}`;
 
         try {
-            // Check if immediate job already exists
-            const existingJob = await this.queue.getJob(immediateJobId);
+            // Clean up any pending or scheduled jobs for this monitor first to avoid duplicate execution
+            await this.removeMonitor(monitor._id);
 
-            if (existingJob) {
-                const state = await existingJob.getState();
-                // If job is already pending or running, don't add another one (De-bounce)
-                if (state === 'waiting' || state === 'active' || state === 'delayed') {
-                    console.log(`   ⚠️ Immediate check already pending for ${monitor.name} (State: ${state}) - Skipping duplicate`);
-                    return existingJob;
-                }
-
-                // If finished/failed, remove it so we can add a new one
-                try {
-                    await existingJob.remove();
-                } catch (ignore) { }
-            }
-
-            // Add high-priority immediate job with Fixed ID to prevent duplicates
+            // Add high-priority immediate job with unique ID to avoid Redis collisions
             const job = await this.queue.add('check', {
                 monitorId: monitor._id.toString(),
                 type: monitor.type,
                 url: monitor.url,
                 isImmediate: true
             }, {
-                jobId: immediateJobId, // Enforce Singleton Job ID
+                jobId: immediateJobId,
                 priority: 100,         // High priority
                 removeOnComplete: true,
-                removeOnFail: { age: 86400 } // Keep failed jobs for 1 day
+                removeOnFail: { age: 3600, count: 50 }
             });
 
             console.log(`   ⚡ Immediate check queued for ${monitor.name} (Job ID: ${immediateJobId})`);
@@ -468,16 +529,32 @@ class SchedulerService {
     async removeMonitor(monitorId) {
         const monitorIdStr = monitorId.toString();
 
-        // 1. Clean up any wandering jobs or "immediate" leftovers by searching data
+        // 1. Clean up any wandering jobs across ALL states
         try {
-            const jobs = await this.queue.getJobs(['delayed', 'waiting', 'active']);
+            // Also explicitly check direct legacy ID if any
+            const legacyIds = [`scheduled_${monitorIdStr}`, `immediate_${monitorIdStr}`];
+            for (const legId of legacyIds) {
+                try {
+                    const j = await this.queue.getJob(legId);
+                    if (j) {
+                        const st = await j.getState();
+                        if (st !== 'active') await j.remove();
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            const jobs = await this.queue.getJobs(['delayed', 'waiting', 'active', 'prioritized', 'failed', 'completed']);
             const matches = jobs.filter(j =>
-                j.data.monitorId === monitorIdStr
+                j.data?.monitorId === monitorIdStr ||
+                (j.id && String(j.id).includes(monitorIdStr))
             );
 
             for (const match of matches) {
                 try {
-                    await match.remove();
+                    const state = await match.getState();
+                    if (state !== 'active') {
+                        await match.remove();
+                    }
                 } catch (err) {
                     console.warn(`Failed to remove job ${match.id}: ${err.message}`);
                 }
@@ -539,7 +616,7 @@ class SchedulerService {
                 statusCode: result.statusCode,
                 errorMessage: result.errorMessage,
                 errorType: result.errorType,
-                degradationReasons: healthStateResult.reasons.length > 0 ? healthStateResult.reasons : undefined,
+                degradationReasons: (healthStateResult.reasons || []).length > 0 ? healthStateResult.reasons : undefined,
                 sslInfo: result.meta && result.meta.validTo ? {
                     valid: result.isUp,
                     validFrom: result.meta.validFrom,
@@ -564,11 +641,14 @@ class SchedulerService {
 
             if (healthStateResult.status === 'down') {
                 updateData.$inc.consecutiveFailures = 1;
+                updateData.$set.consecutiveDegraded = 0;
             } else if (healthStateResult.status === 'degraded') {
+                updateData.$inc.consecutiveDegraded = 1;
                 updateData.$set.consecutiveFailures = 0;
                 updateData.$inc.successfulChecks = 1;
             } else {
                 updateData.$set.consecutiveFailures = 0;
+                updateData.$set.consecutiveDegraded = 0;
                 updateData.$inc.successfulChecks = 1;
             }
 
@@ -578,7 +658,11 @@ class SchedulerService {
             // Ensure uptime percentages are updated incrementally to avoid expensive full-collection scans in stats service.
             if (updatedMonitor && updatedMonitor.totalChecks > 0) {
                 try {
-                    const lifetimeUptime = parseFloat(((updatedMonitor.successfulChecks / updatedMonitor.totalChecks) * 100).toFixed(2));
+                    const t = Number(updatedMonitor.totalChecks) || 0;
+                    const s = Number(updatedMonitor.successfulChecks) || 0;
+                    const lifetimeUptime = t > 0 && Number.isFinite(s / t)
+                        ? parseFloat(((s / t) * 100).toFixed(2))
+                        : 100;
 
                     // Efficient sliding 24h calculation using covered index { monitor, timestamp }
                     const startOf24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -587,7 +671,9 @@ class SchedulerService {
                         Check.countDocuments({ monitor: updatedMonitor._id, timestamp: { $gte: startOf24h }, status: { $in: ['up', 'degraded'] } })
                     ]);
 
-                    const dayUptime = checks24h > 0 ? parseFloat(((up24h / checks24h) * 100).toFixed(2)) : lifetimeUptime;
+                    const dayUptime = checks24h > 0 && Number.isFinite(up24h / checks24h)
+                        ? parseFloat(((up24h / checks24h) * 100).toFixed(2))
+                        : lifetimeUptime;
 
                     // Update percentages on monitor document
                     updatedMonitor = await Monitor.findByIdAndUpdate(
@@ -611,30 +697,30 @@ class SchedulerService {
             let newIncident = null;
             try {
                 if (updatedMonitor.status === 'down') {
-                    if (oldStatus === 'degraded') {
-                        await enhancedAlertService.handleRecovery(updatedMonitor, healthStateResult);
-                    }
+                    // Transitioning to down: handleFailure updates ongoing incident or creates new one,
+                    // and sends failure alert if not already notified.
                     newIncident = await enhancedAlertService.handleFailure(updatedMonitor, result, healthStateResult);
                 } else if (updatedMonitor.status === 'up') {
-                    if (oldStatus === 'down' || oldStatus === 'degraded') {
-                        await enhancedAlertService.handleRecovery(updatedMonitor, healthStateResult);
-                    }
+                    // True recovery or cleanup: handleRecovery resolves any ongoing incident,
+                    // sends recovery alert if alerted, and clears suppression. If no incident exists, it's a no-op.
+                    await enhancedAlertService.handleRecovery(updatedMonitor, healthStateResult);
                 } else if (updatedMonitor.status === 'degraded') {
-                    if (oldStatus === 'down') {
-                        await enhancedAlertService.handleRecovery(updatedMonitor, healthStateResult);
-                    }
-                    const degradationReasons = healthStateResult.reasons.filter(reason => {
-                        const r = reason.toLowerCase();
+                    // Transitioning to degraded: do NOT resolve ongoing down incident or wipe suppression;
+                    // handleDegraded updates the incident without duplicate alert emails.
+                    const degradationReasons = (healthStateResult.reasons || []).filter(reason => {
+                        const r = String(reason || '').toLowerCase();
                         return r.includes('performance') || r.includes('degradation') || r.includes('slow') ||
                             r.includes('ssl') || r.includes('cert') || r.includes('security') ||
                             r.includes('content') || r.includes('keyword') ||
                             r.includes('rate') || r.includes('429') || r.includes('limit');
                     });
-                    newIncident = await enhancedAlertService.handleDegraded(updatedMonitor, result, degradationReasons, healthStateResult);
+                    const finalReasons = degradationReasons.length > 0 ? degradationReasons : (healthStateResult.reasons || []);
+                    newIncident = await enhancedAlertService.handleDegraded(updatedMonitor, result, finalReasons, healthStateResult);
                 }
             } catch (alertErr) {
                 console.error('Alert processing error (non-fatal):', alertErr.message);
             }
+
 
             // Trigger immediate verification for DOWN and DEGRADED states
             if (updatedMonitor && (healthStateResult.status === 'down' || healthStateResult.status === 'degraded')) {
@@ -659,8 +745,11 @@ class SchedulerService {
                 console.log(`🔄 Attempting to reschedule ${updatedMonitor.name} in ${updatedMonitor.interval}m...`);
 
                 try {
-                    // Use random suffix to prevent collisions (same fix as scheduleMonitorForSync)
-                    const scheduledJobId = `scheduled-${updatedMonitor._id.toString()}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    // Prevent duplicate scheduling streams: clean any leftover pending jobs for this monitor
+                    await this.removeMonitor(updatedMonitor._id);
+
+                    // Use unique timestamped Job ID so BullMQ doesn't reject scheduling due to the currently active job
+                    const scheduledJobId = `scheduled_${updatedMonitor._id.toString()}_${Date.now()}`;
 
                     // RETRY LOOP: Rescheduling is critical to the monitor's lifecycle.
                     // If Redis times out here, the monitor "stops" until auto-healed.
@@ -680,7 +769,7 @@ class SchedulerService {
                                 delay: intervalMs,
                                 attempts: 1,
                                 removeOnComplete: true,
-                                removeOnFail: { age: 86400 } // Keep failed jobs for 1 day
+                                removeOnFail: { age: 3600, count: 50 }
                             });
                             schedSuccess = true;
                         } catch (schedErr) {
@@ -900,8 +989,15 @@ class SchedulerService {
     }
 
     async cleanQueue() {
-        // Optional: Clear everything on startup?
-        // await this.queue.obliterate({ force: true });
+        try {
+            await this.queue.drain();
+            await this.queue.clean(0, 0, 'completed');
+            await this.queue.clean(0, 0, 'failed');
+            await this.queue.clean(0, 0, 'delayed');
+            await this.queue.clean(0, 0, 'wait');
+        } catch (err) {
+            console.warn('cleanQueue error:', err.message);
+        }
     }
 
     /**
@@ -929,6 +1025,7 @@ class SchedulerService {
      * Checks if all active monitors have a corresponding job in the queue
      */
     async verifyJobHealth() {
+        if (!this.isMaster) return { status: 'standby', message: 'Not master — skipping heal' };
         try {
             const monitors = await Monitor.find({ isActive: true });
             const now = Date.now();
@@ -1004,6 +1101,11 @@ class SchedulerService {
         if (this.sentinelInterval) {
             clearInterval(this.sentinelInterval);
             this.sentinelInterval = null;
+        }
+
+        if (isTestEnv) {
+            console.log('✅ Scheduler Service shutdown complete (Test Mode)');
+            return;
         }
 
         // Close the worker

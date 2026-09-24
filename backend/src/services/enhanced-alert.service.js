@@ -52,6 +52,10 @@ class EnhancedAlertService {
      * Enhanced failure handling with multi-threshold logic
      */
     async handleFailure(monitor, checkResult, healthStateResult = null) {
+        if (!monitor?._id) {
+            console.warn('handleFailure: invalid monitor');
+            return null;
+        }
         const confidence = healthStateResult?.confidence || 0.5;
         const analysis = healthStateResult?.analysis;
 
@@ -65,12 +69,23 @@ class EnhancedAlertService {
             // Update existing incident with enhanced analysis
             await this.updateIncidentWithAnalysis(existingIncident, healthStateResult, checkResult);
 
-            // Send escalated alert if needed (suppression only applies to emails)
-            if (escalationLevel === 'high') {
-                const isSuppressed = await this.shouldSuppressAlert(monitor._id, 'failure', escalationLevel);
-                if (!isSuppressed) {
-                    await this.recordAlertAttempt(monitor._id, 'failure', escalationLevel);
-                    await this.sendEscalatedFailureAlert(monitor, existingIncident, healthStateResult);
+            // Escalate severity if failure is high
+            if (existingIncident.severity !== 'high' && escalationLevel === 'high') {
+                await Incident.updateOne({ _id: existingIncident._id }, { $set: { severity: 'high' } });
+                existingIncident.severity = 'high';
+            }
+
+            // Check if failure alert has already been sent for this ongoing incident
+            const failureAlreadySent = Boolean(
+                existingIncident.notificationsSent?.failureSent ||
+                existingIncident.notificationsSent?.failureEmailSent ||
+                (!existingIncident.degradationCategory && existingIncident.errorType !== 'degraded' && existingIncident.errorType !== 'ssl_warning' && existingIncident.notificationsSent?.email)
+            );
+
+            if (!failureAlreadySent) {
+                const locked = await this.acquireAlertLock(monitor._id, 'failure');
+                if (locked) {
+                    await this.sendFailureAlert(monitor, existingIncident, escalationLevel);
                 }
             }
 
@@ -80,16 +95,15 @@ class EnhancedAlertService {
         // 2. Only create NEW incident if threshold is met
         const alertThreshold = monitor.alertThreshold || 2;
         if (monitor.consecutiveFailures >= alertThreshold) {
-            // Create new failure incident (ALWAYS - suppression only affects email)
+            // Create new failure incident (ALWAYS - suppression only affects notification dispatch)
             const incident = await this.createFailureIncident(monitor, checkResult, healthStateResult, escalationLevel);
 
-            // Send alert email (only if not suppressed)
-            const isSuppressed = await this.shouldSuppressAlert(monitor._id, 'failure', escalationLevel);
-            if (!isSuppressed) {
-                await this.recordAlertAttempt(monitor._id, 'failure', escalationLevel);
+            // Send alert (only if not suppressed via atomic lock)
+            const locked = await this.acquireAlertLock(monitor._id, 'failure');
+            if (locked) {
                 await this.sendFailureAlert(monitor, incident, escalationLevel);
             } else {
-                console.log(`🚨 Alert email suppressed for ${monitor.name} (incident still created)`);
+                console.log(`🚨 Alert suppressed for ${monitor.name} (incident created)`);
             }
 
             return incident;
@@ -102,6 +116,10 @@ class EnhancedAlertService {
      * Enhanced degraded handling with performance analysis
      */
     async handleDegraded(monitor, checkResult, reasons = [], healthStateResult = null) {
+        if (!monitor?._id) {
+            console.warn('handleDegraded: invalid monitor');
+            return null;
+        }
         const confidence = healthStateResult?.confidence || 0.5;
         const analysis = healthStateResult?.analysis;
 
@@ -118,30 +136,49 @@ class EnhancedAlertService {
             // Update existing incident
             await this.updateIncidentWithAnalysis(existingIncident, healthStateResult, checkResult);
 
-            // Send alert only for significant changes (suppression only affects email)
-            if (degradationType.severity === 'high' && confidence >= this.config.mediumConfidenceThreshold) {
-                const isSuppressed = await this.shouldSuppressAlert(monitor._id, 'degraded', degradationType.severity);
-                if (!isSuppressed) {
-                    await this.recordAlertAttempt(monitor._id, 'degraded', degradationType.severity);
+            // Check if alert has already been sent for this ongoing incident
+            const degradedAlreadySent = Boolean(
+                existingIncident.notificationsSent?.degradedSent ||
+                existingIncident.notificationsSent?.degradedEmailSent ||
+                existingIncident.notificationsSent?.email ||
+                existingIncident.notificationsSent?.slack ||
+                existingIncident.notificationsSent?.webhook
+            );
+            // One-time policy: if a DOWN (failure) alert was already sent for this
+            // ongoing incident, do NOT send a lesser DEGRADED alert (downgrade = no re-alert).
+            const failureAlreadySent = Boolean(
+                existingIncident.notificationsSent?.failureSent ||
+                existingIncident.notificationsSent?.failureEmailSent
+            );
+
+            // Send alert only if this incident has not already sent an alert and not suppressed
+            if (!failureAlreadySent && !degradedAlreadySent && degradationType.severity === 'high' && confidence >= this.config.mediumConfidenceThreshold) {
+                const locked = await this.acquireAlertLock(monitor._id, 'degraded');
+                if (locked) {
                     await this.sendDegradationAlert(monitor, existingIncident, degradationType, healthStateResult);
                 }
             }
 
-            return null; // Don't create duplicate incident
+            return existingIncident;
         }
 
         // Check if we should create new degraded incident
-        if (this.shouldCreateDegradedIncident(monitor, degradationType, confidence, healthStateResult, checkResult)) {
-            // Create incident ALWAYS (suppression only affects email)
+        // Enforce alertThreshold: only create incident and alert when consecutiveDegraded meets threshold
+        const alertThreshold = monitor.alertThreshold || 2;
+        const consecutiveDegraded = monitor.consecutiveDegraded !== undefined
+            ? Number(monitor.consecutiveDegraded)
+            : alertThreshold;
+
+        if (consecutiveDegraded >= alertThreshold && this.shouldCreateDegradedIncident(monitor, degradationType, confidence, healthStateResult, checkResult)) {
+            // Create incident ALWAYS (suppression only affects notification dispatch)
             const incident = await this.createDegradedIncident(monitor, checkResult, degradationType, healthStateResult);
 
-            // Send alert email (only if not suppressed)
-            const isSuppressed = await this.shouldSuppressAlert(monitor._id, 'degraded', degradationType.severity);
-            if (!isSuppressed) {
-                await this.recordAlertAttempt(monitor._id, 'degraded', degradationType.severity);
+            // Send alert (only if not suppressed via atomic lock)
+            const locked = await this.acquireAlertLock(monitor._id, 'degraded');
+            if (locked) {
                 await this.sendDegradationAlert(monitor, incident, degradationType, healthStateResult);
             } else {
-                console.log(`🟡 Degradation email suppressed for ${monitor.name} (incident still created)`);
+                console.log(`🟡 Degradation alert suppressed for ${monitor.name} (incident created)`);
             }
 
             return incident;
@@ -154,44 +191,88 @@ class EnhancedAlertService {
      * Enhanced recovery handling with correlation analysis
      */
     async handleRecovery(monitor, healthStateResult = null) {
-        const confidence = healthStateResult?.confidence || 0.5;
-
-        // Require recovery confirmation for low confidence states
-        if (this.config.recoveryConfirmationRequired && confidence < this.config.recoveryConfidenceThreshold) {
-            console.log(`⏳ Recovery confirmation pending for ${monitor.name} (confidence: ${confidence})`);
+        if (!monitor?._id) {
+            console.warn('handleRecovery: invalid monitor');
             return null;
         }
+        const confidence = healthStateResult?.confidence || 0.5;
+
+        // Snapshot ongoing incidents BEFORE resolving, to decide if a recovery
+        // alert is warranted (one-time policy: only recover if we previously alerted).
+        const ongoingBefore = await Incident.find({ monitor: monitor._id, status: 'ongoing' }).lean();
+        if (ongoingBefore.length === 0) {
+            // No ongoing incident to recover; do not touch suppression keys
+            return null;
+        }
+        const wasAlerted = ongoingBefore.some(i =>
+            i.notificationsSent?.failureSent ||
+            i.notificationsSent?.failureEmailSent ||
+            i.notificationsSent?.degradedSent ||
+            i.notificationsSent?.degradedEmailSent ||
+            i.notificationsSent?.email ||
+            i.notificationsSent?.slack ||
+            i.notificationsSent?.webhook
+        );
+
+        const now = new Date();
+        const startTime = ongoingBefore[0]?.startTime ? new Date(ongoingBefore[0].startTime) : now;
+        const duration = Math.max(0, now.getTime() - startTime.getTime());
 
         // Find and resolve ALL ongoing incidents to prevent "zombies"
         const updateResult = await Incident.updateMany(
             { monitor: monitor._id, status: 'ongoing' },
-            [
-                {
-                    $set: {
-                        status: 'resolved',
-                        endTime: new Date(),
-                        duration: { $subtract: [new Date(), "$startTime"] }, // Calculate duration dynamically
-                        recoveryConfidence: confidence,
-                        healthStateAnalysis: healthStateResult,
-                        failureRate: healthStateResult?.analysis?.window?.failureRate || 0,
-                        patternDetected: healthStateResult?.analysis?.window?.pattern || 'stable'
-                    }
+            {
+                $set: {
+                    status: 'resolved',
+                    endTime: now,
+                    duration: duration,
+                    recoveryConfidence: confidence,
+                    healthStateAnalysis: healthStateResult,
+                    failureRate: healthStateResult?.analysis?.window?.failureRate || 0,
+                    patternDetected: healthStateResult?.analysis?.window?.pattern || 'stable',
+                    resolvedBy: 'auto'
                 }
-            ]
+            }
         );
 
         if (updateResult.matchedCount === 0) {
+            await this.clearAlertSuppression(monitor._id);
             return null;
         }
 
-        // Fetch one resolved incident for the notification (just for metadata)
-        const incident = await Incident.findOne({ monitor: monitor._id }).sort({ endTime: -1 });
+        // Fetch the exact resolved incident for the notification
+        const targetId = ongoingBefore[0]?._id;
+        const incident = (targetId ? await Incident.findById(targetId) : null) ||
+            await Incident.findOne({ monitor: monitor._id, status: 'resolved' }).sort({ endTime: -1 });
 
-        // Send enhanced recovery alert
-        await this.sendRecoveryAlert(monitor, incident, healthStateResult);
+        // One-time policy: send recovery alert ONLY if a DOWN/DEGRADED alert was
+        // previously sent for this incident lifecycle. Otherwise resolve silently
+        // (avoids "recovery without alert" confusion). Suppression is still cleared.
+        if (wasAlerted && incident && !incident.notificationsSent?.recoverySent) {
+            const recoveryLock = await this.acquireRecoveryLock(monitor._id);
+            if (recoveryLock) {
+                await this.sendRecoveryAlert(monitor, incident, healthStateResult);
+                await Incident.updateOne({ _id: incident._id }, { $set: { 'notificationsSent.recoverySent': true } });
+            }
+        } else {
+            console.log(`ℹ️ Recovery for ${monitor.name} resolved silently (no prior alert sent or already alerted)`);
+        }
 
         // Clear alert suppression for recovery (future alerts should fire immediately if it goes down again)
         await this.clearAlertSuppression(monitor._id);
+
+        // Real-time notification: emit incident_resolved event
+        if (this.io) {
+            const roomUserId = monitor.user?._id || monitor.user;
+            if (roomUserId) {
+                this.io.to(`user_${roomUserId}`).emit('incident_resolved', {
+                    monitorId: monitor._id,
+                    incidentId: incident?._id,
+                    status: 'resolved',
+                    timestamp: new Date()
+                });
+            }
+        }
 
         return incident;
     }
@@ -209,32 +290,87 @@ class EnhancedAlertService {
     }
 
     /**
-     * Check if alert should be suppressed (REDIS Implementation)
+     * Atomically acquire an alert lock via Redis SET ... EX ... NX.
+     * Returns true if lock was acquired (caller may send alert), false if already locked/suppressed.
      */
-    async shouldSuppressAlert(monitorId, alertType, escalationLevel) {
-        const key = `${this.REDIS_PREFIX}${monitorId}:${alertType}:${escalationLevel}`;
-        const exists = await redisClient.exists(key);
-        return exists === 1;
+    async acquireAlertLock(monitorId, alertType, ttl = 30 * 86400) {
+        try {
+            // Degraded alerts are cross-suppressed if a failure (DOWN) alert is already active
+            if (alertType === 'degraded') {
+                const failureKey = `${this.REDIS_PREFIX}${monitorId}:failure`;
+                const failureExists = await redisClient.exists(failureKey);
+                if (failureExists === 1) {
+                    return false;
+                }
+            }
+
+            const key = `${this.REDIS_PREFIX}${monitorId}:${alertType}`;
+            const result = await redisClient.set(key, '1', 'EX', ttl, 'NX');
+            const acquired = result === 'OK';
+            if (acquired) {
+                await this.recordAlertAttempt(monitorId, alertType);
+            }
+            return acquired;
+        } catch (err) {
+            console.error(`Error acquiring alert lock for ${monitorId}:`, err.message);
+            // In case Redis fails, check suppression fallback
+            return !(await this.shouldSuppressAlert(monitorId, alertType));
+        }
+    }
+
+    /**
+     * Atomically acquire a recovery lock via Redis SET ... EX ... NX.
+     * Prevents race conditions where concurrent recovery checks double-dispatch recovery emails.
+     */
+    async acquireRecoveryLock(monitorId, ttl = 300) {
+        try {
+            const key = `${this.REDIS_PREFIX}${monitorId}:recovery_lock`;
+            const result = await redisClient.set(key, '1', 'EX', ttl, 'NX');
+            return result === 'OK';
+        } catch (err) {
+            console.error(`Error acquiring recovery lock for ${monitorId}:`, err.message);
+            return true;
+        }
+    }
+
+    /**
+     * Check if alert should be suppressed (REDIS Implementation)
+     * Level is optional and ignored to prevent level shifts from breaking suppression.
+     */
+    async shouldSuppressAlert(monitorId, alertType, escalationLevel = null) {
+        try {
+            // If checking degraded, also suppress if failure is already suppressed (down takes precedence)
+            if (alertType === 'degraded') {
+                const failureKey = `${this.REDIS_PREFIX}${monitorId}:failure`;
+                const failureExists = await redisClient.exists(failureKey);
+                if (failureExists === 1) return true;
+            }
+
+            const key = `${this.REDIS_PREFIX}${monitorId}:${alertType}`;
+            const exists = await redisClient.exists(key);
+            return exists === 1;
+        } catch (err) {
+            console.error(`Error checking alert suppression for ${monitorId}:`, err.message);
+            return false;
+        }
     }
 
     /**
      * Record alert attempt for suppression logic (REDIS Implementation)
+     * Level is optional and ignored so key remains constant.
      */
-    async recordAlertAttempt(monitorId, alertType, escalationLevel) {
-        const key = `${this.REDIS_PREFIX}${monitorId}:${alertType}:${escalationLevel}`;
+    async recordAlertAttempt(monitorId, alertType, escalationLevel = null) {
+        try {
+            const key = `${this.REDIS_PREFIX}${monitorId}:${alertType}`;
 
-        // Determine TTL based on escalation level (default 1 hour for general safety)
-        let ttl = 3600; // 1 hour default
+            // Extended suppression while incident remains ongoing (30 days to prevent daily repeat alerts).
+            // It is automatically deleted upon recovery by clearAlertSuppression(monitorId).
+            const ttl = 30 * 86400;
 
-        // Use configured suppression delay if available, otherwise default
-        if (this.config.escalationDelayMs[escalationLevel]) {
-            // If configured delay is 0 (immediate), we still want SOME debounce to prevent loop spam
-            // Use 15 seconds minimum for explicit debounce
-            ttl = Math.max(15, this.config.escalationDelayMs[escalationLevel] / 1000);
+            await redisClient.set(key, '1', 'EX', ttl);
+        } catch (err) {
+            console.error(`Error recording alert attempt for ${monitorId}:`, err.message);
         }
-
-        // Set key with TTL
-        await redisClient.set(key, '1', 'EX', Math.ceil(ttl));
     }
 
     /**
@@ -251,19 +387,40 @@ class EnhancedAlertService {
                     await redisClient.del(...keys);
                 }
             } while (cursor !== '0');
+
+            // Defensive cleanup of direct keys
+            await redisClient.del(
+                `${this.REDIS_PREFIX}${monitorId}:failure`,
+                `${this.REDIS_PREFIX}${monitorId}:degraded`,
+                `${this.REDIS_PREFIX}${monitorId}:recovery`,
+                `${this.REDIS_PREFIX}${monitorId}:recovery_lock`
+            );
         } catch (err) {
             console.error(`❌ Error clearing suppression keys for ${monitorId}:`, err.message);
         }
     }
 
     /**
-     * Find existing incident of specified types
+     * Find existing incident of specified types (cleans up any duplicate ongoing zombies)
      */
     async findExistingIncident(monitorId) {
-        return await Incident.findOne({
+        const incidents = await Incident.find({
             monitor: monitorId,
             status: 'ongoing'
-        });
+        }).sort({ startTime: -1 });
+
+        if (incidents.length > 1) {
+            // Defensive: clean up duplicate zombie ongoing incidents
+            const [keep, ...duplicates] = incidents;
+            const duplicateIds = duplicates.map(d => d._id);
+            await Incident.updateMany(
+                { _id: { $in: duplicateIds } },
+                { $set: { status: 'resolved', endTime: new Date(), resolvedBy: 'auto' } }
+            );
+            return keep;
+        }
+
+        return incidents[0] || null;
     }
 
     /**
@@ -279,14 +436,15 @@ class EnhancedAlertService {
         };
 
         // Update errorMessage from checkResult or fallback to healthStateResult reasons
-        if (checkResult.errorMessage) {
+        // Guard against null/undefined checkResult (unhandled null crash fix)
+        if (checkResult?.errorMessage) {
             updateData.$set.errorMessage = checkResult.errorMessage;
         } else if (healthStateResult?.reasons?.length > 0) {
             updateData.$set.errorMessage = healthStateResult.reasons[0];
         }
 
-        if (checkResult.errorType) updateData.$set.errorType = checkResult.errorType;
-        if (checkResult.statusCode) updateData.$set.statusCode = checkResult.statusCode;
+        if (checkResult?.errorType) updateData.$set.errorType = checkResult.errorType;
+        if (checkResult?.statusCode) updateData.$set.statusCode = checkResult.statusCode;
 
         // Perform atomic update
         return await Incident.findOneAndUpdate(
@@ -303,9 +461,9 @@ class EnhancedAlertService {
         return await Incident.create({
             monitor: monitor._id,
             startTime: new Date(),
-            errorMessage: checkResult.errorMessage || healthStateResult?.reasons?.[0] || 'Service failure detected',
-            errorType: checkResult.errorType || (healthStateResult.analysis?.currentCheck?.statusCode ? 'STATUS_CODE_MISMATCH' : 'SERVICE_FAILURE'),
-            statusCode: checkResult.statusCode,
+            errorMessage: checkResult?.errorMessage || healthStateResult?.reasons?.[0] || 'Service failure detected',
+            errorType: checkResult?.errorType || (healthStateResult.analysis?.currentCheck?.statusCode ? 'STATUS_CODE_MISMATCH' : 'SERVICE_FAILURE'),
+            statusCode: checkResult?.statusCode,
             severity: escalationLevel,
             healthStateAnalysis: healthStateResult,
             confidence: healthStateResult?.confidence || 0.5
@@ -319,11 +477,11 @@ class EnhancedAlertService {
         return await Incident.create({
             monitor: monitor._id,
             startTime: new Date(),
-            errorMessage: degradationType.message,
-            errorType: degradationType.type,
-            statusCode: checkResult.statusCode,
-            severity: degradationType.severity,
-            degradationCategory: degradationType.category,
+            errorMessage: degradationType?.message || healthStateResult?.reasons?.[0] || 'Service degradation detected',
+            errorType: degradationType?.type || 'degraded',
+            statusCode: checkResult?.statusCode,
+            severity: degradationType?.severity || 'medium',
+            degradationCategory: degradationType?.category || 'general',
             healthStateAnalysis: healthStateResult,
             confidence: healthStateResult?.confidence || 0.5
         });
@@ -333,9 +491,10 @@ class EnhancedAlertService {
      * Categorize degradation type and severity
      */
     categorizeDegradation(reasons, analysis, isPerformanceIssue) {
+        const safeReasons = Array.isArray(reasons) ? reasons.map(r => String(r || '')) : [];
         if (isPerformanceIssue) {
             const severity = analysis?.currentCheck?.severity >= 0.6 ? 'high' : 'medium';
-            const reasonText = reasons.length > 0 ? reasons.join(', ') : 'Rate limit or performance issue detected';
+            const reasonText = safeReasons.length > 0 ? safeReasons.join(', ') : 'Rate limit or performance issue detected';
             return {
                 type: 'performance_issue',
                 category: 'performance',
@@ -345,22 +504,22 @@ class EnhancedAlertService {
             };
         }
 
-        if (reasons.some(r => r.toLowerCase().includes('ssl') || r.toLowerCase().includes('cert'))) {
+        if (safeReasons.some(r => r.toLowerCase().includes('ssl') || r.toLowerCase().includes('cert'))) {
             return {
                 type: 'ssl_warning',
                 category: 'security',
                 severity: 'high', // ESCALATED: Ensure SSL warnings always alert
-                message: reasons.length > 0 ? `SSL/Certificate issue: ${reasons.join(', ')}` : 'SSL certificate is expiring soon',
+                message: safeReasons.length > 0 ? `SSL/Certificate issue: ${safeReasons.join(', ')}` : 'SSL certificate is expiring soon',
                 priority: 1
             };
         }
 
-        if (reasons.some(r => r.includes('content') || r.includes('keyword'))) {
+        if (safeReasons.some(r => r.toLowerCase().includes('content') || r.toLowerCase().includes('keyword'))) {
             return {
                 type: 'content_issue',
                 category: 'content',
                 severity: 'medium',
-                message: `Content issue: ${reasons.join(', ')}`,
+                message: `Content issue: ${safeReasons.join(', ')}`,
                 priority: 2
             };
         }
@@ -369,7 +528,7 @@ class EnhancedAlertService {
             type: 'degraded',
             category: 'general',
             severity: 'low',
-            message: reasons.length > 0 ? reasons.join(', ') : 'Service degradation detected',
+            message: safeReasons.length > 0 ? safeReasons.join(', ') : 'Service degradation detected',
             priority: 3
         };
     }
@@ -381,9 +540,10 @@ class EnhancedAlertService {
      * - HTTP client errors (4xx): immediate alert (server returning error)
      */
     shouldCreateDegradedIncident(monitor, degradationType, confidence, healthStateResult, checkResult = null) {
+        const hsReasons = Array.isArray(healthStateResult?.reasons) ? healthStateResult.reasons.map(r => String(r || '')) : [];
         // Rate limit (429) - check errorType directly
         const isRateLimit = checkResult?.errorType === 'HTTP_RATE_LIMIT' ||
-            (healthStateResult?.reasons || []).some(r => r.toLowerCase().includes('429') || r.toLowerCase().includes('rate'));
+            hsReasons.some(r => r.toLowerCase().includes('429') || r.toLowerCase().includes('rate'));
 
         if (isRateLimit && confidence >= this.config.lowConfidenceThreshold) {
             console.log(`✅ Creating rate limit incident for ${monitor.name}`);
@@ -399,7 +559,7 @@ class EnhancedAlertService {
             checkResult?.errorType?.includes('HTTP_FORBIDDEN') ||
             checkResult?.errorType?.includes('HTTP_UNAUTHORIZED') ||
             checkResult?.errorType?.includes('HTTP_BAD_REQUEST') ||
-            (healthStateResult?.reasons || []).some(r =>
+            hsReasons.some(r =>
                 r.toLowerCase().includes('client error') ||
                 r.toLowerCase().includes('not found') ||
                 r.toLowerCase().includes('forbidden') ||
@@ -437,7 +597,8 @@ class EnhancedAlertService {
      */
     isPerformanceDegradation(reasons, analysis) {
         const performanceKeywords = ['slow', 'performance', 'latency', 'timeout', 'response time', 'rate limit', '429'];
-        if (reasons.some(reason => performanceKeywords.some(keyword => reason.toLowerCase().includes(keyword)))) return true;
+        const safeReasons = Array.isArray(reasons) ? reasons.map(r => String(r || '')) : [];
+        if (safeReasons.some(reason => performanceKeywords.some(keyword => reason.toLowerCase().includes(keyword)))) return true;
         if (analysis?.currentCheck?.performanceIssues?.length > 0) return true;
         return false;
     }
@@ -471,7 +632,8 @@ class EnhancedAlertService {
      */
     async sendEscalatedFailureAlert(monitor, incident, healthStateResult) {
         console.log(`🚨 Escalated alert: ${monitor.name} - Critical failure detected`);
-        // Implementation would send immediate notification (skipped for now as per original)
+        const enhancedAlert = this.createEnhancedFailureAlert(monitor, incident, 'high');
+        return await this.sendNotificationWithRetry(enhancedAlert);
     }
 
     /**
@@ -576,11 +738,13 @@ class EnhancedAlertService {
             }
 
             const monitorId = alertData.monitor._id || alertData.monitor.id;
-            const { user } = await Monitor.findById(monitorId).populate('user');
+            const monitorDoc = await Monitor.findById(monitorId).populate('user');
 
-            if (!user) return { success: false, error: 'user-not-found' };
+            if (!monitorDoc || !monitorDoc.user) return { success: false, error: 'user-not-found' };
+            const user = monitorDoc.user;
 
-            const incident = await Incident.findById(alertData.incident.id);
+            const incidentId = alertData.incident.id || alertData.incident._id;
+            const incident = await Incident.findById(incidentId);
             if (!incident) return { success: false, error: 'incident-not-found' };
 
             const results = { email: [], slack: null, webhook: null };
@@ -588,22 +752,30 @@ class EnhancedAlertService {
 
             // 1. Email Notifications
             if (user.notificationPreferences?.email) {
-                const recipients = [user.email, ...(user.contactEmails || [])].filter(email => email && email.trim() !== '');
+                const rawRecipients = [user.email, ...(user.contactEmails || [])];
+                const recipients = [...new Set(rawRecipients.map(e => e?.trim().toLowerCase()).filter(Boolean))];
                 if (recipients.length > 0) {
                     notificationPromises.push((async () => {
                         let subject = '', html = '';
                         if (alertData.type === 'failure') {
                             subject = `🚨 ALERT: ${alertData.monitor.name} is DOWN`;
                             html = notificationService.getDowntimeEmailHTML(alertData.monitor, incident);
-                        } else if (['degradation', 'performance_issue', 'content_issue'].includes(alertData.type)) {
-                            subject = `⚠️ WARNING: ${alertData.monitor.name} Performance Degraded`;
-                            html = notificationService.getDegradationEmailHTML(alertData.monitor, incident);
                         } else if (alertData.type === 'ssl_warning') {
                             subject = `⚠️ SSL WARNING: ${alertData.monitor.name} Certificate Issue`;
                             html = notificationService.getSslWarningEmailHTML(alertData.monitor, incident);
                         } else if (alertData.type === 'recovery') {
                             subject = `✅ RECOVERY: ${alertData.monitor.name} is UP`;
                             html = notificationService.getRecoveryEmailHTML(alertData.monitor, incident);
+                        } else {
+                            // Degraded, performance_issue, rate_limit, content_issue, high_latency, etc.
+                            subject = `⚠️ WARNING: ${alertData.monitor.name} Performance Degraded`;
+                            html = notificationService.getDegradationEmailHTML(alertData.monitor, incident);
+                        }
+
+                        // Empty-email guard: never send a blank subject/body (bug fix)
+                        if (!subject || !html) {
+                            console.warn(`sendNotificationWithRetry: empty subject/html for type '${alertData.type}' — skipping`);
+                            return;
                         }
 
                         for (const recipient of recipients) {
@@ -622,9 +794,19 @@ class EnhancedAlertService {
             if (user.notificationPreferences?.slack && user.slackWebhook) {
                 notificationPromises.push((async () => {
                     let text = '';
-                    if (alertData.type === 'failure') text = `🚨 *Monitor Alert: ${alertData.monitor.name} is DOWN*\nURL: ${alertData.monitor.url}\nError: ${incident.errorMessage}`;
-                    else if (alertData.type === 'degradation') text = `⚠️ *Monitor Warning: ${alertData.monitor.name} is Degraded*\nURL: ${alertData.monitor.url}\nIssue: ${incident.errorMessage}`;
-                    else if (alertData.type === 'recovery') text = `✅ *Monitor Recovered: ${alertData.monitor.name} is UP*\nURL: ${alertData.monitor.url}\nDuration: ${notificationService.formatDuration(incident.duration || 0)}`;
+                    if (alertData.type === 'failure') {
+                        text = `🚨 *Monitor Alert: ${alertData.monitor.name} is DOWN*\nURL: ${alertData.monitor.url}\nError: ${incident.errorMessage}`;
+                    } else if (alertData.type === 'ssl_warning') {
+                        text = `⚠️ *SSL Warning: ${alertData.monitor.name} Certificate Issue*\nURL: ${alertData.monitor.url}\nIssue: ${incident.errorMessage}`;
+                    } else if (alertData.type === 'recovery') {
+                        text = `✅ *Monitor Recovered: ${alertData.monitor.name} is UP*\nURL: ${alertData.monitor.url}\nDuration: ${notificationService.formatDuration(incident.duration || 0)}`;
+                    } else {
+                        text = `⚠️ *Monitor Warning: ${alertData.monitor.name} is Degraded*\nURL: ${alertData.monitor.url}\nIssue: ${incident.errorMessage}`;
+                    }
+                    if (!text) {
+                        console.warn('sendNotificationWithRetry: empty Slack text — skipping');
+                        return;
+                    }
 
                     const slackResult = await this.executeWithRetry(
                         () => notificationService.sendSlack(user.slackWebhook, { text }),
@@ -653,16 +835,47 @@ class EnhancedAlertService {
 
             // Persist notification statistics in incident document
             try {
+                const emailSentSuccessfully = results.email.some(e => e.success);
                 const updateQuery = {
                     $set: {
-                        'notificationsSent.email': results.email.some(e => e.success),
+                        'notificationsSent.email': emailSentSuccessfully,
                         'notificationsSent.emailDetails': results.email,
                         'notificationsSent.slack': results.slack || false,
                         'notificationsSent.webhook': results.webhook || false
                     }
                 };
 
+                if (alertData.type === 'failure') {
+                    updateQuery.$set['notificationsSent.failureSent'] = true;
+                    if (emailSentSuccessfully) {
+                        updateQuery.$set['notificationsSent.failureEmailSent'] = true;
+                    }
+                } else if (alertData.type === 'recovery') {
+                    updateQuery.$set['notificationsSent.recoverySent'] = true;
+                } else {
+                    // Degraded, performance_issue, rate_limit, content_issue, ssl_warning, high_latency, etc.
+                    updateQuery.$set['notificationsSent.degradedSent'] = true;
+                    if (emailSentSuccessfully) {
+                        updateQuery.$set['notificationsSent.degradedEmailSent'] = true;
+                    }
+                }
+
                 await Incident.updateOne({ _id: incident._id }, updateQuery);
+                if (incident && incident.notificationsSent) {
+                    incident.notificationsSent.email = emailSentSuccessfully;
+                    incident.notificationsSent.emailDetails = results.email;
+                    incident.notificationsSent.slack = results.slack || false;
+                    incident.notificationsSent.webhook = results.webhook || false;
+                    if (alertData.type === 'failure') {
+                        incident.notificationsSent.failureSent = true;
+                        if (emailSentSuccessfully) incident.notificationsSent.failureEmailSent = true;
+                    } else if (alertData.type === 'recovery') {
+                        incident.notificationsSent.recoverySent = true;
+                    } else {
+                        incident.notificationsSent.degradedSent = true;
+                        if (emailSentSuccessfully) incident.notificationsSent.degradedEmailSent = true;
+                    }
+                }
                 console.log(`✅ Incident ${incident._id} updated with notification status`);
 
                 // Increment Global Stats in Redis (Phase 11: Persistent Counters)
@@ -726,9 +939,9 @@ class EnhancedAlertService {
                 if (scannedKeys && scannedKeys.length > 0) {
                     totalKeys += scannedKeys.length;
                     for (const key of scannedKeys) {
-                        if (key.includes(':failure:')) byType.failure++;
-                        else if (key.includes(':degraded:')) byType.degraded++;
-                        else if (key.includes(':recovery:')) byType.recovery++;
+                        if (key.includes(':failure')) byType.failure++;
+                        else if (key.includes(':degraded')) byType.degraded++;
+                        else if (key.includes(':recovery')) byType.recovery++;
                     }
                 }
             } while (cursor !== '0');
@@ -737,6 +950,9 @@ class EnhancedAlertService {
             const globalStats = await redisClient.hgetall(`${this.REDIS_PREFIX}global:stats`);
 
             return {
+                totalAlerts: totalKeys,
+                suppressedAlerts: totalKeys,
+                suppressionRate: 0,
                 totalOngoingSuppressed: totalKeys,
                 byType,
                 totalSent: {
@@ -749,7 +965,16 @@ class EnhancedAlertService {
             };
         } catch (err) {
             console.error('Error fetching alert statistics:', err.message);
-            return { error: 'Failed to fetch statistics', timestamp: new Date() };
+            return {
+                totalAlerts: 0,
+                suppressedAlerts: 0,
+                suppressionRate: 0,
+                totalOngoingSuppressed: 0,
+                byType: { failure: 0, degraded: 0, recovery: 0 },
+                totalSent: { email: 0, slack: 0, webhook: 0, total: 0 },
+                error: 'Failed to fetch statistics',
+                timestamp: new Date()
+            };
         }
     }
 

@@ -3,21 +3,15 @@ import { getDashboardStats, getUsers, getUserMonitors, getUserIncidents } from '
 import User from '../../src/models/User.js';
 import Monitor from '../../src/models/Monitor.js';
 import Incident from '../../src/models/Incident.js';
+import enhancedAlertService from '../../src/services/enhanced-alert.service.js';
 import mongoose from 'mongoose';
-
-// Mock Config and services that are not tested
-jest.mock('../../src/models/Check.js', () => ({}));
-jest.mock('../../src/models/Config.js', () => ({}));
-jest.mock('../../src/services/scheduler.service.js', () => ({}));
-jest.mock('../../src/services/enhanced-alert.service.js', () => ({
-    getAlertStatistics: jest.fn().mockResolvedValue({})
-}));
 
 describe('Admin Controller Unit Tests', () => {
     let req, res;
     let spyUserFind, spyUserCount, spyUserFindById, spyUserAggregate;
     let spyMonitorFind, spyMonitorCount, spyMonitorAggregate;
     let spyIncidentFind, spyIncidentCount, spyIncidentAggregate;
+    let spyAlertStats;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -43,6 +37,8 @@ describe('Admin Controller Unit Tests', () => {
         spyIncidentFind = jest.spyOn(Incident, 'find');
         spyIncidentCount = jest.spyOn(Incident, 'countDocuments');
         spyIncidentAggregate = jest.spyOn(Incident, 'aggregate');
+
+        spyAlertStats = jest.spyOn(enhancedAlertService, 'getAlertStatistics').mockResolvedValue({});
     });
 
     afterEach(() => {
@@ -57,6 +53,7 @@ describe('Admin Controller Unit Tests', () => {
         spyIncidentFind.mockRestore();
         spyIncidentCount.mockRestore();
         spyIncidentAggregate.mockRestore();
+        spyAlertStats.mockRestore();
     });
 
     describe('getUsers with Pagination', () => {

@@ -467,7 +467,7 @@ async function runTests() {
         log.header('TEST 6: ALERT STATISTICS & METRICS');
 
         try {
-            const stats = enhancedAlertService.getAlertStatistics();
+            const stats = await enhancedAlertService.getAlertStatistics();
             
             log.section('Alert History');
             log.data(`Total alerts (last hour): ${stats.totalAlerts}`);

@@ -318,6 +318,9 @@ class NotificationService {
 
   // Format downtime email
   getDowntimeEmailHTML(monitor, incident) {
+    const m = monitor || {};
+    const i = incident || {};
+    const started = i.startTime ? new Date(i.startTime).toLocaleString() : 'Unknown';
     return `
       <!DOCTYPE html>
       <html>
@@ -325,7 +328,7 @@ class NotificationService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+          .header { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
           .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
           .alert { background: #fee; border-left: 4px solid #dc2626; padding: 15px; margin: 15px 0; }
           .details { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
@@ -342,17 +345,17 @@ class NotificationService {
           <div class="content">
             <div class="alert">
               <h2 style="margin-top: 0; color: #dc2626;">Monitor is DOWN</h2>
-              <p><strong>${monitor.name}</strong> is currently experiencing downtime.</p>
+              <p><strong>${m.name || 'Monitor'}</strong> is currently experiencing downtime.</p>
             </div>
             <div class="details">
-              <p><span class="label">Monitor:</span> <span class="value">${monitor.name}</span></p>
-              <p><span class="label">URL:</span> <span class="value">${monitor.url}</span></p>
-              <p><span class="label">Type:</span> <span class="value">${monitor.type}</span></p>
-              <p><span class="label">Started:</span> <span class="value">${new Date(incident.startTime).toLocaleString()}</span></p>
-              <p><span class="label">Error Type:</span> <span class="value">${incident.errorType || 'N/A'}</span></p>
-              <p><span class="label">Error Message:</span> <span class="value">${incident.errorMessage || 'Unknown error'}</span></p>
+              <p><span class="label">Monitor:</span> <span class="value">${m.name || 'Unknown'}</span></p>
+              <p><span class="label">URL:</span> <span class="value">${m.url || 'N/A'}</span></p>
+              <p><span class="label">Type:</span> <span class="value">${m.type || 'N/A'}</span></p>
+              <p><span class="label">Started:</span> <span class="value">${started}</span></p>
+              <p><span class="label">Error Type:</span> <span class="value">${i.errorType || 'N/A'}</span></p>
+              <p><span class="label">Error Message:</span> <span class="value">${i.errorMessage || 'Unknown error'}</span></p>
             </div>
-            <p>We will notify you when the service is back online.</p>
+            <p>We will notify you when the service is back online. You will not receive repeat alerts while this incident remains ongoing.</p>
           </div>
           <div class="footer">
             <p>PulseGuard - Monitoring your services 24/7</p>
@@ -365,7 +368,12 @@ class NotificationService {
 
   // Format recovery email
   getRecoveryEmailHTML(monitor, incident) {
-    const duration = incident.duration ? this.formatDuration(incident.duration) : 'Unknown';
+    const m = monitor || {};
+    const i = incident || {};
+    const duration = i.duration ? this.formatDuration(i.duration) : 'Unknown';
+    const recovered = i.endTime ? new Date(i.endTime).toLocaleString() : new Date().toLocaleString();
+    const isDegraded = Boolean(i.degradationCategory || i.errorType === 'degraded' || i.errorType === 'ssl_warning');
+    const durationLabel = isDegraded ? 'Degradation Duration' : 'Downtime Duration';
 
     return `
       <!DOCTYPE html>
@@ -391,13 +399,13 @@ class NotificationService {
           <div class="content">
             <div class="success">
               <h2 style="margin-top: 0; color: #10b981;">Monitor is UP</h2>
-              <p><strong>${monitor.name}</strong> has recovered and is now operational.</p>
+              <p><strong>${m.name || 'Monitor'}</strong> has recovered and is now operational.</p>
             </div>
             <div class="details">
-              <p><span class="label">Monitor:</span> <span class="value">${monitor.name}</span></p>
-              <p><span class="label">URL:</span> <span class="value">${monitor.url}</span></p>
-              <p><span class="label">Downtime Duration:</span> <span class="value">${duration}</span></p>
-              <p><span class="label">Recovered:</span> <span class="value">${new Date(incident.endTime).toLocaleString()}</span></p>
+              <p><span class="label">Monitor:</span> <span class="value">${m.name || 'Unknown'}</span></p>
+              <p><span class="label">URL:</span> <span class="value">${m.url || 'N/A'}</span></p>
+              <p><span class="label">${durationLabel}:</span> <span class="value">${duration}</span></p>
+              <p><span class="label">Recovered:</span> <span class="value">${recovered}</span></p>
             </div>
             <p>Your service is back to normal operation.</p>
           </div>
@@ -412,7 +420,9 @@ class NotificationService {
 
   // Format duration
   formatDuration(ms) {
-    const seconds = Math.floor(ms / 1000);
+    if (ms == null || isNaN(Number(ms))) return 'Unknown';
+    const num = Number(ms);
+    const seconds = Math.floor(num / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
@@ -425,6 +435,10 @@ class NotificationService {
 
   // Format degradation email
   getDegradationEmailHTML(monitor, incident) {
+    const m = monitor || {};
+    const i = incident || {};
+    const detected = i.startTime ? new Date(i.startTime).toLocaleString() : new Date().toLocaleString();
+    const issue = (i.errorMessage && String(i.errorMessage).trim()) ? i.errorMessage : 'Slow response or SSL warning';
     return `
       <!DOCTYPE html>
       <html>
@@ -449,16 +463,16 @@ class NotificationService {
           <div class="content">
             <div class="warning">
               <h2 style="margin-top: 0; color: #d97706;">Performance Issue Detected</h2>
-              <p><strong>${monitor.name}</strong> is currently experiencing degraded performance.</p>
+              <p><strong>${m.name || 'Monitor'}</strong> is currently experiencing degraded performance.</p>
             </div>
             <div class="details">
-              <p><span class="label">Monitor:</span> <span class="value">${monitor.name}</span></p>
-              <p><span class="label">URL:</span> <span class="value">${monitor.url}</span></p>
+              <p><span class="label">Monitor:</span> <span class="value">${m.name || 'Unknown'}</span></p>
+              <p><span class="label">URL:</span> <span class="value">${m.url || 'N/A'}</span></p>
               <p><span class="label">Status:</span> <span class="value">DEGRADED</span></p>
-              <p><span class="label">Detected:</span> <span class="value">${new Date(incident.startTime).toLocaleString()}</span></p>
-              <p><span class="label">Issue:</span> <span class="value">${incident.errorMessage || 'Slow response or SSL warning'}</span></p>
+              <p><span class="label">Detected:</span> <span class="value">${detected}</span></p>
+              <p><span class="label">Issue:</span> <span class="value">${issue}</span></p>
             </div>
-            <p>We are monitoring the situation and will notify you if the service fails completely or recovers.</p>
+            <p>We are monitoring the situation and will notify you if the service fails completely or recovers. You will not receive repeat alerts while this incident remains ongoing.</p>
           </div>
           <div class="footer">
             <p>PulseGuard - Monitoring your services 24/7</p>
@@ -471,6 +485,10 @@ class NotificationService {
 
   // Format SSL warning email
   getSslWarningEmailHTML(monitor, incident) {
+    const m = monitor || {};
+    const i = incident || {};
+    const detected = i.startTime ? new Date(i.startTime).toLocaleString() : new Date().toLocaleString();
+    const issue = (i.errorMessage && String(i.errorMessage).trim()) ? i.errorMessage : 'Certificate Expiring or Invalid';
     return `
       <!DOCTYPE html>
       <html>
@@ -495,14 +513,14 @@ class NotificationService {
           <div class="content">
             <div class="warning">
               <h2 style="margin-top: 0; color: #d97706;">Certificate Issue Detected</h2>
-              <p><strong>${monitor.name}</strong> has an SSL certificate issue that requires attention.</p>
+              <p><strong>${m.name || 'Monitor'}</strong> has an SSL certificate issue that requires attention.</p>
             </div>
             <div class="details">
-              <p><span class="label">Monitor:</span> <span class="value">${monitor.name}</span></p>
-              <p><span class="label">URL:</span> <span class="value">${monitor.url}</span></p>
+              <p><span class="label">Monitor:</span> <span class="value">${m.name || 'Unknown'}</span></p>
+              <p><span class="label">URL:</span> <span class="value">${m.url || 'N/A'}</span></p>
               <p><span class="label">Status:</span> <span class="value">SSL WARNING</span></p>
-              <p><span class="label">Detected:</span> <span class="value">${new Date(incident.startTime).toLocaleString()}</span></p>
-              <p><span class="label">Issue:</span> <span class="value">${incident.errorMessage || 'Certificate Expiring or Invalid'}</span></p>
+              <p><span class="label">Detected:</span> <span class="value">${detected}</span></p>
+              <p><span class="label">Issue:</span> <span class="value">${issue}</span></p>
             </div>
             <p>Please check your SSL certificate configuration to prevent service disruption.</p>
           </div>

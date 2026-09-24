@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
 import { debounce } from '../../utils/debounce';
+import Pagination from '../../components/Pagination';
 
 const AdminUsers = () => {
     const [users, setUsers] = useState([]);
@@ -104,8 +105,8 @@ const AdminUsers = () => {
                                     <tr key={user._id} className="hover:bg-slate-700/30 transition-colors group">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold mr-3 shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-                                                    {user.name.charAt(0).toUpperCase()}
+                                                <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold mr-3 shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                                                    {user.name?.charAt(0).toUpperCase() || 'U'}
                                                 </div>
                                                 <div>
                                                     <div className="text-white font-medium">{user.name}</div>
@@ -144,28 +145,13 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="border-t border-slate-700 bg-slate-800/30 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-sm text-slate-400 text-center sm:text-left">
-                        Showing page <span className="font-semibold text-white">{pagination.current}</span> of <span className="font-semibold text-white">{pagination.pages}</span>
-                        <span className="ml-2 opacity-60">({pagination.total} total)</span>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                        <button
-                            onClick={() => fetchUsers(pagination.current - 1)}
-                            disabled={pagination.current === 1}
-                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                        >
-                            Previous
-                        </button>
-                        <button
-                            onClick={() => fetchUsers(pagination.current + 1)}
-                            disabled={pagination.current === pagination.pages}
-                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
+                <Pagination
+                    currentPage={pagination.current}
+                    totalPages={pagination.pages}
+                    onPageChange={(p) => fetchUsers(p)}
+                    totalItems={pagination.total}
+                    itemName="users"
+                />
             </div>
         </div>
     );

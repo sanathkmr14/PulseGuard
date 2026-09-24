@@ -44,17 +44,17 @@ h4,
 }
 
 .glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: rgba(59, 130, 246, 0.4);
   background: rgba(30, 30, 45, 0.6);
   z-index: 2;
   box-shadow:
-    0 0 0 1px rgba(99, 102, 241, 0.15),
+    0 0 0 1px rgba(59, 130, 246, 0.15),
     0 10px 40px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Glow Effects */
 .glow-primary:hover {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
 }
 
 .glow-emerald:hover {
@@ -81,7 +81,7 @@ h4,
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6366f1;
+  background: #3b82f6;
 }
 
 /* Animations */
@@ -127,4 +127,89 @@ h4,
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulseTravel {
+  0% {
+    stroke-dashoffset: 600;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+.animate-float-reverse {
+  animation: floatReverse 4.5s ease-in-out infinite;
+}
+
+.animate-pulse-travel {
+  stroke-dasharray: 80, 160;
+  animation: pulseTravel 3s linear infinite;
+}
+
+.animate-live-pulse {
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.2s ease-out forwards;
+}
+
+@keyframes slideUpFade {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-slide-up-fade {
+  animation: slideUpFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

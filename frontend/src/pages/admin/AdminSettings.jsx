@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
+import Toast from '../../components/Toast';
 
 const AdminSettings = () => {
     const [globalAlert, setGlobalAlert] = useState('');
     const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [allowSignups, setAllowSignups] = useState(true);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -16,6 +18,7 @@ const AdminSettings = () => {
                 if (res.data.success && res.data.data) {
                     setGlobalAlert(res.data.data.globalAlert || '');
                     setMaintenanceMode(res.data.data.maintenanceMode || false);
+                    setAllowSignups(res.data.data.allowSignups !== undefined ? res.data.data.allowSignups : true);
                 }
             } catch (error) {
                 console.error("Failed to fetch settings", error);
@@ -32,7 +35,8 @@ const AdminSettings = () => {
         try {
             const res = await adminAPI.updateSettings({
                 globalAlert,
-                maintenanceMode
+                maintenanceMode,
+                allowSignups
             });
             if (res.data.success) {
                 setShowSuccess(true);
@@ -52,15 +56,9 @@ const AdminSettings = () => {
 
     return (
         <div className="max-w-4xl space-y-6 relative">
-            {/* Success Toast */}
-            {showSuccess && (
-                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 bg-emerald-500 text-white px-6 py-3 rounded-lg shadow-xl animate-fade-in-up z-50 min-w-[300px] justify-center">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="font-medium">System settings updated successfully!</span>
-                </div>
-            )}
+            {/* Modern Bottom-Center Success Toast */}
+            <Toast message={showSuccess ? 'System settings updated successfully' : ''} type="success" onClose={() => setShowSuccess(false)} />
+
 
             <div>
                 <h1 className="text-2xl font-bold text-white mb-1">System Configuration</h1>
@@ -88,7 +86,7 @@ const AdminSettings = () => {
                             <button
                                 type="button"
                                 onClick={() => setMaintenanceMode(!maintenanceMode)}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${maintenanceMode ? 'bg-indigo-600' : 'bg-slate-700'
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${maintenanceMode ? 'bg-blue-600' : 'bg-slate-700'
                                     }`}
                             >
                                 <span
@@ -98,6 +96,21 @@ const AdminSettings = () => {
                             </button>
                             <span className="ml-3 text-sm font-medium text-slate-300">Enable Maintenance Mode</span>
                         </div>
+
+                        <div className="flex items-center">
+                            <button
+                                type="button"
+                                onClick={() => setAllowSignups(!allowSignups)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${allowSignups ? 'bg-blue-600' : 'bg-slate-700'
+                                    }`}
+                            >
+                                <span
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${allowSignups ? 'translate-x-5' : 'translate-x-0'
+                                        }`}
+                                />
+                            </button>
+                            <span className="ml-3 text-sm font-medium text-slate-300">Allow New User Registrations</span>
+                        </div>
                     </div>
                 </div>
 
@@ -105,7 +118,7 @@ const AdminSettings = () => {
                     <button
                         type="submit"
                         disabled={saving}
-                        className={`bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-lg shadow-indigo-500/20 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-5 rounded-lg transition-all shadow-sm shadow-blue-500/20 hover:scale-[1.02] cursor-pointer ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {saving ? 'Saving...' : 'Save Configuration'}
                     </button>

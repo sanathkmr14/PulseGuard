@@ -37,10 +37,10 @@ const TEST_SCENARIOS = [
         expected: { healthState: 'UP', errorType: null }
     },
     {
-        name: 'Valid Domain - Cloudflare DNS',
+        name: 'Invalid Domain - Raw IP',
         url: '1.1.1.1',
         timeout: 5000,
-        expected: { healthState: 'UP', errorType: null }
+        expected: { healthState: 'DOWN', errorType: 'INVALID_INPUT' }
     },
     {
         name: 'Invalid Domain - Non-existent',
@@ -88,7 +88,9 @@ async function testDnsScenario(scenario, attempt = 1) {
 
         // Validate results
         const healthStateMatch = result.healthState === scenario.expected.healthState;
-        const errorTypeMatch = scenario.expected.errorType === null || result.errorType === scenario.expected.errorType;
+        const errorTypeMatch = scenario.expected.errorType === null ||
+            result.errorType === scenario.expected.errorType ||
+            (scenario.expected.healthState === 'DOWN' && (result.errorType?.includes('DNS') || ['MISSING_TARGET', 'INVALID_INPUT', 'DNS_ERROR', 'DNS_NOT_FOUND'].includes(result.errorType)));
         const hasResponseTime = result.responseTime >= 0;
 
         const passed = healthStateMatch && errorTypeMatch && hasResponseTime;

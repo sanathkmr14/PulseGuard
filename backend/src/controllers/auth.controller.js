@@ -29,7 +29,8 @@ export const register = async (req, res) => {
             console.warn('Could not fetch signup config:', configErr.message);
         }
 
-        const { name, email, password } = req.body;
+        const { name, password } = req.body;
+        const email = req.body.email ? String(req.body.email).trim().toLowerCase() : '';
         const userExists = await User.findOne({ email });
 
         if (userExists) {
@@ -43,6 +44,7 @@ export const register = async (req, res) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
+                role: user.role,
                 token: generateToken(user._id)
             }
         });
@@ -56,7 +58,8 @@ export const register = async (req, res) => {
  */
 export const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { password } = req.body;
+        const email = req.body.email ? String(req.body.email).trim().toLowerCase() : '';
         const user = await User.findOne({ email }).select('+password');
 
         if (!user || !(await user.comparePassword(password))) {
@@ -73,6 +76,7 @@ export const login = async (req, res) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
+                role: user.role,
                 token: generateToken(user._id)
             }
         });
@@ -102,27 +106,6 @@ export const updateProfile = async (req, res) => {
         const user = await User.findById(req.user._id).select('+password');
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        // SECURITY PATCH: Require current password ONLY for SENSITIVE changes
-        // Use normalized lowercase comparison for email
-        const newEmail = req.body.email ? req.body.email.toLowerCase().trim() : undefined;
-        const currentEmail = user.email.toLowerCase();
-        const isEmailChanging = newEmail && newEmail !== currentEmail;
-        const isPasswordChanging = !!req.body.password;
-
-        if (isEmailChanging || isPasswordChanging) {
-            if (!req.body.currentPassword) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Current password is required to change ${isEmailChanging ? 'email' : 'password'}`
-                });
-            }
-            // Verify current password
-            const isMatch = await user.comparePassword(req.body.currentPassword);
-            if (!isMatch) {
-                return res.status(401).json({ success: false, message: 'Invalid current password' });
-            }
-        }
-
         // Whitelist allowed fields for update (Phase 9: Security Fix)
         const allowedProfileFields = ['name', 'email', 'password', 'notificationPreferences', 'contactEmails', 'slackWebhook', 'phoneNumber', 'webhookUrl'];
         const profileData = {};
@@ -131,7 +114,34 @@ export const updateProfile = async (req, res) => {
         });
 
         user.name = profileData.name || user.name;
-        user.email = profileData.email || user.email;
+
+        // Verify current password if changing email or password
+        const newEmail = profileData.email ? profileData.email.toLowerCase().trim() : undefined;
+        const currentEmail = user.email.toLowerCase();
+        const isEmailChanging = newEmail && newEmail !== currentEmail;
+        const isPasswordChanging = !!profileData.password;
+
+        if (isEmailChanging || isPasswordChanging) {
+            if (!req.body.currentPassword || typeof req.body.currentPassword !== 'string') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Current password is required to change ${isEmailChanging ? 'email' : 'password'}`
+                });
+            }
+            const isMatch = await user.comparePassword(req.body.currentPassword);
+            if (!isMatch) {
+                return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+            }
+            if (isEmailChanging) {
+                user.email = newEmail;
+            }
+            if (isPasswordChanging) {
+                if (typeof profileData.password !== 'string' || profileData.password.length < 8) {
+                    return res.status(400).json({ success: false, message: 'New password must be at least 8 characters long' });
+                }
+                user.password = profileData.password;
+            }
+        }
 
         if (profileData.notificationPreferences) {
             user.notificationPreferences = { ...user.notificationPreferences, ...profileData.notificationPreferences };
@@ -176,7 +186,6 @@ export const updateProfile = async (req, res) => {
         user.slackWebhook = profileData.slackWebhook !== undefined ? profileData.slackWebhook : user.slackWebhook;
         user.phoneNumber = profileData.phoneNumber !== undefined ? profileData.phoneNumber : user.phoneNumber;
         user.webhookUrl = profileData.webhookUrl !== undefined ? profileData.webhookUrl : user.webhookUrl;
-        if (profileData.password) user.password = profileData.password;
 
         const updatedUser = await user.save();
         updatedUser.password = undefined; // Prevent password leak
@@ -195,7 +204,7 @@ export const updateProfile = async (req, res) => {
  */
 export const forgotPassword = async (req, res) => {
     try {
-        const { email } = req.body;
+        const email = req.body.email ? String(req.body.email).trim().toLowerCase() : '';
         const user = await User.findOne({ email });
 
         // SECURITY: Always return same generic response to prevent email enumeration
@@ -224,7 +233,13 @@ export const forgotPassword = async (req, res) => {
  */
 export const resetPassword = async (req, res) => {
     try {
-        const { token, password } = req.body;
+        const { token, password } = req.body || {};
+        if (!token || typeof token !== 'string' || !password || typeof password !== 'string') {
+            return res.status(400).json({ success: false, message: 'Token and password are required' });
+        }
+        if (password.length < 8) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
+        }
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
         const user = await User.findOne({ passwordResetToken: hashedToken, passwordResetExpires: { $gt: Date.now() } }).select('+password');
@@ -237,7 +252,7 @@ export const resetPassword = async (req, res) => {
 
         res.json({ success: true, message: 'Password reset successful' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Process failed' });
+        res.status(500).json({ success: false, message: safeErrorMessage(error, 'Process failed') });
     }
 };
 
@@ -273,9 +288,12 @@ export const checkEmail = async (req, res) => {
  */
 export const deleteAccount = async (req, res) => {
     try {
+        if (!req.body?.password || typeof req.body.password !== 'string') {
+            return res.status(400).json({ success: false, message: 'Password is required to delete account' });
+        }
         const user = await User.findById(req.user._id).select('+password');
         if (!user || !(await user.comparePassword(req.body.password))) {
-            return res.status(401).json({ success: false, message: 'Incorrect password or user not found' });
+            return res.status(400).json({ success: false, message: 'Incorrect password' });
         }
 
         await user.deleteOne();

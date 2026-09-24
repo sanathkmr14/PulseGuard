@@ -84,6 +84,7 @@ export const ERROR_TYPES = {
     UDP_NO_RESPONSE: 'UDP_NO_RESPONSE',            // Timeout (unknown if up/down)
 
     // Generic Errors
+    SSRF_BLOCKED: 'SSRF_BLOCKED',                  // SSRF firewall blocked
     NETWORK_ERROR: 'NETWORK_ERROR',                // General connectivity issue
     UNKNOWN_ERROR: 'UNKNOWN_ERROR'                 // Uncategorized
 };
@@ -314,7 +315,10 @@ const DETAILED_ERRORS = {
 
     // Ping
     'PING_TIMEOUT': "Request Timed Out: ICMP Echo Requests were sent, but no Echo Reply was received.",
-    'HOST_UNREACHABLE_PING': "Destination Unreachable: The ping packet could not verify the path to the host."
+    'HOST_UNREACHABLE_PING': "Destination Unreachable: The ping packet could not verify the path to the host.",
+
+    // Security / SSRF
+    'SSRF_BLOCKED': "SSRF Protection: Access to private or restricted network address was blocked."
 };
 
 /**

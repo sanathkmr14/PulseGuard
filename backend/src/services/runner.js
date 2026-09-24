@@ -146,10 +146,14 @@ class MonitorRunner {
             };
         }
 
-        // Check for special characters
+        // Check for special characters (strip IPv6 brackets first: [::1] -> ::1)
         const hostname = parsedUrl.hostname;
+        const hostnameForCheck = (hostname.startsWith('[') && hostname.endsWith(']'))
+            ? hostname.slice(1, -1)
+            : hostname;
+        // Note: URL.hostname never includes brackets, but guard anyway; allow ':' for IPv6 literals
         const invalidChars = /[<>\[\]|}\\{^`\\]/;
-        if (invalidChars.test(hostname)) {
+        if (invalidChars.test(hostnameForCheck) && !hostnameForCheck.includes(':')) {
             return {
                 valid: false,
                 errorType: 'INVALID_URL',
@@ -278,21 +282,40 @@ class MonitorRunner {
                 if (parsed.protocol === 'ftp:') finalDefaultPort = 21;
             }
 
+            // Normalize IPv6 brackets: URL.hostname keeps [::1]; workers/resolver expect bare ::1
+            let hostname = parsed.hostname;
+            if (hostname.startsWith('[') && hostname.endsWith(']')) {
+                hostname = hostname.slice(1, -1);
+            }
             return {
-                hostname: parsed.hostname,
+                hostname,
                 port: parsed.port ? parseInt(parsed.port, 10) : finalDefaultPort,
                 protocol: parsed.protocol,
                 path: parsed.pathname + parsed.search
             };
         } catch (e) {
-            // Fallback for simple cases if URL parse fails
+            // Fallback for simple cases if URL parse fails — IPv6-aware
             let hostname = rawUrl.replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split('?')[0];
             let port = defaultPort || 80;
 
-            if (hostname.includes(':')) {
-                const parts = hostname.split(':');
-                hostname = parts[0];
-                port = parseInt(parts[1], 10);
+            if (hostname.startsWith('[')) {
+                const closeIdx = hostname.indexOf(']');
+                if (closeIdx !== -1) {
+                    const after = hostname.slice(closeIdx + 1);
+                    hostname = hostname.slice(1, closeIdx);
+                    const portMatch = after.match(/^:(\d+)$/);
+                    if (portMatch) port = parseInt(portMatch[1], 10);
+                } else {
+                    hostname = hostname.replace(/[\[\]]/g, '');
+                }
+            } else if (hostname.includes(':')) {
+                // Only split host:port when there is exactly one colon (avoid mangling IPv6)
+                const colonCount = (hostname.match(/:/g) || []).length;
+                if (colonCount === 1) {
+                    const parts = hostname.split(':');
+                    hostname = parts[0];
+                    if (/^\d+$/.test(parts[1])) port = parseInt(parts[1], 10);
+                }
             }
             // Fallback object with minimal fields
             return { hostname, port, protocol: 'http:', path: '/' };

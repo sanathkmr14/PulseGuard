@@ -7,8 +7,9 @@ import enhancedAlertService from '../services/enhanced-alert.service.js';
 import healthStateService from '../services/health-evaluator.service.js';
 import mongoose from 'mongoose';
 import redisClient from '../config/redis-cache.js';
-import { validateMonitorUrl } from '../utils/url-validator.js'; // [C3]
+import { validateMonitorUrl, validateTargetHost } from '../utils/url-validator.js'; // [C3]
 import safeErrorMessage from '../utils/safe-error.js'; // [H5]
+import dbMirror from '../services/db-mirror.service.js';
 
 /**
  * Monitor Controller
@@ -17,20 +18,39 @@ import safeErrorMessage from '../utils/safe-error.js'; // [H5]
 const ALLOWED_MONITOR_FIELDS = [
     'name', 'type', 'url', 'port', 'interval', 'timeout',
     'alertThreshold', 'degradedThresholdMs', 'sslExpiryThresholdDays',
-    'isActive', 'strictMode', 'allowUnauthorized'
+    'isActive', 'strictMode', 'allowUnauthorized', 'status', 'headers'
 ];
 
 export const getMonitors = async (req, res) => {
     try {
-        const { page = 1, limit = 12 } = req.query;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 8));
         const skip = (page - 1) * limit;
+        const status = req.query.status;
 
-        const monitors = await Monitor.find({ user: req.user._id })
+        const query = { user: req.user._id };
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const monitors = await Monitor.find(query)
             .sort({ createdAt: -1 })
-            .skip(parseInt(skip))
-            .limit(parseInt(limit));
+            .skip(skip)
+            .limit(limit);
 
-        const total = await Monitor.countDocuments({ user: req.user._id });
+        const [totalAll, upCount, downCount, degradedCount, pausedCount] = await Promise.all([
+            Monitor.countDocuments({ user: req.user._id }),
+            Monitor.countDocuments({ user: req.user._id, status: 'up' }),
+            Monitor.countDocuments({ user: req.user._id, status: 'down' }),
+            Monitor.countDocuments({ user: req.user._id, status: 'degraded' }),
+            Monitor.countDocuments({ user: req.user._id, status: 'paused' })
+        ]);
+
+        const currentTotal = status === 'up' ? upCount
+            : status === 'down' ? downCount
+            : status === 'degraded' ? degradedCount
+            : status === 'paused' ? pausedCount
+            : totalAll;
 
         const monitorsWithChecks = await Promise.all(
             monitors.map(async (monitor) => {
@@ -41,6 +61,7 @@ export const getMonitors = async (req, res) => {
                 return {
                     ...monitor.toObject(),
                     latestCheck: latestCheck ? {
+                        status: latestCheck.status,
                         statusCode: latestCheck.statusCode,
                         errorType: latestCheck.errorType,
                         errorMessage: latestCheck.errorMessage,
@@ -54,10 +75,17 @@ export const getMonitors = async (req, res) => {
             success: true,
             count: monitorsWithChecks.length,
             data: monitorsWithChecks,
+            counts: {
+                all: totalAll,
+                up: upCount,
+                down: downCount,
+                degraded: degradedCount,
+                paused: pausedCount
+            },
             pagination: {
-                current: parseInt(page),
-                pages: Math.ceil(total / limit),
-                total
+                current: page,
+                pages: Math.ceil(currentTotal / limit) || 1,
+                total: currentTotal
             }
         });
     } catch (error) {
@@ -84,14 +112,20 @@ export const createMonitor = async (req, res) => {
             monitorData.isActive = Boolean(monitorData.isActive === true || monitorData.isActive === 'true');
         }
 
-        // [C3 SECURITY FIX] Validate URL before saving for HTTP/HTTPS monitors.
-        // validateMonitorUrl() existed but was never called here — SSRF protection
-        // only happened at execution time, not at input time.
+        // Validate URL/hostname before saving for all monitor types (SSRF pre-validation)
         const monitorType = (monitorData.type || 'HTTPS').toUpperCase();
-        if (['HTTP', 'HTTPS'].includes(monitorType) && monitorData.url) {
-            const urlValidation = validateMonitorUrl(monitorData.url);
-            if (!urlValidation.isValid) {
-                return res.status(400).json({ success: false, message: urlValidation.error });
+        monitorData.type = monitorType;
+        if (monitorData.url) {
+            if (['HTTP', 'HTTPS'].includes(monitorType)) {
+                const urlValidation = validateMonitorUrl(monitorData.url);
+                if (!urlValidation.isValid) {
+                    return res.status(400).json({ success: false, message: urlValidation.error });
+                }
+            } else {
+                const targetValidation = validateTargetHost(monitorData.url);
+                if (!targetValidation.isValid) {
+                    return res.status(400).json({ success: false, message: targetValidation.error });
+                }
             }
         }
 
@@ -107,7 +141,7 @@ export const createMonitor = async (req, res) => {
         const existingMonitor = await Monitor.findOne({
             user: req.user._id,
             url: monitorData.url,
-            type: monitorData.type || 'http' // Default to http if not set
+            type: monitorData.type
         });
 
         if (existingMonitor) {
@@ -143,6 +177,7 @@ export const createMonitor = async (req, res) => {
             data: {
                 ...monitor.toObject(),
                 latestCheck: latestCheck ? {
+                    status: latestCheck.status,
                     statusCode: latestCheck.statusCode,
                     errorType: latestCheck.errorType,
                     errorMessage: latestCheck.errorMessage,
@@ -162,6 +197,9 @@ export const createMonitor = async (req, res) => {
 
 export const getMonitor = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         const monitor = await Monitor.findById(req.params.id);
 
         if (!monitor) {
@@ -173,7 +211,21 @@ export const getMonitor = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
-        res.json({ success: true, data: monitor });
+        const latestCheck = await Check.findOne({ monitor: monitor._id }).sort({ timestamp: -1 });
+
+        res.json({
+            success: true,
+            data: {
+                ...monitor.toObject(),
+                latestCheck: latestCheck ? {
+                    status: latestCheck.status,
+                    statusCode: latestCheck.statusCode,
+                    errorType: latestCheck.errorType,
+                    errorMessage: latestCheck.errorMessage,
+                    timestamp: latestCheck.timestamp
+                } : null
+            }
+        });
     } catch (error) {
         res.status(400).json({ success: false, message: safeErrorMessage(error) });
     }
@@ -181,6 +233,9 @@ export const getMonitor = async (req, res) => {
 
 export const updateMonitor = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         let monitor = await Monitor.findById(req.params.id);
 
         if (!monitor) {
@@ -208,12 +263,38 @@ export const updateMonitor = async (req, res) => {
             updateData.isActive = Boolean(updateData.isActive === true || updateData.isActive === 'true');
         }
 
-        // [C3 SECURITY FIX] Validate URL before updating for HTTP/HTTPS monitors
+        const oldStatus = monitor.status;
+        const oldIsActive = monitor.isActive;
+
+        // Handle pause/resume status transitions explicitly
+        if (updateData.isActive === false || updateData.status === 'paused') {
+            updateData.isActive = false;
+            updateData.status = 'paused';
+        } else if (updateData.isActive === true) {
+            updateData.isActive = true;
+            if (oldStatus === 'paused' || updateData.status === 'paused') {
+                // Restore prior status from latest check rather than wiping to 'unknown'
+                const latestCheck = await Check.findOne({ monitor: monitor._id }).sort({ timestamp: -1 });
+                updateData.status = latestCheck ? latestCheck.status : 'unknown';
+            }
+        }
+
+        // Validate URL/hostname before updating for all monitor types (SSRF pre-validation)
         const updateType = (updateData.type || monitor.type || 'HTTPS').toUpperCase();
-        if (['HTTP', 'HTTPS'].includes(updateType) && updateData.url) {
-            const urlValidation = validateMonitorUrl(updateData.url);
-            if (!urlValidation.isValid) {
-                return res.status(400).json({ success: false, message: urlValidation.error });
+        if (updateData.type) {
+            updateData.type = updateType;
+        }
+        if (updateData.url) {
+            if (['HTTP', 'HTTPS'].includes(updateType)) {
+                const urlValidation = validateMonitorUrl(updateData.url);
+                if (!urlValidation.isValid) {
+                    return res.status(400).json({ success: false, message: urlValidation.error });
+                }
+            } else {
+                const targetValidation = validateTargetHost(updateData.url);
+                if (!targetValidation.isValid) {
+                    return res.status(400).json({ success: false, message: targetValidation.error });
+                }
             }
         }
 
@@ -229,8 +310,10 @@ export const updateMonitor = async (req, res) => {
             }
         }
 
+        const defaultPortForType = (type) => (type === 'HTTPS' || type === 'SSL') ? 443 : (type === 'HTTP' ? 80 : undefined);
+        const oldEffectivePort = monitor.port || defaultPortForType(monitor.type);
         const typeChanged = updateData.type && updateData.type !== monitor.type;
-        const portChanged = updateData.port !== undefined && updateData.port !== monitor.port;
+        const portChanged = updateData.port !== undefined && oldEffectivePort !== undefined && updateData.port !== oldEffectivePort;
         const targetChanged = urlChanged || typeChanged || portChanged;
 
         if (targetChanged) {
@@ -243,8 +326,11 @@ export const updateMonitor = async (req, res) => {
 
             // Reset consecutive counters + stats for fresh monitoring
             updateData.consecutiveFailures = 0;
+            updateData.consecutiveDegraded = 0;
             updateData.totalChecks = 0;
             updateData.successfulChecks = 0;
+            updateData.uptimePercentage = 100;
+            updateData.last24hUptime = 100;
             updateData.lastResponseTime = null;
             updateData.lastChecked = null;
             updateData.status = 'unknown';
@@ -277,7 +363,14 @@ export const updateMonitor = async (req, res) => {
         // Wrap scheduler operations in try-catch to prevent database update from being rolled back
         try {
             if (monitor.isActive) {
-                await schedulerService.scheduleMonitor(monitor);
+                if (targetChanged) {
+                    // Target changed (URL, port, or protocol) -> perform immediate check on new target
+                    await schedulerService.scheduleMonitor(monitor);
+                } else {
+                    // Resumed from pause or non-target settings update -> resume remaining interval
+                    // (prevents creating duplicate/unwanted check records if not overdue)
+                    await schedulerService.scheduleMonitorForSync(monitor);
+                }
             } else {
                 await schedulerService.removeMonitor(monitor._id);
             }
@@ -285,7 +378,51 @@ export const updateMonitor = async (req, res) => {
             console.error('⚠️ Scheduler service error during monitor update:', schedulerError.message);
         }
 
-        res.json({ success: true, data: monitor });
+        // Broadcast real-time status update to all connected clients
+        try {
+            if (schedulerService.io) {
+                const roomUserId = monitor.user._id || monitor.user;
+                schedulerService.io.to(`user_${roomUserId}`).emit('monitor_update', {
+                    monitorId: monitor._id.toString(),
+                    status: monitor.status,
+                    isActive: monitor.isActive,
+                    lastChecked: monitor.lastChecked,
+                    lastResponseTime: monitor.lastResponseTime
+                });
+
+                if (oldStatus !== monitor.status) {
+                    schedulerService.io.to(`user_${roomUserId}`).emit('monitor_status_change', {
+                        monitorId: monitor._id.toString(),
+                        previousStatus: oldStatus,
+                        currentStatus: monitor.status,
+                        monitor: {
+                            _id: monitor._id,
+                            name: monitor.name,
+                            url: monitor.url
+                        },
+                        timestamp: new Date()
+                    });
+                }
+            }
+        } catch (socketErr) {
+            console.warn('Socket broadcast error during update:', socketErr.message);
+        }
+
+        const latestCheck = await Check.findOne({ monitor: monitor._id }).sort({ timestamp: -1 });
+
+        res.json({
+            success: true,
+            data: {
+                ...monitor.toObject(),
+                latestCheck: latestCheck ? {
+                    status: latestCheck.status,
+                    statusCode: latestCheck.statusCode,
+                    errorType: latestCheck.errorType,
+                    errorMessage: latestCheck.errorMessage,
+                    timestamp: latestCheck.timestamp
+                } : null
+            }
+        });
     } catch (error) {
         console.error('Monitor update error:', error);
         res.status(400).json({ success: false, message: safeErrorMessage(error, 'Failed to update monitor') });
@@ -294,6 +431,9 @@ export const updateMonitor = async (req, res) => {
 
 export const deleteMonitor = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         const monitor = await Monitor.findById(req.params.id);
 
         if (!monitor) {
@@ -321,10 +461,16 @@ export const deleteMonitor = async (req, res) => {
 
         // Step 3: Delete the monitor itself
         await monitor.deleteOne();
+        dbMirror.mirrorDelete('monitors', monitorObjectId);
+        dbMirror.mirrorDeleteMany('checks', { monitor: monitorObjectId });
+        dbMirror.mirrorDeleteMany('incidents', { monitor: monitorObjectId });
         console.log('   ✅ Monitor deleted');
 
         // Step 4: Cleanup health state
         await healthStateService.cleanupState(monitor._id);
+
+        // Step 5: Clear alert suppression
+        await enhancedAlertService.clearAlertSuppression(monitor._id);
 
         res.json({ success: true, message: 'Monitor deleted' });
     } catch (error) {
@@ -335,14 +481,19 @@ export const deleteMonitor = async (req, res) => {
 
 export const getMonitorStats = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         const monitor = await Monitor.findById(req.params.id);
         if (!monitor || (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
-        const uptimePercentage = monitor.totalChecks > 0
-            ? ((monitor.successfulChecks / monitor.totalChecks) * 100).toFixed(2)
-            : 0;
+        const total = Number(monitor.totalChecks) || 0;
+        const success = Number(monitor.successfulChecks) || 0;
+        const uptimePercentage = total > 0 && Number.isFinite(success) && Number.isFinite(total)
+            ? parseFloat(((success / total) * 100).toFixed(2))
+            : 100;
 
         const [recentChecks, incidentCount, ongoingIncidents] = await Promise.all([
             Check.find({ monitor: monitor._id })
@@ -360,10 +511,10 @@ export const getMonitorStats = async (req, res) => {
         res.json({
             success: true,
             data: {
-                uptimePercentage: parseFloat(uptimePercentage),
+                uptimePercentage: Number.isFinite(uptimePercentage) ? uptimePercentage : 100,
                 totalChecks: monitor.totalChecks,
                 successfulChecks: monitor.successfulChecks,
-                failedChecks: (monitor.totalChecks || 0) - (monitor.successfulChecks || 0),
+                failedChecks: Math.max(0, (Number(monitor.totalChecks) || 0) - (Number(monitor.successfulChecks) || 0)),
                 avgResponseTime: Math.round(avgResponseTime),
                 lastResponseTime: monitor.lastResponseTime,
                 incidentCount,
@@ -379,13 +530,16 @@ export const getMonitorStats = async (req, res) => {
 
 export const getMonitorChecks = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         const monitor = await Monitor.findById(req.params.id);
         if (!monitor || (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
-        const limit = parseInt(req.query.limit) || 100;
-        const page = parseInt(req.query.page) || 1;
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 100));
+        const page = Math.max(1, parseInt(req.query.page) || 1);
         const skip = (page - 1) * limit;
 
         const [checks, total] = await Promise.all([
@@ -401,7 +555,7 @@ export const getMonitorChecks = async (req, res) => {
             count: checks.length,
             total,
             page,
-            pages: Math.ceil(total / limit),
+            pages: Math.ceil(total / limit) || 1,
             data: checks
         });
     } catch (error) {
@@ -411,13 +565,16 @@ export const getMonitorChecks = async (req, res) => {
 
 export const checkMonitorNow = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Monitor not found' });
+        }
         const monitor = await Monitor.findById(req.params.id);
-        if (!monitor || monitor.user.toString() !== req.user._id.toString()) {
+        if (!monitor || (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
 
-        // 🛡️ SECURITY: Manual check cooldown (30 seconds) using Redis
-        const COOLDOWN_SECONDS = 30;
+        // 🛡️ SECURITY: Manual check cooldown (10 seconds) using Redis
+        const COOLDOWN_SECONDS = 10;
         const cooldownKey = `cooldown:manual-check:${monitor._id}`;
 
         const remainingTtl = await redisClient.ttl(cooldownKey);
@@ -467,19 +624,51 @@ export const checkMonitorNow = async (req, res) => {
 
         if (status === 'down') {
             updateData.$inc.consecutiveFailures = 1;
+            updateData.$set.consecutiveDegraded = 0;
         } else if (status === 'degraded') {
+            updateData.$inc.consecutiveDegraded = 1;
             updateData.$set.consecutiveFailures = 0;
             updateData.$inc.successfulChecks = 1;
         } else {
             updateData.$set.consecutiveFailures = 0;
+            updateData.$set.consecutiveDegraded = 0;
             updateData.$inc.successfulChecks = 1;
         }
 
-        const updatedMonitor = await Monitor.findByIdAndUpdate(monitor._id, updateData, { new: true });
+        let updatedMonitor = await Monitor.findByIdAndUpdate(monitor._id, updateData, { new: true });
+
+        // --- PERSISTENT UPTIME CALCULATION --- //
+        if (updatedMonitor && updatedMonitor.totalChecks > 0) {
+            try {
+                const t = Number(updatedMonitor.totalChecks) || 0;
+                const s = Number(updatedMonitor.successfulChecks) || 0;
+                const lifetimeUptime = t > 0 && Number.isFinite(s / t)
+                    ? parseFloat(((s / t) * 100).toFixed(2))
+                    : 100;
+                const startOf24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                const [checks24h, up24h] = await Promise.all([
+                    Check.countDocuments({ monitor: updatedMonitor._id, timestamp: { $gte: startOf24h } }),
+                    Check.countDocuments({ monitor: updatedMonitor._id, timestamp: { $gte: startOf24h }, status: { $in: ['up', 'degraded'] } })
+                ]);
+                const dayUptime = checks24h > 0 && Number.isFinite(up24h / checks24h)
+                    ? parseFloat(((up24h / checks24h) * 100).toFixed(2))
+                    : lifetimeUptime;
+                updatedMonitor = await Monitor.findByIdAndUpdate(
+                    updatedMonitor._id,
+                    { $set: { uptimePercentage: lifetimeUptime, last24hUptime: dayUptime } },
+                    { new: true }
+                );
+            } catch (uptimeErr) {
+                console.error(`⚠️ Failed to update persistent uptime for ${updatedMonitor.name}:`, uptimeErr.message);
+            }
+        }
 
         // --- STRICT INTERVAL RESET --- //
         try {
-            await schedulerService.scheduleMonitorForSync(updatedMonitor);
+            await schedulerService.removeMonitor(updatedMonitor._id);
+            if (updatedMonitor.isActive) {
+                await schedulerService.scheduleMonitorForSync(updatedMonitor);
+            }
         } catch (schedErr) {
             console.error('Failed to reset schedule after manual check:', schedErr.message);
         }
@@ -487,42 +676,47 @@ export const checkMonitorNow = async (req, res) => {
         // Use enhancedAlertService
         try {
             if (status === 'down') {
-                if (oldStatus === 'degraded') {
-                    await enhancedAlertService.handleRecovery(updatedMonitor);
-                }
-                await enhancedAlertService.handleFailure(updatedMonitor, result);
+                // Transitioning to down: handleFailure updates ongoing incident or creates new one,
+                // and sends failure alert if not already notified.
+                await enhancedAlertService.handleFailure(updatedMonitor, result, healthStateResult);
             } else if (status === 'up') {
-                if (oldStatus === 'down' || oldStatus === 'degraded') {
-                    await enhancedAlertService.handleRecovery(updatedMonitor);
-                }
+                // True recovery or cleanup: handleRecovery resolves any ongoing incident,
+                // sends recovery alert if alerted, and clears suppression. If no incident exists, it's a no-op.
+                await enhancedAlertService.handleRecovery(updatedMonitor, healthStateResult);
             } else if (status === 'degraded') {
-                if (oldStatus === 'down') {
-                    await enhancedAlertService.handleRecovery(updatedMonitor);
-                }
-                const degradationReasons = reasons.filter(reason => {
-                    const r = reason.toLowerCase();
+                // Transitioning to degraded: do NOT resolve ongoing down incident or wipe suppression;
+                // handleDegraded updates the incident without duplicate alert emails.
+                const degradationReasons = (reasons || []).filter(reason => {
+                    const r = String(reason || '').toLowerCase();
                     return r.includes('performance') || r.includes('degradation') || r.includes('slow') ||
                         r.includes('ssl') || r.includes('cert') || r.includes('security') ||
                         r.includes('rate') || r.includes('429') || r.includes('limit');
                 });
-                await enhancedAlertService.handleDegraded(updatedMonitor, result, degradationReasons, healthStateResult);
+                const finalReasons = degradationReasons.length > 0 ? degradationReasons : (reasons || []);
+                await enhancedAlertService.handleDegraded(updatedMonitor, result, finalReasons, healthStateResult);
             }
         } catch (alertError) {
             console.error('Error in manual check alerts:', alertError);
         }
 
-        // Trigger global verification for down/degraded status (same as scheduled checks)
+
+        // Trigger global verification asynchronously for down/degraded status (do NOT block manual check response)
         if (status === 'down' || status === 'degraded') {
-            try {
-                await healthStateService.triggerImmediateVerification(
-                    updatedMonitor,
-                    result,
-                    healthStateResult,
-                    check._id.toString()
-                );
-            } catch (verifyError) {
+            healthStateService.triggerImmediateVerification(
+                updatedMonitor,
+                result,
+                healthStateResult,
+                check._id.toString()
+            ).catch(verifyError => {
                 console.error('Error in global verification:', verifyError.message);
-            }
+            });
+        }
+
+        // Emit real-time socket events so dashboard & details pages update immediately
+        try {
+            schedulerService.emitEnhancedSocketEvents(updatedMonitor, check, oldStatus, healthStateResult);
+        } catch (socketErr) {
+            console.warn('Socket event emission failed on manual check:', socketErr.message);
         }
 
         res.json({ success: true, data: { check, monitor: updatedMonitor } });

@@ -107,20 +107,18 @@ const userSchema = new mongoose.Schema({
       delete ret.password;
       delete ret.passwordResetToken;
       delete ret.passwordResetExpires;
-      delete ret.slackWebhook;
-      delete ret.phoneNumber;
-      delete ret.webhookUrl;
-      // Note: contactEmails intentionally NOT deleted - needed for Settings UI
+      delete ret.passwordChangedAt;
+      // Note: slackWebhook, phoneNumber, webhookUrl, contactEmails intentionally NOT deleted - needed for Settings UI
       return ret;
     }
   },
   toObject: {
     transform: function (doc, ret) {
       delete ret.password;
-      delete ret.slackWebhook;
-      delete ret.phoneNumber;
-      delete ret.webhookUrl;
-      // Note: contactEmails intentionally NOT deleted - needed for Settings UI
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      delete ret.passwordChangedAt;
+      // Note: slackWebhook, phoneNumber, webhookUrl, contactEmails intentionally NOT deleted - needed for Settings UI
       return ret;
     }
   }
@@ -147,40 +145,80 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Cascading delete middleware - FIXED: Ensure all deletes complete before user deletion
-userSchema.pre('deleteOne', { document: true, query: false }, async function () {
+// Shared user cascading cleanup helper
+async function cleanupUserDependencies(userId, userEmail) {
   try {
     const Monitor = mongoose.model('Monitor');
     const Incident = mongoose.model('Incident');
     const Check = mongoose.model('Check');
+    const User = mongoose.model('User');
     const schedulerService = (await import('../services/scheduler.service.js')).default;
+    const healthStateService = (await import('../services/health-evaluator.service.js')).default;
+    const enhancedAlertService = (await import('../services/enhanced-alert.service.js')).default;
+    const redisClient = (await import('../config/redis-cache.js')).default;
 
-    console.log(`🗑️  Cascading delete for user: ${this._id}`);
+    console.log(`🗑️  Cascading delete for user: ${userId}`);
 
     // Find all monitors belonging to this user
-    const monitors = await Monitor.find({ user: this._id });
+    const monitors = await Monitor.find({ user: userId });
     const monitorIds = monitors.map(m => m._id);
 
-    console.log(`   Found ${monitors.length} monitors to delete`);
+    console.log(`   Found ${monitors.length} monitors to delete for user ${userId}`);
 
-    // Delete all related data FIRST (wait for all to complete)
+    // Delete all related data across Database, Scheduler, and Redis
     await Promise.all([
-      // Remove from scheduler
+      // 1. Remove from BullMQ scheduler
       ...monitorIds.map(id => schedulerService.removeMonitor(id).catch(err =>
         console.error(`   Scheduler remove failed for ${id}:`, err.message)
       )),
-      // Delete all incidents associated with user's monitors
+      // 2. Clean up health state in Redis
+      ...monitorIds.map(id => healthStateService.cleanupState(id).catch(err =>
+        console.error(`   HealthState cleanup failed for ${id}:`, err.message)
+      )),
+      // 3. Clear alert suppression in Redis
+      ...monitorIds.map(id => enhancedAlertService.clearAlertSuppression(id).catch(err =>
+        console.error(`   Alert suppression clear failed for ${id}:`, err.message)
+      )),
+      // 4. Clean up cooldown keys in Redis
+      ...monitorIds.map(id => redisClient.del(`cooldown:manual-check:${id}`).catch(() => {})),
+      // 5. Clean up admin stats cache for this user
+      redisClient.del(`admin:stats:${userId}`).catch(() => {}),
+      // 6. Delete all incidents associated with user's monitors
       Incident.deleteMany({ monitor: { $in: monitorIds } }),
-      // Delete all checks associated with user's monitors
+      // 7. Delete all checks associated with user's monitors
       Check.deleteMany({ monitor: { $in: monitorIds } }),
-      // Delete all monitors belonging to this user
-      Monitor.deleteMany({ user: this._id })
+      // 8. Delete all monitors belonging to this user
+      Monitor.deleteMany({ user: userId }),
+      // 9. Remove this user's email from any other user's contactEmails
+      userEmail ? User.updateMany(
+        { contactEmails: userEmail.toLowerCase() },
+        { $pull: { contactEmails: userEmail.toLowerCase() } }
+      ) : Promise.resolve()
     ]);
 
-    console.log(`   ✅ Deleted ${monitorIds.length} monitors, their checks and incidents`);
+    // Mirror ALL cascading deletes to secondary DB (Dual-Write)
+    // This ensures Local MongoDB (Compass) and Atlas Cloud both stay in sync after user deletion
+    const dbMirrorMod = (await import('../services/db-mirror.service.js')).default;
+    if (monitorIds.length > 0) {
+      dbMirrorMod.mirrorDeleteMany('checks', { monitor: { $in: monitorIds } });
+      dbMirrorMod.mirrorDeleteMany('incidents', { monitor: { $in: monitorIds } });
+      dbMirrorMod.mirrorDeleteMany('monitors', { user: userId });
+    }
+
+    console.log(`   ✅ Cascading delete complete for user ${userId}: all monitors, checks, incidents, Redis keys, and references deleted`);
   } catch (error) {
-    console.error('❌ Cascading delete error:', error);
-    // Don't throw - let the user deletion proceed
+    console.error('❌ User cascading delete error:', error);
+  }
+}
+
+// Cascading delete hooks
+userSchema.pre('deleteOne', { document: true, query: false }, async function () {
+  await cleanupUserDependencies(this._id, this.email);
+});
+
+userSchema.post('findOneAndDelete', async function (doc) {
+  if (doc) {
+    await cleanupUserDependencies(doc._id, doc.email);
   }
 });
 
@@ -195,5 +233,24 @@ userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
 };
 
 userSchema.index({ role: 1, createdAt: -1 });
+
+// Dual-Write Mirroring hooks
+import dbMirror from '../services/db-mirror.service.js';
+
+userSchema.post('save', function (doc) {
+  if (doc) dbMirror.mirrorSave('users', doc);
+});
+
+userSchema.post('findOneAndUpdate', function (doc) {
+  if (doc) dbMirror.mirrorSave('users', doc);
+});
+
+userSchema.post('findOneAndDelete', function (doc) {
+  if (doc) dbMirror.mirrorDelete('users', doc._id);
+});
+
+userSchema.post('deleteOne', { document: true, query: false }, function (doc) {
+  if (doc) dbMirror.mirrorDelete('users', doc._id);
+});
 
 export default mongoose.model('User', userSchema);

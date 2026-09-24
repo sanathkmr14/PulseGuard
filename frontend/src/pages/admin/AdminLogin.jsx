@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import Logo from '../../components/Logo';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
@@ -35,14 +36,12 @@ const AdminLogin = () => {
             </div>
 
             <div className="relative z-10 w-full max-w-md p-8">
-                <div className="mb-8 text-center">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
-                        <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                    </div>
-                    <h1 className="text-3xl font-bold text-white mb-2">Admin Portal</h1>
-                    <p className="text-slate-400">Restricted access for system administrators</p>
+                <div className="mb-8 text-center flex flex-col items-center">
+                    <Link to="/" className="inline-block hover:opacity-95 transition-opacity mb-4">
+                        <Logo size="lg" showText={true} subtitle="Admin" textClassName="text-2xl font-bold text-white tracking-tight" />
+                    </Link>
+                    <h1 className="text-2xl font-bold text-white mb-1">Admin Portal</h1>
+                    <p className="text-slate-400 text-sm">Restricted access for system administrators</p>
                 </div>
 
                 <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
@@ -61,7 +60,7 @@ const AdminLogin = () => {
                             <input
                                 type="email"
                                 required
-                                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                                 placeholder="admin@example.com"
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -74,7 +73,7 @@ const AdminLogin = () => {
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pr-12"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
                                     placeholder="••••••••"
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -101,7 +100,7 @@ const AdminLogin = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center group disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center group disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {loading ? (
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -116,7 +115,7 @@ const AdminLogin = () => {
                         </button>
 
                         <div className="text-center pt-2">
-                            <a href="/login" className="text-sm text-slate-500 hover:text-indigo-400 transition-colors">Return to User Login</a>
+                            <a href="/login" className="text-sm text-slate-500 hover:text-blue-400 transition-colors">Return to User Login</a>
                         </div>
                     </form>
                 </div>

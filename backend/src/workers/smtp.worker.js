@@ -7,19 +7,25 @@ import { isPrivateIP } from '../utils/url-validator.js';
 const lookup = promisify(dns.lookup);
 
 // Helper to attempt a single socket connection to an IP
-const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
+const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index, monitor = {}) => {
     return new Promise((resolve, reject) => {
         let socket = new net.Socket();
         const startTime = Date.now();
         let isDone = false;
         let state = 'CONNECTING';
-        const useStartTls = port === 587; // Port 587 requires STARTTLS
+        let bannerCode = null;
+        let supportsStartTls = false;
+        const explicitlyRequestTls = port === 587 || monitor.requireTls || monitor.starttls;
 
         socket.setTimeout(timeout);
 
         const cleanup = () => {
             if (isDone) return;
             isDone = true;
+            // Defensive: clear the totalTimeout in case cleanup() is called
+            // without a preceding clearTimeout() (e.g. from unexpected code paths).
+            clearTimeout(totalTimeout);
+            socket.removeAllListeners();
             socket.destroy();
         };
 
@@ -42,18 +48,13 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
 
                 if (state === 'WAITING_BANNER') {
                     if (statusCode === '220') {
+                        bannerCode = parseInt(statusCode, 10);
                         if (!isFinalLine) continue;
                         console.log(`[SMTP] Got 220 banner from ${ip}`);
 
-                        if (useStartTls) {
-                            // Port 587: Need to do EHLO first, then STARTTLS
-                            state = 'EHLO_FOR_STARTTLS';
-                            socket.write('EHLO pulse-guard\r\n');
-                        } else {
-                            // Port 25: Direct EHLO
-                            state = 'EHLO_SENT';
-                            socket.write('EHLO pulse-guard\r\n');
-                        }
+                        // Send EHLO first to check capabilities (including STARTTLS)
+                        state = 'EHLO_SENT';
+                        socket.write('EHLO pulse-guard\r\n');
                     } else if (statusCode === '250') {
                         clearTimeout(totalTimeout);
                         cleanup();
@@ -67,28 +68,47 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         reject(new Error(`Invalid banner from ${ip}: ${line.trim()}`));
                         return;
                     }
-                } else if (state === 'EHLO_FOR_STARTTLS') {
+                } else if (state === 'EHLO_SENT') {
+                    if (line.toLowerCase().includes('starttls')) {
+                        supportsStartTls = true;
+                    }
+
                     if (statusCode === '250') {
                         if (!isFinalLine) continue; // Multi-line response, wait for final
-                        // EHLO successful, now send STARTTLS
-                        state = 'STARTTLS_SENT';
-                        socket.write('STARTTLS\r\n');
+
+                        // If port 587, or if STARTTLS requested, or if advertised on port 25/2525
+                        if (explicitlyRequestTls || ((port === 25 || port === 2525) && supportsStartTls)) {
+                            state = 'STARTTLS_SENT';
+                            socket.write('STARTTLS\r\n');
+                        } else {
+                            clearTimeout(totalTimeout);
+                            cleanup();
+                            resolve({
+                                isUp: true,
+                                responseTime: Date.now() - startTime,
+                                statusCode: parseInt(statusCode, 10),
+                                bannerCode: bannerCode || 220,
+                                response: line,
+                                usedStartTls: false
+                            });
+                            return;
+                        }
                     } else if (isFinalLine) {
-                        clearTimeout(totalTimeout);
-                        cleanup();
-                        reject(new Error(`EHLO failed on ${ip}: ${line}`));
-                        return;
+                        state = 'HELO_SENT';
+                        socket.write('HELO pulse-guard\r\n');
                     }
                 } else if (state === 'STARTTLS_SENT') {
                     if (statusCode === '220') {
-                        // Server ready for TLS upgrade
                         console.log(`[SMTP] STARTTLS accepted, upgrading to TLS on ${ip}`);
                         state = 'TLS_UPGRADING';
+
+                        // CRITICAL: Remove plaintext data listener before upgrading to TLS
+                        socket.removeListener('data', handleSmtpData);
 
                         // Upgrade socket to TLS
                         const tlsSocket = tls.connect({
                             socket: socket,
-                            servername: hostname,
+                            servername: net.isIP(hostname) ? undefined : hostname,
                             rejectUnauthorized: false // Allow self-signed for monitoring
                         }, () => {
                             console.log(`[SMTP] TLS handshake complete on ${ip}`);
@@ -106,13 +126,13 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                                 const tlsIsFinal = tlsLine.charAt(3) === ' ';
 
                                 if (state === 'EHLO_AFTER_TLS' && tlsStatusCode === '250' && tlsIsFinal) {
-                                    // Success!
                                     clearTimeout(totalTimeout);
                                     cleanup();
                                     resolve({
                                         isUp: true,
                                         responseTime: Date.now() - startTime,
-                                        statusCode: tlsStatusCode,
+                                        statusCode: parseInt(tlsStatusCode, 10),
+                                        bannerCode: bannerCode || 220,
                                         response: tlsLine,
                                         usedStartTls: true
                                     });
@@ -123,11 +143,11 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
 
                         tlsSocket.on('error', (err) => {
                             clearTimeout(totalTimeout);
+                            tlsSocket.removeAllListeners();
                             cleanup();
                             reject(new Error(`TLS upgrade failed on ${ip}: ${err.message}`));
                         });
 
-                        // Replace socket reference for cleanup
                         socket = tlsSocket;
                     } else {
                         clearTimeout(totalTimeout);
@@ -135,24 +155,19 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
                         reject(new Error(`STARTTLS rejected by ${ip}: ${line}`));
                         return;
                     }
-                } else if (state === 'EHLO_SENT') {
-                    // Non-STARTTLS path (port 25)
-                    if (statusCode === '250') {
-                        if (!isFinalLine) continue;
-                        clearTimeout(totalTimeout);
-                        cleanup();
-                        resolve({ isUp: true, responseTime: Date.now() - startTime, statusCode, response: line });
-                        return;
-                    } else if (isFinalLine) {
-                        state = 'HELO_SENT';
-                        socket.write('HELO pulse-guard\r\n');
-                    }
                 } else if (state === 'HELO_SENT') {
                     if (statusCode === '250') {
                         if (!isFinalLine) continue;
                         clearTimeout(totalTimeout);
                         cleanup();
-                        resolve({ isUp: true, responseTime: Date.now() - startTime, statusCode, response: line });
+                        resolve({
+                            isUp: true,
+                            responseTime: Date.now() - startTime,
+                            statusCode: parseInt(statusCode, 10),
+                            bannerCode: bannerCode || 220,
+                            response: line,
+                            usedStartTls: false
+                        });
                         return;
                     } else if (isFinalLine) {
                         clearTimeout(totalTimeout);
@@ -185,8 +200,11 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
 
         const ipCheck = isPrivateIP(ip);
         if (ipCheck.isPrivate) {
+            clearTimeout(totalTimeout);
             cleanup();
-            reject(new Error(`Private IP blocked: ${ip}`));
+            const blockedErr = new Error(`Private IP blocked: ${ip}`);
+            blockedErr.code = 'SSRF_BLOCKED';
+            reject(blockedErr);
             return;
         }
 
@@ -196,36 +214,60 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index) => {
 
 /**
  * Enhanced SMTP Worker with Multi-IP Failover and STARTTLS Support
- * - Port 25: Plain SMTP
+ * - Port 25: Plain SMTP with opportunistic STARTTLS
  * - Port 587: STARTTLS (submission)
  * - Port 465: Use SSL worker instead
  */
 export const checkSmtp = async (monitor, result, options = {}) => {
-    const { parseUrl, detectErrorType, formatErrorMessage, determineHealthStateFromError } = options;
-    const startTime = Date.now(); // FIX: Track elapsed time for failure reporting
+    const parseUrl = options.parseUrl || ((urlStr, defaultPort) => {
+        let u = (urlStr || '').trim();
+        if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'smtp://' + u;
+        try {
+            const parsed = new URL(u);
+            return { hostname: parsed.hostname, port: parsed.port ? parseInt(parsed.port, 10) : defaultPort };
+        } catch {
+            const parts = (urlStr || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split(':');
+            return { hostname: parts[0], port: parts[1] ? parseInt(parts[1], 10) : defaultPort };
+        }
+    });
+
+    const { detectErrorType, formatErrorMessage, determineHealthStateFromError } = options;
+    const startTime = Date.now();
     const timeout = monitor.timeout || 30000;
     const { hostname, port } = parseUrl(monitor.url, monitor.port || 25);
 
-    // FIX: Port 465 uses implicit SSL (SMTPS) — plain TCP handshake will always fail.
-    // Users should create an SSL monitor for port 465 instead.
+    // Port 465 uses implicit SSL (SMTPS) — plain TCP handshake will always fail.
     if (port === 465) {
         result.healthState = 'DOWN';
         result.isUp = false;
         result.errorType = 'INVALID_CONFIG';
         result.errorMessage = 'Port 465 uses implicit SSL (SMTPS). Create an SSL monitor targeting port 465 instead of an SMTP monitor.';
         result.responseTime = 0;
+        result.statusCode = null;
+        result.bannerCode = null;
         console.log(`[SMTP] ❌ Port 465 not supported — use an SSL monitor for SMTPS`);
-        return;
+        return result;
     }
 
     try {
         // Resolve ALL addresses
         const addresses = await lookup(hostname, { all: true, verbatim: true });
 
-        // Prioritize IPv6 (Family 6) over IPv4 (Family 4)
-        addresses.sort((a, b) => b.family - a.family);
+        // Prioritize IPv4 (Family 4) over IPv6 (Family 6)
+        addresses.sort((a, b) => a.family - b.family);
 
         if (!addresses || addresses.length === 0) throw new Error('No addresses found');
+
+        // 🛡️ SSRF Protection: Ensure NO resolved address points to a private/internal IP
+        for (const addr of addresses) {
+            const check = isPrivateIP(addr.address);
+            if (check.isPrivate) {
+                console.warn(`🛡️ SMTP SSRF Blocked: Hostname "${hostname}" resolved to private IP ${addr.address} (${check.error})`);
+                const ssrfErr = new Error(`SSRF_PROTECTION: Access to private/internal IP address "${addr.address}" is blocked.`);
+                ssrfErr.code = 'SSRF_BLOCKED';
+                throw ssrfErr;
+            }
+        }
 
         console.log(`[SMTP DEBUG] Found ${addresses.length} IPs for ${hostname}. Port ${port}. Trying all...`);
 
@@ -233,10 +275,18 @@ export const checkSmtp = async (monitor, result, options = {}) => {
 
         // Iterate through IPs until one works
         for (let i = 0; i < addresses.length; i++) {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= timeout) {
+                const timeoutErr = new Error(`SMTP connection timed out after ${timeout}ms`);
+                timeoutErr.code = 'ETIMEDOUT';
+                throw timeoutErr;
+            }
+
+            const remainingTime = timeout - elapsed;
             const ip = addresses[i].address;
             try {
-                const ipTimeout = Math.max(8000, Math.floor(timeout / addresses.length));
-                const stepResult = await checkSmtpIp(ip, port, hostname, ipTimeout, addresses, i);
+                const ipTimeout = Math.max(1, Math.min(remainingTime, Math.max(8000, Math.floor(remainingTime / (addresses.length - i)))));
+                const stepResult = await checkSmtpIp(ip, port, hostname, ipTimeout, addresses, i, monitor);
 
                 if (stepResult.isUp) {
                     console.log(`[SMTP SUCCESS] Connected via ${ip}${stepResult.usedStartTls ? ' (STARTTLS)' : ''}`);
@@ -255,17 +305,22 @@ export const checkSmtp = async (monitor, result, options = {}) => {
 
                     result.responseTime = stepResult.responseTime;
                     result.statusCode = stepResult.statusCode;
+                    result.bannerCode = stepResult.bannerCode;
                     result.meta = {
                         smtpResponse: stepResult.response,
                         statusCode: stepResult.statusCode,
+                        bannerCode: stepResult.bannerCode,
                         ipUsed: ip,
                         usedStartTls: stepResult.usedStartTls || false
                     };
-                    return;
+                    return result;
                 }
             } catch (err) {
                 console.log(`[SMTP INFO] Failed on ${ip}: ${err.message}`);
-                if (err.statusCode) result.statusCode = err.statusCode;
+                if (err.statusCode) {
+                    result.statusCode = parseInt(err.statusCode, 10);
+                    result.bannerCode = parseInt(err.statusCode, 10);
+                }
                 lastError = err;
             }
         }
@@ -273,11 +328,21 @@ export const checkSmtp = async (monitor, result, options = {}) => {
         throw lastError || new Error('All connection attempts failed');
 
     } catch (err) {
-        // FIX: Use actual elapsed time instead of hardcoded 0
         const responseTime = Date.now() - startTime;
         result.responseTime = responseTime;
-        result.errorType = detectErrorType(err, 'SMTP', null);
-        result.errorMessage = formatErrorMessage(err, 'SMTP');
+
+        if (err.code === 'SSRF_BLOCKED' || err.message?.includes('SSRF_PROTECTION') || err.message?.includes('SSRF Blocked')) {
+            result.errorType = 'SSRF_BLOCKED';
+            result.healthState = 'DOWN';
+            result.isUp = false;
+            result.errorMessage = err.message;
+            result.statusCode = null;
+            result.bannerCode = null;
+            return result;
+        }
+
+        result.errorType = detectErrorType ? detectErrorType(err, 'SMTP', null) : 'SMTP_ERROR';
+        result.errorMessage = formatErrorMessage ? formatErrorMessage(err, 'SMTP') : err.message;
 
         if (err.message && err.message.includes('Interception')) {
             result.errorMessage = 'SMTP Blocked: ISP Interception (Received 250 banner). Try Port 587.';
@@ -289,16 +354,20 @@ export const checkSmtp = async (monitor, result, options = {}) => {
             result.isUp = true;
             result.errorType = 'SMTP_TEMPORARILY_UNAVAILABLE';
             result.errorMessage = 'SMTP temporarily unavailable (421) — server is reachable, try again later.';
-            return;
+            return result;
         }
 
-        const hsr = determineHealthStateFromError(result.errorType, null, 'SMTP', responseTime, monitor);
-        result.healthState = hsr.healthState;
+        if (determineHealthStateFromError) {
+            const hsr = determineHealthStateFromError(result.errorType, null, 'SMTP', responseTime, monitor);
+            result.healthState = hsr.healthState;
+        } else {
+            result.healthState = 'DOWN';
+        }
         result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
+        return result;
     }
 };
 
 export default {
     checkSmtp
 };
-

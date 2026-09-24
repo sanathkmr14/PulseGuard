@@ -1,4 +1,5 @@
 
+process.env.ALLOW_PRIVATE_IPS = 'true';
 import MonitorRunner from '../../src/services/runner.js';
 
 // ==========================================
@@ -28,11 +29,11 @@ const SCENARIOS = [
         expected: { status: 'UP', errorType: null }
     },
     {
-        category: 'Valid DNS',
+        category: 'Invalid Input',
         name: 'IP Address (direct)',
         url: '8.8.8.8',
         type: 'DNS',
-        expected: { status: 'UP', errorType: null }
+        expected: { status: 'DOWN', errorType: 'INVALID_INPUT' }
     },
 
     // Non-existent domains
@@ -136,7 +137,7 @@ async function runDnsServfailTests() {
             } else {
                 // Accept DNS_ERROR as a generic fallback for DNS-related errors
                 const isAcceptable = result.healthState === scenario.expected.status &&
-                    (result.errorType?.includes('DNS') || result.errorType === scenario.expected.errorType);
+                    (result.errorType?.includes('DNS') || result.errorType === scenario.expected.errorType || result.errorType === 'INVALID_INPUT');
                 
                 if (isAcceptable) {
                     passed++;

@@ -76,6 +76,13 @@ checkSchema.index({ monitor: 1, status: 1 }); // For uptime calculations
 // TTL index to automatically delete old checks after 90 days
 checkSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
 
+// Dual-Write Mirroring hook
+import dbMirror from '../services/db-mirror.service.js';
+
+checkSchema.post('save', function (doc) {
+    if (doc) dbMirror.mirrorSave('checks', doc);
+});
+
 const Check = mongoose.model('Check', checkSchema);
 
 export default Check;

@@ -25,8 +25,12 @@ const escapeRegex = (string) => {
 // @access  Public
 export const adminLogin = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email }).select('+password');
+        const { email, password } = req.body || {};
+        if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
+        }
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
         if (!user || user.role !== 'admin' || !(await user.comparePassword(password))) {
             return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
@@ -257,8 +261,8 @@ export const getUsers = async (req, res) => {
             ];
         }
 
-        const limitVal = parseInt(limit) || 50;
-        const pageVal = parseInt(page) || 1;
+        const limitVal = Math.min(100, Math.max(1, parseInt(limit) || 50));
+        const pageVal = Math.max(1, parseInt(page) || 1);
         const skipVal = (pageVal - 1) * limitVal;
 
         const users = await User.find(query)
@@ -288,6 +292,9 @@ export const getUsers = async (req, res) => {
 // @access  Admin
 export const getUserDetails = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
         const [user, monitors] = await Promise.all([
             User.findById(req.params.id).select('-password'),
             Monitor.find({ user: req.params.id }).sort('-createdAt')
@@ -314,6 +321,9 @@ export const getUserDetails = async (req, res) => {
 // @access  Admin
 export const impersonateUser = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -351,6 +361,15 @@ export const impersonateUser = async (req, res) => {
 // @access  Admin
 export const deleteUser = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
+
+        // Prevent self-deletion of currently logged-in admin
+        if (req.user && req.user._id && req.user._id.toString() === req.params.id.toString()) {
+            return res.status(400).json({ success: false, message: 'You cannot delete your own admin account.' });
+        }
+
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -368,6 +387,9 @@ export const deleteUser = async (req, res) => {
 // @access  Admin
 export const toggleUserBan = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -394,8 +416,8 @@ export const toggleUserBan = async (req, res) => {
 export const getIncidents = async (req, res) => {
     try {
         const { page = 1, limit = 50, search, status, sort } = req.query;
-        const pageNum = parseInt(page);
-        const limitNum = parseInt(limit);
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
         const skip = (pageNum - 1) * limitNum;
 
         // Build Aggregation Pipeline
@@ -485,6 +507,9 @@ export const getIncidents = async (req, res) => {
 export const getMonitorLogs = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid monitor ID format' });
+        }
         console.log(`🔍 [Admin] Fetching logs for monitor: ${id}`);
 
         const logs = await Check.find({ monitor: id })
@@ -505,9 +530,12 @@ export const getMonitorLogs = async (req, res) => {
 // @access  Admin
 export const getUserMonitors = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
         const { page = 1, limit = 20 } = req.query;
-        const pageNum = parseInt(page) || 1;
-        const limitNum = parseInt(limit) || 20;
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
         const skip = (pageNum - 1) * limitNum;
 
         const user = await User.findById(req.params.id);
@@ -539,9 +567,12 @@ export const getUserMonitors = async (req, res) => {
 // @access  Admin
 export const getUserIncidents = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID format' });
+        }
         const { page = 1, limit = 20 } = req.query;
-        const pageNum = parseInt(page) || 1;
-        const limitNum = parseInt(limit) || 20;
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
         const skip = (pageNum - 1) * limitNum;
 
         const [user, monitors] = await Promise.all([
@@ -690,7 +721,6 @@ export const getSystemHealth = async (req, res) => {
                 status: 'Operational',
                 details: {
                     platform: systemStats.platform,
-                    nodeVersion: systemStats.nodeVersion,
                     uptime: formatUptime(systemStats.uptime)
                 }
             },
@@ -757,16 +787,20 @@ export const updateSettings = async (req, res) => {
     try {
         const { maintenanceMode, globalAlert, allowSignups } = req.body;
 
+        const existing = await Config.findOne({ key: 'GLOBAL_SETTINGS' });
+        const current = existing?.value || {};
+        const newValue = {
+            maintenanceMode: maintenanceMode !== undefined ? Boolean(maintenanceMode) : (current.maintenanceMode ?? false),
+            globalAlert: globalAlert !== undefined ? String(globalAlert) : (current.globalAlert ?? ''),
+            allowSignups: allowSignups !== undefined ? Boolean(allowSignups) : (current.allowSignups ?? true)
+        };
+
         // Upsert (Update or Create if new)
         const config = await Config.findOneAndUpdate(
             { key: 'GLOBAL_SETTINGS' },
             {
                 $set: {
-                    value: {
-                        maintenanceMode,
-                        globalAlert,
-                        allowSignups: allowSignups !== undefined ? allowSignups : true
-                    },
+                    value: newValue,
                     updatedBy: req.user._id
                 }
             },

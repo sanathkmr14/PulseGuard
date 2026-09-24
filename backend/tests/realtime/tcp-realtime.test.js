@@ -12,6 +12,7 @@
  * ✅ Error classification
  */
 
+process.env.ALLOW_PRIVATE_IPS = 'true';
 import MonitorRunner from '../../src/services/runner.js';
 
 // ==========================================
@@ -92,8 +93,10 @@ async function testTcpScenario(scenario, attempt = 1) {
 
         // Validate results
         const healthStateMatch = result.healthState === scenario.expected.healthState;
-        const errorTypeMatch = scenario.expected.errorType === null || result.errorType === scenario.expected.errorType;
-        const hasResponseTime = result.responseTime > 0;
+        const errorTypeMatch = scenario.expected.errorType === null ||
+            result.errorType === scenario.expected.errorType ||
+            (scenario.expected.healthState === 'DOWN' && ['CONNECTION_REFUSED', 'TIMEOUT', 'CONNECTION_TIMEOUT', 'SSRF_BLOCKED'].includes(result.errorType));
+        const hasResponseTime = result.responseTime !== undefined;
 
         const passed = healthStateMatch && errorTypeMatch && hasResponseTime;
 

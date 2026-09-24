@@ -5,18 +5,20 @@ import { SocketProvider } from './context/SocketContext';
 import PrivateRoute from './components/PrivateRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Lazy-loaded Pages
+// Eagerly loaded Core App Pages for 0ms Instant Navigation
+import Dashboard from './pages/Dashboard';
+import Monitors from './pages/Monitors';
+import MonitorDetails from './pages/MonitorDetails';
+import Incidents from './pages/Incidents';
+import Settings from './pages/Settings';
+import Profile from './pages/Profile';
+
+// Lazy-loaded Public Pages
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Monitors = lazy(() => import('./pages/Monitors'));
-const MonitorDetails = lazy(() => import('./pages/MonitorDetails'));
-const Incidents = lazy(() => import('./pages/Incidents'));
-const Settings = lazy(() => import('./pages/Settings'));
-const Profile = lazy(() => import('./pages/Profile'));
 
 // Lazy-loaded Admin Pages
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));

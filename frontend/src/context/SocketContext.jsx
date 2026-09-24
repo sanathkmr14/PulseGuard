@@ -11,7 +11,11 @@ const getSocketUrl = () => {
         // Strip /api or /api/ from the end of the URL for socket connection
         return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
     }
-    return 'http://localhost:5010';
+    // In production (e.g. Vercel deployment), connect to Render backend
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return 'https://pulseguard-80lq.onrender.com';
+    }
+    return 'http://localhost:5011';
 };
 
 const SOCKET_URL = getSocketUrl();
@@ -43,6 +47,7 @@ export const SocketProvider = ({ children }) => {
             if (socketRef.current) {
                 console.log('User logged out, disconnecting socket...');
                 socketRef.current.disconnect();
+                socketRef.current = null;
                 setSocket(null);
                 setConnected(false);
             }
@@ -61,7 +66,7 @@ export const SocketProvider = ({ children }) => {
             console.log('Initializing secure socket connection...');
 
             const newSocket = io(SOCKET_URL, {
-                transports: ['websocket'],
+                transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionDelay: 1000,
                 reconnectionAttempts: 5,
@@ -82,6 +87,17 @@ export const SocketProvider = ({ children }) => {
 
             newSocket.on('disconnect', (reason) => {
                 console.log('Secure Socket disconnected:', reason);
+                setConnected(false);
+                // If the disconnection was initiated by the server, reconnect manually
+                if (reason === 'io server disconnect') {
+                    newSocket.connect();
+                }
+            });
+
+            newSocket.on('reconnect_failed', () => {
+                console.log('Secure Socket reconnect failed — clearing stale ref');
+                socketRef.current = null;
+                setSocket(null);
                 setConnected(false);
             });
 

@@ -8,10 +8,13 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
         name: '',
         type: 'HTTPS',
         url: '',
+        port: '',
+        alertThreshold: 2,
+        headers: '',
         interval: 5,
         timeout: 30000,
         degradedThresholdMs: 2000,
-        sslExpiryThresholdDays: 30
+        sslExpiryThresholdDays: 14
     });
     const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -21,10 +24,13 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                 name: monitor.name || '',
                 type: monitor.type || 'HTTPS',
                 url: monitor.url || '',
+                port: monitor.port ?? '',
+                alertThreshold: monitor.alertThreshold ?? 2,
+                headers: monitor.headers ? JSON.stringify(monitor.headers instanceof Map ? Object.fromEntries(monitor.headers) : monitor.headers, null, 2) : '',
                 interval: monitor.interval || 5,
                 timeout: monitor.timeout || 30000,
                 degradedThresholdMs: monitor.degradedThresholdMs || 2000,
-                sslExpiryThresholdDays: monitor.sslExpiryThresholdDays || 30
+                sslExpiryThresholdDays: monitor.sslExpiryThresholdDays || 14
             });
             setError(null);
             setShowAdvanced(false);
@@ -38,7 +44,24 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
         setSaving(true);
         setError(null);
         try {
-            await adminAPI.updateMonitor(monitor._id, formData);
+            const payload = { ...formData };
+            if (payload.port === '' || payload.port === null) delete payload.port;
+            else payload.port = Number(payload.port);
+            if (payload.alertThreshold !== undefined && payload.alertThreshold !== '') payload.alertThreshold = Number(payload.alertThreshold);
+            if (typeof payload.headers === 'string') {
+                const h = payload.headers.trim();
+                if (!h) delete payload.headers;
+                else {
+                    try {
+                        payload.headers = JSON.parse(h);
+                    } catch {
+                        setError('Headers must be valid JSON (e.g. {"Authorization":"Bearer x"})');
+                        setSaving(false);
+                        return;
+                    }
+                }
+            }
+            await adminAPI.updateMonitor(monitor._id, payload);
             if (onSuccess) onSuccess();
             onClose();
         } catch (err) {
@@ -108,6 +131,18 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                     {showAdvanced && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-800/50">
                             <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Port</label>
+                                <input type="number" placeholder="e.g. 443" min="1" max="65535" value={formData.port ?? ''} onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                <p className="text-xs text-gray-600 mt-1">Required for TCP/UDP/SMTP</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1.5">Alert Threshold</label>
+                                <input type="number" placeholder="2" min="1" max="20" value={formData.alertThreshold ?? 2} onChange={e => setFormData({ ...formData, alertThreshold: +e.target.value })}
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
+                                <p className="text-xs text-gray-600 mt-1">Failures before alert</p>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-1.5">Timeout (ms)</label>
                                 <input type="number" placeholder="30000" min="1000" value={formData.timeout} onChange={e => setFormData({ ...formData, timeout: +e.target.value })}
                                     className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
@@ -122,7 +157,7 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                             {(formData.type === 'SSL' || formData.type === 'HTTPS') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-400 mb-1.5">SSL Expiry Alert (days)</label>
-                                    <input type="number" placeholder="30" min="1" max="365" value={formData.sslExpiryThresholdDays} onChange={e => setFormData({ ...formData, sslExpiryThresholdDays: +e.target.value })}
+                                    <input type="number" placeholder="14" min="1" max="365" value={formData.sslExpiryThresholdDays} onChange={e => setFormData({ ...formData, sslExpiryThresholdDays: +e.target.value })}
                                         className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white focus:border-indigo-500 outline-none" />
                                 </div>
                             )}

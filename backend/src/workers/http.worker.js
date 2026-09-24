@@ -1,5 +1,6 @@
 import http from 'http';
 import https from 'https';
+import net from 'net';
 import dns from 'dns';
 import { promisify } from 'util';
 import { URL } from 'url';
@@ -19,7 +20,7 @@ const MAX_REDIRECTS = 10;           // Industry standard: follow up to 10 redire
  * Make a single HTTP/HTTPS request. Does NOT follow redirects.
  * Returns { status, headers, data, isInformational }
  */
-const makeSingleRequest = async (url, timeout, allowUnauthorized) => {
+const makeSingleRequest = async (url, timeout, allowUnauthorized, monitor = {}) => {
     const parsedUrl = new URL(url);
 
     // 🛡️ SSRF & DNS Rebinding Protection: Resolve hostname securely BEFORE connecting
@@ -45,9 +46,22 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized) => {
                 'Connection': 'close'
             },
             rejectUnauthorized: allowUnauthorized === true ? false : true,
-            // 🛡️ SNI (Server Name Indication) is essential when connecting by IP
-            servername: parsedUrl.hostname
+            // 🛡️ SNI: Omit for IP addresses to eliminate RFC 6066 DEP0123 warning
+            servername: net.isIP(parsedUrl.hostname) ? undefined : parsedUrl.hostname
         };
+
+        // Merge custom monitor headers if provided
+        if (monitor.headers) {
+            let customHeaders = monitor.headers;
+            if (typeof customHeaders === 'string') {
+                try { customHeaders = JSON.parse(customHeaders); } catch { customHeaders = {}; }
+            } else if (customHeaders instanceof Map) {
+                customHeaders = Object.fromEntries(customHeaders);
+            }
+            if (typeof customHeaders === 'object' && customHeaders !== null) {
+                options.headers = { ...options.headers, ...customHeaders };
+            }
+        }
 
         const req = protocol.request(options);
         let isDone = false;
@@ -67,6 +81,11 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized) => {
                         console.warn(`[HTTP] Response body capped at ${MAX_BODY_SIZE} bytes`);
                         hasLoggedCap = true;
                     }
+                    // Prevent memory/socket leaks: destroy streams when body exceeds MAX_BODY_SIZE
+                    isDone = true;
+                    try { res.destroy(); } catch {}
+                    try { req.destroy(); } catch {}
+                    resolve({ status: res.statusCode, headers: res.headers, data });
                 } else {
                     data += chunk;
                 }
@@ -111,6 +130,7 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized) => {
 const performRequest = async (monitor, timeout) => {
     let currentUrl = monitor.url;
     let redirectCount = 0;
+    const maxRedirects = typeof monitor.maxRedirects === 'number' ? monitor.maxRedirects : MAX_REDIRECTS;
     const visitedUrls = new Set();
 
     while (true) {
@@ -121,8 +141,8 @@ const performRequest = async (monitor, timeout) => {
             err.redirectCount = redirectCount;
             throw err;
         }
-        // FIX: >= MAX_REDIRECTS (not >) — prevents following one extra redirect beyond the limit
-        if (redirectCount >= MAX_REDIRECTS) {
+        // FIX: >= maxRedirects (not >) — prevents following one extra redirect beyond the limit
+        if (maxRedirects > 0 && redirectCount >= maxRedirects) {
             const err = new Error(`Too many redirects (${redirectCount})`);
             err.code = 'REDIRECT_LOOP';
             err.redirectCount = redirectCount;
@@ -131,12 +151,12 @@ const performRequest = async (monitor, timeout) => {
 
         visitedUrls.add(currentUrl);
 
-        const response = await makeSingleRequest(currentUrl, timeout, monitor.allowUnauthorized);
+        const response = await makeSingleRequest(currentUrl, timeout, monitor.allowUnauthorized, monitor);
 
         const isRedirect = response.status >= 300 && response.status < 400 && response.headers?.location;
 
-        if (!isRedirect || response.isInformational) {
-            // Final response (not a redirect, or 1xx informational)
+        if (!isRedirect || response.isInformational || maxRedirects === 0) {
+            // Final response (not a redirect, 1xx informational, or maxRedirects === 0)
             // Attach redirect metadata for logging/debugging
             response.redirectCount = redirectCount;
             response.finalUrl = currentUrl;
@@ -149,8 +169,16 @@ const performRequest = async (monitor, timeout) => {
 
         try {
             // Handle relative redirects (e.g. /login  or //example.com/path)
-            currentUrl = new URL(location, currentUrl).toString();
-        } catch {
+            const nextUrl = new URL(location, currentUrl);
+            if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
+                console.warn(`[HTTP] Blocked unsafe redirect protocol: ${nextUrl.protocol}`);
+                const err = new Error(`Unsupported redirect protocol: ${nextUrl.protocol}`);
+                err.code = 'INVALID_PROTOCOL';
+                throw err;
+            }
+            currentUrl = nextUrl.toString();
+        } catch (err) {
+            if (err.code === 'INVALID_PROTOCOL') throw err;
             // Malformed Location header — return what we have
             response.redirectCount = redirectCount;
             response.finalUrl = currentUrl;
@@ -280,23 +308,30 @@ export const checkHttp = async (monitor, result, options = {}) => {
         const latency = Date.now() - result.checkStartTime;
 
         // Handle actual connection errors
-        result.errorType = detectErrorType(error, monitor.type, null);
-        result.errorMessage = formatErrorMessage(error, monitor.type);
-
-        const healthStateResult = determineHealthStateFromError(result.errorType, null, monitor.type, latency, monitor);
-
-        result.healthState = healthStateResult.healthState;
-        // Connection errors are DOWN. Only allow isUp=true if error classifier
-        // explicitly returns DEGRADED (e.g. SSL chain warning, slow-but-connected).
-        // Network failures (ECONNRESET, DNS, ECONNREFUSED, etc.) must be DOWN.
-        const networkErrors = ['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED',
-            'CONNECTION_RESET', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH',
-            'ENETUNREACH', 'INVALID_URL', 'REDIRECT_LOOP'];
-        if (networkErrors.includes(result.errorType)) {
+        if (error.code === 'SSRF_BLOCKED' || error.message?.includes('SSRF_PROTECTION') || error.message?.includes('SSRF Blocked')) {
+            result.errorType = 'SSRF_BLOCKED';
+            result.errorMessage = error.message;
             result.healthState = 'DOWN';
             result.isUp = false;
         } else {
-            result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
+            result.errorType = detectErrorType(error, monitor.type, null);
+            result.errorMessage = formatErrorMessage(error, monitor.type);
+
+            const healthStateResult = determineHealthStateFromError(result.errorType, null, monitor.type, latency, monitor);
+
+            result.healthState = healthStateResult.healthState;
+            // Connection errors are DOWN. Only allow isUp=true if error classifier
+            // explicitly returns DEGRADED (e.g. SSL chain warning, slow-but-connected).
+            // Network failures (ECONNRESET, DNS, ECONNREFUSED, etc.) must be DOWN.
+            const networkErrors = ['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED',
+                'CONNECTION_RESET', 'ECONNRESET', 'ENOTFOUND', 'EHOSTUNREACH',
+                'ENETUNREACH', 'INVALID_URL', 'REDIRECT_LOOP', 'SSRF_BLOCKED'];
+            if (networkErrors.includes(result.errorType)) {
+                result.healthState = 'DOWN';
+                result.isUp = false;
+            } else {
+                result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
+            }
         }
         result.responseTime = latency;
 

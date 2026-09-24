@@ -34,6 +34,7 @@ docker-compose.override.yml
 # Kluster/Agent artifacts (if any local ones)
 .kluster
 .agent
+.agents
 .cursor
 .gemini
 

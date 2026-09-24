@@ -1,9 +1,14 @@
-import { exec } from 'child_process';
+import childProcess from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs';
+import net from 'net';
 import { resolveSecurely } from '../utils/resolver.js';
 import { classifyPingResult } from '../utils/status-classifier.js';
 
-const execAsync = promisify(exec);
+function execFileAsync(file, args, options) {
+    const fn = promisify(childProcess.execFile);
+    return fn(file, args, options);
+}
 
 // Parse ping statistics from stdout
 function parsePingStats(output, isWindows) {
@@ -67,39 +72,67 @@ function parsePingStats(output, isWindows) {
 // ICMP Ping worker implementation
 // Uses system ping command for ICMP echo requests
 export const checkPing = async (monitor, result, options = {}) => {
-    const { parseUrl } = options;
+    const parseUrl = options.parseUrl || ((urlStr) => {
+        let u = (urlStr || '').trim();
+        if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'http://' + u;
+        try {
+            const parsed = new URL(u);
+            return { hostname: parsed.hostname, port: parsed.port };
+        } catch {
+            return { hostname: (urlStr || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split(':')[0], port: null };
+        }
+    });
+
     const { hostname } = parseUrl(monitor.url);
-
-    // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
-    const { address } = await resolveSecurely(hostname);
-
-    // Default timeout from monitor config or fallback to 5000ms
     const timeoutMs = monitor.timeout || 5000;
-
-    // Platform-specific ping command
     const isWindows = process.platform === 'win32';
-    // [L3 SECURITY FIX] Clamp to strict integer ranges before shell interpolation.
-    // If monitor.count or monitor.timeout contained shell metacharacters, they could
-    // inject arbitrary commands via the exec() call below.
     const pingCount = Math.max(1, Math.min(10, parseInt(monitor.count, 10) || 4));
 
-    // SECURITY: Use the resolved IP address directly to prevent SSRF and Command Injection
-    const safeTarget = address;
-
-    let pingCommand;
-    if (isWindows) {
-        // Windows ping: -n = count, -w = timeout in ms
-        const timeoutMs_safe = Math.max(1000, Math.min(30000, parseInt(timeoutMs, 10) || 5000));
-        pingCommand = `ping -n ${pingCount} -w ${timeoutMs_safe} ${safeTarget}`;
-    } else {
-        // Unix/Linux/Mac ping: -c = count, -W = timeout in seconds
-        const timeoutSec = Math.max(1, Math.min(30, Math.ceil(timeoutMs / 1000)));
-        pingCommand = `ping -c ${pingCount} -W ${timeoutSec} ${safeTarget}`;
-    }
-
     try {
-        // Execute ping command with timeout
-        const { stdout, stderr } = await execAsync(pingCommand, {
+        // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
+        // Prefer IPv4 for ping cross-platform compatibility
+        const { address } = await resolveSecurely(hostname, { preferIpv4: true });
+
+        // SECURITY: Use the resolved IP address directly to prevent SSRF and Command Injection
+        const safeTarget = address;
+        const isIpv6 = net.isIPv6(safeTarget);
+
+        let pingArgs;
+        let pingBinary = 'ping';
+
+        if (isWindows) {
+            // Windows ping: -n = count, -w = timeout in ms
+            const timeoutMs_safe = Math.max(1000, Math.min(30000, parseInt(timeoutMs, 10) || 5000));
+            pingArgs = isIpv6
+                ? ['-6', '-n', String(pingCount), '-w', String(timeoutMs_safe), safeTarget]
+                : ['-n', String(pingCount), '-w', String(timeoutMs_safe), safeTarget];
+        } else if (process.platform === 'darwin') {
+            // macOS BSD ping: -c = count, -W = timeout in milliseconds
+            // For IPv6 on macOS, ping6 does not support -W for timeout (draft-03 packet format)
+            const timeoutMs_safe = Math.max(1000, Math.min(30000, parseInt(timeoutMs, 10) || 5000));
+            if (isIpv6) {
+                if (fs.existsSync('/sbin/ping6')) pingBinary = '/sbin/ping6';
+                else if (fs.existsSync('/bin/ping6')) pingBinary = '/bin/ping6';
+                else pingBinary = 'ping6';
+                pingArgs = ['-c', String(pingCount), safeTarget];
+            } else {
+                if (fs.existsSync('/sbin/ping')) pingBinary = '/sbin/ping';
+                else if (fs.existsSync('/bin/ping')) pingBinary = '/bin/ping';
+                pingArgs = ['-c', String(pingCount), '-W', String(timeoutMs_safe), safeTarget];
+            }
+        } else {
+            // Linux ping: -c = count, -W = timeout in seconds
+            const timeoutSec = Math.max(1, Math.min(30, Math.ceil(timeoutMs / 1000)));
+            if (fs.existsSync('/bin/ping')) pingBinary = '/bin/ping';
+            else if (fs.existsSync('/usr/bin/ping')) pingBinary = '/usr/bin/ping';
+
+            pingArgs = isIpv6
+                ? ['-6', '-c', String(pingCount), '-W', String(timeoutSec), safeTarget]
+                : ['-c', String(pingCount), '-W', String(timeoutSec), safeTarget];
+        }
+
+        // Execute ping command directly without subshell invocation
+        const { stdout, stderr } = await execFileAsync(pingBinary, pingArgs, {
             timeout: timeoutMs + 2000 // Add small buffer
         });
 
@@ -123,6 +156,29 @@ export const checkPing = async (monitor, result, options = {}) => {
                 responseTime = timeMatch ? parseFloat(timeMatch[1]) : 0;
             }
 
+            // If response time exceeds configured monitor timeout, mark as DOWN / TIMEOUT
+            if (timeoutMs > 0 && responseTime > timeoutMs) {
+                result.isUp = false;
+                result.healthState = 'DOWN';
+                result.errorType = 'TIMEOUT';
+                result.errorMessage = `Ping response time (${responseTime}ms) exceeded configured timeout of ${timeoutMs}ms`;
+                result.statusCode = 0;
+                result.responseTime = responseTime;
+                result.packetLoss = 100;
+                result.confidence = 0.95;
+                result.severity = 1.0;
+                result.pingStats = pingStats;
+                result.meta = {
+                    message: result.errorMessage,
+                    hostname,
+                    responseTime,
+                    transmitted: pingStats.transmitted,
+                    received: pingStats.received,
+                    rawOutput: output.substring(0, 500)
+                };
+                return result;
+            }
+
             // Use advanced ping classifier with real statistics
             const classification = classifyPingResult({
                 packetLoss: pingStats.packetLoss,
@@ -137,11 +193,11 @@ export const checkPing = async (monitor, result, options = {}) => {
             result.isUp = classification.status === 'UP' || classification.status === 'DEGRADED';
             result.healthState = classification.status;
             result.errorType = classification.errorType; // null for successful pings
-            // Fix: Populate errorMessage if degraded so it shows in details
+            // Populate errorMessage if degraded so it shows in details
             result.errorMessage = classification.status === 'UP' ? null : classification.reason;
             result.statusCode = 0;
             // FIX: Set responseTime to parsed RTT, not command execution time
-            result.responseTime = responseTime;
+            result.responseTime = responseTime > 0 ? responseTime : 1;
             result.confidence = classification.confidence;
             result.severity = classification.severity;
             result.packetLoss = pingStats.packetLoss;
@@ -149,17 +205,16 @@ export const checkPing = async (monitor, result, options = {}) => {
             result.meta = {
                 message: classification.reason,
                 hostname,
-                responseTime,
+                responseTime: result.responseTime,
                 transmitted: pingStats.transmitted,
                 received: pingStats.received,
                 rawOutput: output.substring(0, 500)
             };
 
             const confidenceStr = `${(classification.confidence * 100).toFixed(0)}%`;
-            console.log(`📡 PING [${hostname}] ✅ ${result.healthState} - Response: ${responseTime}ms | Loss: ${pingStats.packetLoss.toFixed(1)}% | Confidence: ${confidenceStr} | Status: ${result.healthState}`);
+            console.log(`📡 PING [${hostname}] ✅ ${result.healthState} - Response: ${result.responseTime}ms | Loss: ${pingStats.packetLoss.toFixed(1)}% | Confidence: ${confidenceStr} | Status: ${result.healthState}`);
         } else {
             // Ping failed but command succeeded (host not responding)
-            // Use classifier for 100% packet loss
             const classification = classifyPingResult({
                 packetLoss: 100,
                 rtt: null,
@@ -186,16 +241,48 @@ export const checkPing = async (monitor, result, options = {}) => {
             console.log(`📡 PING [${hostname}] ❌ ${result.healthState} - ${result.errorMessage} | Confidence: ${confidenceStr}`);
         }
     } catch (error) {
-        // Ping command failed - categorize the error
-        // Initialize isUp based on healthState after classification, or default to false if not yet classified
+        // Ping command or resolution failed - categorize the error
         result.isUp = false;
         result.errorMessage = error.message || 'Ping failed';
+
+        // SSRF protection error
+        if (error.code === 'SSRF_BLOCKED' || error.message?.includes('SSRF_PROTECTION') || error.message?.includes('SSRF Blocked')) {
+            result.errorType = 'SSRF_BLOCKED';
+            result.healthState = 'DOWN';
+            result.statusCode = null;
+            result.responseTime = 0;
+            result.packetLoss = 100;
+            result.pingStats = { transmitted: pingCount, received: 0, packetLoss: 100 };
+            result.meta = {
+                message: error.message,
+                hostname,
+                errorCode: 'SSRF_BLOCKED'
+            };
+            console.log(`📡 PING [${hostname}] ❌ DOWN - SSRF_BLOCKED | ${error.message}`);
+            return;
+        }
+
+        // DNS error
+        if (error.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
+            result.errorType = 'DNS_ERROR';
+            result.healthState = 'DOWN';
+            result.statusCode = null;
+            result.responseTime = 0;
+            result.packetLoss = 100;
+            result.pingStats = { transmitted: pingCount, received: 0, packetLoss: 100 };
+            result.meta = {
+                message: error.message,
+                hostname,
+                errorCode: 'ENOTFOUND'
+            };
+            console.log(`📡 PING [${hostname}] ❌ DOWN - DNS_ERROR | ${error.message}`);
+            return;
+        }
 
         // Determine error type and use classifier
         const errorCode = error.code || '';
         const errorMsg = (error.message || '').toLowerCase();
 
-        // Use advanced ping classifier for error scenarios
         let pingData = {
             packetLoss: 100,
             rtt: null,
@@ -204,7 +291,7 @@ export const checkPing = async (monitor, result, options = {}) => {
 
         if (error.code === 'ETIMEDOUT' || errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
             result.errorType = 'PING_TIMEOUT';
-        } else if (errorMsg.includes('host unreachable') || errorCode === 'EHOSTUNREACH' || errorMsg.includes('no route to host')) {
+        } else if (errorMsg.includes('host unreachable') || errorCode === 'EHOSTUNREACH' || errorMsg.includes('no route to host') || errorMsg.includes('host not found') || errorMsg.includes('unknown host')) {
             result.errorType = 'HOST_UNREACHABLE_PING';
         } else if (errorMsg.includes('network unreachable') || errorCode === 'ENETUNREACH') {
             result.errorType = 'PING_NETWORK_UNREACHABLE';
@@ -214,17 +301,17 @@ export const checkPing = async (monitor, result, options = {}) => {
             result.errorType = 'PING_TTL_EXPIRED';
         } else if (errorMsg.includes('transmit failed') || errorMsg.includes('sendto') || errorMsg.includes('general failure')) {
             result.errorType = 'PING_TRANSMISSION_FAILED';
-        } else if (error.code === 'ENOENT' || errorMsg.includes('not found')) {
+        } else if (error.code === 'ENOENT' || errorMsg.includes('command not found') || errorMsg.includes('ping: not found')) {
             result.errorType = 'PING_ERROR';
             result.errorMessage = 'Ping command not available on this system';
         } else if (error.code === 2) {
-            // Linux: exit code 2 = network unreachable / destination unreachable (NOT timeout)
+            // Linux/macOS: exit code 2 = destination/network unreachable
             result.errorType = 'PING_NETWORK_UNREACHABLE';
         } else if (error.code === 68) {
             // macOS: exit code 68 = host not found / timeout
-            result.errorType = 'PING_TIMEOUT';
+            result.errorType = 'HOST_UNREACHABLE_PING';
         } else if (errorMsg.includes('command failed')) {
-            result.errorType = 'PING_TIMEOUT';
+            result.errorType = 'HOST_UNREACHABLE_PING';
         } else {
             result.errorType = 'PING_ERROR';
         }
@@ -235,6 +322,7 @@ export const checkPing = async (monitor, result, options = {}) => {
         result.isUp = result.healthState === 'UP' || result.healthState === 'DEGRADED';
         result.confidence = classification.confidence;
         result.severity = classification.severity;
+        result.errorMessage = classification.reason || result.errorMessage || 'Ping failed';
 
         result.statusCode = null;
         result.responseTime = 0; // FIX: Set to 0 for error cases
@@ -256,4 +344,3 @@ export const checkPing = async (monitor, result, options = {}) => {
 export default {
     checkPing
 };
-

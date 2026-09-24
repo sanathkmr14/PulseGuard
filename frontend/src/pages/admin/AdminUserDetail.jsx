@@ -4,6 +4,8 @@ import { adminAPI } from '../../services/api';
 import CheckLogsDrawer from '../../components/CheckLogsDrawer';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import AdminMonitorEditModal from '../../components/AdminMonitorEditModal';
+import Pagination from '../../components/Pagination';
+import Toast from '../../components/Toast';
 
 const AdminUserDetail = () => {
     const { id } = useParams();
@@ -43,6 +45,13 @@ const AdminUserDetail = () => {
         confirmColor: 'indigo',
         onConfirm: () => { }
     });
+
+    const [notification, setNotification] = useState({ type: '', message: '' });
+
+    const showNotification = (type, message) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification({ type: '', message: '' }), 4000);
+    };
 
     const openModal = (config) => {
         setModal({ ...config, isOpen: true });
@@ -143,10 +152,10 @@ const AdminUserDetail = () => {
                 try {
                     await adminAPI.sendPasswordReset(user.email);
                     closeModal();
-                    alert('Password reset instructions sent to user.');
+                    showNotification('success', 'Password reset instructions sent to user.');
                 } catch (error) {
                     console.error('Reset trigger failed:', error);
-                    alert('Failed to send reset email.');
+                    showNotification('error', 'Failed to send reset email.');
                     closeModal();
                 }
             }
@@ -208,11 +217,12 @@ const AdminUserDetail = () => {
                 try {
                     await adminAPI.deleteMonitor(monitor._id);
                     closeModal();
+                    showNotification('success', `Monitor "${monitor.name}" deleted successfully.`);
                     fetchMonitors(monitorsPage);
                 } catch (error) {
                     console.error('Delete monitor failed:', error);
                     closeModal();
-                    alert(error.response?.data?.message || 'Failed to delete monitor');
+                    showNotification('error', error.response?.data?.message || 'Failed to delete monitor');
                 }
             }
         });
@@ -400,27 +410,14 @@ const AdminUserDetail = () => {
                                         </table>
                                     </div>
                                     {/* Pagination Controls */}
-                                    <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                                        <div className="text-sm text-slate-500">
-                                            Page {monitorsPagination.current} of {monitorsPagination.pages} ({monitorsPagination.total} items)
-                                        </div>
-                                        <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                                            <button
-                                                onClick={() => setMonitorsPage(old => Math.max(old - 1, 1))}
-                                                disabled={monitorsPage === 1}
-                                                className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                            >
-                                                Previous
-                                            </button>
-                                            <button
-                                                onClick={() => setMonitorsPage(old => Math.min(old + 1, monitorsPagination.pages))}
-                                                disabled={monitorsPage === monitorsPagination.pages}
-                                                className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                            >
-                                                Next
-                                            </button>
-                                        </div>
-                                    </div>
+                                    <Pagination
+                                        currentPage={monitorsPagination.current}
+                                        totalPages={monitorsPagination.pages}
+                                        onPageChange={(p) => setMonitorsPage(p)}
+                                        totalItems={monitorsPagination.total}
+                                        itemName="monitors"
+                                        className="mt-4"
+                                    />
                                 </>
                             )}
                         </div>
@@ -473,27 +470,14 @@ const AdminUserDetail = () => {
                                                 </div>
                                             ))}
                                             {/* Pagination Controls */}
-                                            <div className="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                                                <div className="text-sm text-slate-500">
-                                                    Page {incidentsPagination.current} of {incidentsPagination.pages} ({incidentsPagination.total} items)
-                                                </div>
-                                                <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                                                    <button
-                                                        onClick={() => setIncidentsPage(old => Math.max(old - 1, 1))}
-                                                        disabled={incidentsPage === 1}
-                                                        className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                    >
-                                                        Previous
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setIncidentsPage(old => Math.min(old + 1, incidentsPagination.pages))}
-                                                        disabled={incidentsPage === incidentsPagination.pages}
-                                                        className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded border border-slate-700 transition-colors"
-                                                    >
-                                                        Next
-                                                    </button>
-                                                </div>
-                                            </div>
+                                            <Pagination
+                                                currentPage={incidentsPagination.current}
+                                                totalPages={incidentsPagination.pages}
+                                                onPageChange={(p) => setIncidentsPage(p)}
+                                                totalItems={incidentsPagination.total}
+                                                itemName="incidents"
+                                                className="mt-4"
+                                            />
                                         </>
                                     ) : (
                                         <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
@@ -531,6 +515,10 @@ const AdminUserDetail = () => {
                 monitor={editModal.monitor}
                 onSuccess={() => fetchMonitors(monitorsPage)}
             />
+
+            {/* Modern Bottom-Center Floating Toast Notification */}
+            <Toast notification={notification} onClose={() => setNotification({ type: '', message: '' })} />
+
         </div>
     );
 };

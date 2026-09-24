@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { statsAPI } from '../services/api';
+import { statsAPI, monitorAPI, incidentAPI } from '../services/api';
+import { swrCache } from '../services/cache';
+import Logo from '../components/Logo';
 
 // Modern SVG Icons (unchanged)
 const Icons = {
@@ -66,17 +68,43 @@ const DashboardLayout = () => {
 
     const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
+    const prefetchData = (path) => {
+        if (path === '/app/monitors' && !swrCache.has('monitors_list')) {
+            monitorAPI.getAll({ page: 1, limit: 12 }).then(res => {
+                if (res.data?.success) {
+                    swrCache.set('monitors_list', { data: res.data.data, pagination: res.data.pagination });
+                }
+            }).catch(() => {});
+        } else if (path === '/app/dashboard' && !swrCache.has('dashboard_stats')) {
+            statsAPI.getDashboardStats().then(res => {
+                if (res.data?.success) swrCache.set('dashboard_stats', res.data.data);
+            }).catch(() => {});
+        } else if (path === '/app/incidents' && !swrCache.has('incidents_list')) {
+            incidentAPI.getAll({ page: 1, limit: 10 }).then(res => {
+                if (res.data?.success) swrCache.set('incidents_list', { incidents: res.data.data, pagination: res.data.pagination });
+            }).catch(() => {});
+        }
+    };
+
     // Close user menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (userMenuRef.current && !userMenuRef.current.contains(e.target) &&
-                mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
                 setUserMenuOpen(false);
+            }
+            if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+                setSidebarOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Close menus on route change
+    useEffect(() => {
+        setSidebarOpen(false);
+        setUserMenuOpen(false);
+    }, [location.pathname]);
 
     useEffect(() => {
         const fetchConfig = async () => {
@@ -93,10 +121,10 @@ const DashboardLayout = () => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f]">
+        <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
             {/* System Banner */}
             {(systemConfig?.globalAlert || systemConfig?.maintenanceMode) && (
-                <div className="lg:ml-64 bg-indigo-600/10 backdrop-blur-md border-b border-indigo-500/20 text-white px-4 py-3 relative z-[40] animate-fade-in-down shadow-lg shadow-indigo-500/10">
+                <div className="bg-indigo-600/10 backdrop-blur-md border-b border-indigo-500/20 text-white px-4 py-3 relative z-[60] animate-fade-in-down shadow-lg shadow-indigo-500/10">
                     <div className="max-w-7xl mx-auto flex items-center justify-center gap-3">
                         {systemConfig.maintenanceMode ? (
                             <>
@@ -121,131 +149,156 @@ const DashboardLayout = () => {
                 </div>
             )}
 
-            {/* Mobile Header */}
-            <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#12121a] border-b border-gray-800 flex items-center justify-between px-4 z-50"
-                style={{ marginTop: (systemConfig?.globalAlert || systemConfig?.maintenanceMode) ? '36px' : '0' }}>
-                <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-400 hover:text-white">
-                    {Icons.menu}
-                </button>
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 12h4l3-9 4 18 3-9h4" />
-                        </svg>
-                    </div>
-                    <span className="text-lg font-bold text-white">PulseGuard</span>
-                </div>
-
-                <div className="relative" ref={mobileMenuRef}>
-                    <button onClick={() => setUserMenuOpen(!userMenuOpen)}
-                        className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-800/50 transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
-                            {user?.name?.[0]?.toUpperCase() || 'U'}
+            {/* Top Navigation Bar */}
+            <header className="sticky top-0 z-50 bg-[#12121a]/95 backdrop-blur-md border-b border-gray-800/80">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="relative flex items-center justify-between h-16">
+                        {/* Left: Brand Logo */}
+                        <div className="flex items-center">
+                            <Link to="/app/dashboard" className="flex items-center">
+                                <Logo size="md" showText={true} textClassName="text-xl font-bold text-white tracking-tight" />
+                            </Link>
                         </div>
-                        <span className="text-sm text-gray-300 font-medium hidden xs:block">{user?.name?.split(' ')[0]}</span>
-                    </button>
-                    {userMenuOpen && (
-                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a24] border border-gray-800 rounded-xl shadow-xl py-2 z-[60]">
-                            <div className="px-4 py-2 border-b border-gray-800 lg:hidden">
-                                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-                                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+
+                        {/* Center: Clean Professional Desktop Nav Links (No box / no colored background) */}
+                        <nav className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2 h-full">
+                            {navItems.map(item => {
+                                const active = isActive(item.path);
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        onMouseEnter={() => prefetchData(item.path)}
+                                        onTouchStart={() => prefetchData(item.path)}
+                                        className={`group relative flex items-center gap-2 h-full text-sm font-medium transition-colors ${
+                                            active
+                                                ? 'text-white font-semibold'
+                                                : 'text-gray-400 hover:text-gray-200'
+                                        }`}
+                                    >
+                                        <span className={`transition-colors ${active ? 'text-blue-400' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                            {item.icon}
+                                        </span>
+                                        <span>{item.label}</span>
+
+                                        {/* Professional Active Underline Indicator */}
+                                        {active && (
+                                            <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500 rounded-t-full shadow-sm shadow-blue-500/50" />
+                                        )}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+
+                        {/* Right: User Menu & Mobile Toggle */}
+                        <div className="flex items-center gap-3">
+                            <div className="relative" ref={userMenuRef}>
+                                <button
+                                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-gray-800/40 border border-transparent hover:border-gray-800 transition-all cursor-pointer"
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 border border-blue-500/40 flex items-center justify-center text-white font-bold text-xs shadow-sm shadow-blue-600/30 shrink-0">
+                                        {user?.name?.[0]?.toUpperCase() || 'U'}
+                                    </div>
+                                    <span className="text-sm text-gray-300 font-medium hidden sm:block">{user?.name}</span>
+                                    <span className="text-gray-400">{Icons.chevronDown}</span>
+                                </button>
+
+                                {userMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-56 bg-[#12121a]/95 backdrop-blur-xl border border-gray-800/90 rounded-2xl shadow-2xl py-2 z-50 animate-fade-in divide-y divide-gray-800/60">
+                                        <div className="px-4 py-3 flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-full bg-blue-600 border border-blue-500/40 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm shadow-blue-600/30">
+                                                {user?.name?.[0]?.toUpperCase() || 'U'}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-bold text-white truncate font-heading">{user?.name || 'User'}</p>
+                                                <p className="text-[11px] text-gray-400 truncate font-mono">{user?.email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="py-1 px-1">
+                                            <Link
+                                                to="/app/profile"
+                                                onClick={() => setUserMenuOpen(false)}
+                                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/70 rounded-lg transition-colors group"
+                                            >
+                                                <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                                <span>Profile</span>
+                                            </Link>
+                                            <Link
+                                                to="/app/settings"
+                                                onClick={() => setUserMenuOpen(false)}
+                                                className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-800/70 rounded-lg transition-colors group"
+                                            >
+                                                <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                                <span>Settings & Alerts</span>
+                                            </Link>
+                                        </div>
+                                        <div className="py-1 px-1">
+                                            <button
+                                                onClick={() => {
+                                                    logout();
+                                                    setUserMenuOpen(false);
+                                                }}
+                                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors group cursor-pointer"
+                                            >
+                                                <svg className="w-4 h-4 text-red-400/80 group-hover:text-red-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                </svg>
+                                                <span>Sign Out</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <Link to="/app/profile" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">Profile</Link>
-                            <Link to="/app/settings" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors">Settings</Link>
-                            <hr className="my-2 border-gray-800" />
-                            <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors font-medium">Sign Out</button>
+
+                            {/* Mobile Menu Toggle Button */}
+                            <div className="md:hidden" ref={mobileMenuRef}>
+                                <button
+                                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                                    className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition-colors"
+                                    aria-label="Toggle Navigation"
+                                >
+                                    {sidebarOpen ? Icons.close : Icons.menu}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Mobile Navigation Dropdown */}
+                    {sidebarOpen && (
+                        <div className="md:hidden border-t border-gray-800/80 py-3 space-y-1 animate-fade-in">
+                            {navItems.map(item => {
+                                const active = isActive(item.path);
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        onTouchStart={() => prefetchData(item.path)}
+                                        onClick={() => setSidebarOpen(false)}
+                                        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                                            active
+                                                ? 'text-white font-semibold border-l-2 border-blue-500 bg-white/[0.02]'
+                                                : 'text-gray-400 hover:text-white hover:bg-gray-800/30'
+                                        }`}
+                                    >
+                                        <span className={active ? 'text-blue-400' : 'text-gray-400'}>{item.icon}</span>
+                                        <span>{item.label}</span>
+                                    </Link>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
             </header>
 
-            {/* Mobile Sidebar Overlay */}
-            {sidebarOpen && (
-                <div className="lg:hidden fixed inset-0 bg-black/60 z-50" onClick={() => setSidebarOpen(false)}>
-                    <aside className="w-72 h-full bg-[#12121a] p-6" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                    <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 12h4l3-9 4 18 3-9h4" />
-                                    </svg>
-                                </div>
-                                <span className="text-lg font-bold text-white">PulseGuard</span>
-                            </div>
-                            <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-400 hover:text-white">
-                                {Icons.close}
-                            </button>
-                        </div>
-                        <nav className="space-y-1">
-                            {navItems.map(item => (
-                                <Link key={item.path} to={item.path} onClick={() => setSidebarOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive(item.path)
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                                        }`}>
-                                    {item.icon}
-                                    <span className="font-medium">{item.label}</span>
-                                </Link>
-                            ))}
-                        </nav>
-                    </aside>
-                </div>
-            )}
-
-            {/* Desktop Sidebar */}
-            <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-64 bg-[#12121a] border-r border-gray-800 p-6">
-                <div className="mb-10 flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 12h4l3-9 4 18 3-9h4" />
-                        </svg>
-                    </div>
-                    <h1 className="text-xl font-bold text-white">PulseGuard</h1>
-                </div>
-                <nav className="space-y-1">
-                    {navItems.map(item => (
-                        <Link key={item.path} to={item.path}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive(item.path)
-                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
-                                : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
-                                }`}>
-                            {item.icon}
-                            <span className="font-medium">{item.label}</span>
-                        </Link>
-                    ))}
-
-                </nav>
-            </aside>
-
             {/* Main Content */}
-            <main className="lg:ml-64 min-h-screen pt-16 lg:pt-0">
-                {/* Desktop Header */}
-                <header className="hidden lg:flex h-16 items-center justify-end px-8 border-b border-gray-800/50">
-                    <div className="relative" ref={userMenuRef}>
-                        <button onClick={() => setUserMenuOpen(!userMenuOpen)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800/50 transition-colors">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
-                                {user?.name?.[0]?.toUpperCase() || 'U'}
-                            </div>
-                            <span className="text-sm text-gray-300">{user?.name}</span>
-                            {Icons.chevronDown}
-                        </button>
-                        {userMenuOpen && (
-                            <div className="absolute right-0 mt-2 w-48 bg-[#1a1a24] border border-gray-800 rounded-xl shadow-xl py-2 z-50">
-                                <Link to="/app/profile" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">Profile</Link>
-                                <Link to="/app/settings" onClick={() => setUserMenuOpen(false)} className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800">Settings</Link>
-
-                                <hr className="my-2 border-gray-800" />
-                                <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10">Sign Out</button>
-                            </div>
-                        )}
-                    </div>
-                </header>
-
-                {/* Page Content */}
-                <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
-                    <Outlet />
-                </div>
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
+                <Outlet />
             </main>
         </div>
     );

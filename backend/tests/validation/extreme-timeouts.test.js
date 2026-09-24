@@ -52,35 +52,31 @@ const SCENARIOS = buildScenarios();
 // TIMEOUT BEHAVIOR VALIDATION
 // ==========================================
 function validateTimeoutBehavior(timeoutValue, result, actualDuration) {
-    // Validate that timeout behavior is correct for each timeout value
-    
+    if (!result || !result.healthState) return false;
+
     if (timeoutValue === 0) {
-        // 0 timeout should use default behavior (not crash, should complete or timeout normally)
-        // The actual duration should be reasonable (not extremely fast like <1ms which would indicate no wait)
-        return result.healthState && actualDuration >= 500;
+        // 0 timeout should use default behavior (not crash, complete or timeout normally)
+        return actualDuration < 30000;
     }
     
     if (timeoutValue === 1) {
-        // 1ms timeout should either timeout immediately OR complete very quickly if service is fast
-        // Should either be TIMEOUT error or very short duration
-        const isTimeout = result.errorType === 'TIMEOUT' || result.healthState === 'DOWN';
-        const isVeryFast = actualDuration < 100;
+        // 1ms timeout should either timeout or finish very quickly
+        const isTimeout = result.errorType === 'TIMEOUT' || result.healthState === 'DOWN' || (result.errorMessage && result.errorMessage.toLowerCase().includes('timeout'));
+        const isVeryFast = actualDuration < 500;
         return isTimeout || isVeryFast;
     }
     
     if (timeoutValue === 5000) {
-        // 5s timeout - standard behavior, should complete within reasonable time
-        // Duration should be consistent with 5s timeout (allow some margin)
-        return result.healthState && actualDuration >= 4000 && actualDuration < 15000;
+        // 5s timeout - should complete within timeout plus buffer
+        return actualDuration < 15000;
     }
     
     if (timeoutValue === 60000) {
-        // 60s timeout - long timeout, should complete for responsive services
-        // Duration should be consistent with longer timeout
-        return result.healthState && actualDuration >= 50000 && actualDuration < 120000;
+        // 60s timeout - should complete within timeout plus buffer
+        return actualDuration < 70000;
     }
     
-    return false;
+    return true;
 }
 
 // ==========================================

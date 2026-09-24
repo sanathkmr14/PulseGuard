@@ -1,50 +1,40 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useSocketContext } from '../context/SocketContext';
 
 export const useSocket = () => {
     const { socket, connected } = useSocketContext();
 
-    // Use ref to keep track of current socket instance for cleanup in callbacks
-    const socketRef = useRef(socket);
-
-    useEffect(() => {
-        socketRef.current = socket;
-    }, [socket]);
-
     // Subscribe pattern with automatic cleanup
-    // Returns unsubscribe function
+    // Returns unsubscribe function; updates when socket instance changes
     const subscribe = useCallback((event, callback) => {
-        const currentSocket = socketRef.current;
-        if (currentSocket) {
-            currentSocket.on(event, callback);
-        }
+        if (!socket) return () => {};
+
+        socket.on(event, callback);
 
         // Return cleanup function
         return () => {
-            if (currentSocket) {
-                currentSocket.off(event, callback);
-            }
+            socket.off(event, callback);
         };
-    }, []);
+    }, [socket]);
 
     // Legacy 'on' method (manual cleanup required)
     const on = useCallback((event, callback) => {
-        if (socketRef.current) {
-            socketRef.current.on(event, callback);
+        if (socket) {
+            socket.on(event, callback);
         }
-    }, []);
+    }, [socket]);
 
     const off = useCallback((event, callback) => {
-        if (socketRef.current) {
-            socketRef.current.off(event, callback);
+        if (socket) {
+            socket.off(event, callback);
         }
-    }, []);
+    }, [socket]);
 
     const emit = useCallback((event, data) => {
-        if (socketRef.current) {
-            socketRef.current.emit(event, data);
+        if (socket) {
+            socket.emit(event, data);
         }
-    }, []);
+    }, [socket]);
 
     return {
         socket,

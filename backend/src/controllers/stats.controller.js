@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import statsService from '../services/stats.service.js';
 import Monitor from '../models/Monitor.js';
 import Config from '../models/Config.js';
+import safeErrorMessage from '../utils/safe-error.js';
 
 /**
  * Get dashboard statistics
@@ -22,12 +24,15 @@ export const getDashboardStats = async (req, res) => {
  */
 export const getUptimeStats = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.monitorId)) {
+            return res.status(400).json({ success: false, message: 'Invalid monitor ID format' });
+        }
         // SECURITY FIX: Verify user owns this monitor
         const monitor = await Monitor.findById(req.params.monitorId);
         if (!monitor) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
-        if (monitor.user.toString() !== req.user._id.toString()) {
+        if (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
@@ -61,12 +66,15 @@ export const getUptimeStats = async (req, res) => {
  */
 export const getResponseTimeStats = async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.monitorId)) {
+            return res.status(400).json({ success: false, message: 'Invalid monitor ID format' });
+        }
         // SECURITY FIX: Verify user owns this monitor
         const monitor = await Monitor.findById(req.params.monitorId);
         if (!monitor) {
             return res.status(404).json({ success: false, message: 'Monitor not found' });
         }
-        if (monitor.user.toString() !== req.user._id.toString()) {
+        if (monitor.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 

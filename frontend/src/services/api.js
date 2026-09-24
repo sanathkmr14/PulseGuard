@@ -43,7 +43,9 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         // Handle auth errors - redirect to login if unauthorized or forbidden (banned)
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        const url = error.config?.url || '';
+        const isAuthCheckOrDelete = url.includes('/auth/login') || url.includes('/auth/delete');
+        if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthCheckOrDelete) {
             localStorage.removeItem('token');
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';

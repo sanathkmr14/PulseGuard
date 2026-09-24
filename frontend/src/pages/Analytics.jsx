@@ -7,7 +7,7 @@ const Analytics = () => {
             </div>
 
             <div className="bg-[#12121a] border border-gray-800/50 rounded-2xl p-12 text-center">
-                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-6 bg-blue-500/10 border border-blue-500/25 rounded-2xl flex items-center justify-center text-blue-400">
                     <span className="text-4xl">📊</span>
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-2">Analytics Coming Soon</h3>

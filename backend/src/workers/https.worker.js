@@ -100,27 +100,33 @@ export const checkHttps = async (monitor, result, options = {}) => {
  */
 async function _runSslCheck(monitor, result, options, httpIsUp, httpStatusCode = null) {
     const { parseUrl: providedParseUrl } = options;
-    const parseUrl = providedParseUrl || ((url) => {
+    const parseUrl = providedParseUrl || ((url, defaultPort) => {
         try {
             const u = new URL(url.includes('://') ? url : `https://${url}`);
-            return { hostname: u.hostname };
+            return { hostname: u.hostname, port: u.port || defaultPort };
         } catch (e) {
-            return { hostname: url.split('://').pop().split('/')[0].split(':')[0] };
+            const hostPart = url.split('://').pop().split('/')[0];
+            const [hostname, port] = hostPart.split(':');
+            return { hostname, port: port || defaultPort };
         }
     });
 
     let sslHostname;
+    let sslPort;
     try {
-        const parsed = parseUrl(monitor.url);
+        const parsed = parseUrl(monitor.url, monitor.port);
         sslHostname = parsed.hostname;
+        sslPort = parsed.port || monitor.port;
     } catch (e) {
         sslHostname = monitor.url.split('://').pop().split('/')[0].split(':')[0] || monitor.url;
+        sslPort = monitor.port;
     }
 
     try {
         const monitorObj = typeof monitor.toObject === 'function' ? monitor.toObject() : monitor;
-        const sslMonitor = { ...monitorObj, url: `https://${sslHostname}` };
-        const sslResult = { isUp: true, meta: {} };
+        const portSuffix = sslPort && sslPort !== 443 && sslPort !== '443' ? `:${sslPort}` : '';
+        const sslMonitor = { ...monitorObj, url: `https://${sslHostname}${portSuffix}`, port: sslPort || 443 };
+        const sslResult = { isUp: false, meta: {} };
 
         await new Promise((resolve) => {
             const timer = setTimeout(() => { clearTimeout(timer); resolve(); }, monitor.timeout || 30000);
@@ -137,6 +143,9 @@ async function _runSslCheck(monitor, result, options, httpIsUp, httpStatusCode =
         if (sslResult?.meta) {
             if (!result.meta) result.meta = {};
             result.meta = { ...result.meta, ...sslResult.meta };
+            result.sslInfo = { ...sslResult.meta };
+            if (sslResult.daysUntilExpiry !== undefined) result.sslInfo.daysUntilExpiry = sslResult.daysUntilExpiry;
+            if (sslResult.issuer !== undefined) result.sslInfo.issuer = sslResult.issuer;
         }
 
         if (httpIsUp) {
@@ -156,19 +165,34 @@ async function _runSslCheck(monitor, result, options, httpIsUp, httpStatusCode =
                     : 0.5;
                 result.severity = isExpired ? 0.9 : urgencySeverity;
 
-                if (isExpired) {
+                if (sslResult.errorType === 'CERT_REVOKED') {
+                    result.healthState = 'DOWN';
+                    result.isUp = false;
+                    result.severity = 1.0;
+                    result.errorType = 'CERT_REVOKED';
+                    result.errorMessage = sslResult.errorMessage || 'SSL certificate has been revoked by the issuing authority';
+                    result.meta.sslWarning = 'SSL certificate revoked';
+                    console.log(`🔐 HTTPS [${monitor.url}] ❌ CERTIFICATE REVOKED (DOWN) | HTTP: ${httpStatusCode}`);
+                } else if (isExpired) {
                     result.errorType = 'CERT_EXPIRED';
                     result.errorMessage = 'SSL Certificate has expired';
                     result.meta.sslWarning = 'SSL certificate expired';
+                    console.log(`🔐 HTTPS [${monitor.url}] ⚠️ SSL DEGRADED | HTTP: ${httpStatusCode} UP`);
                 } else if (isExpiringSoon) {
                     result.errorType = 'CERT_EXPIRING_SOON';
                     result.errorMessage = `SSL Certificate expiring in ${daysUntilExpiry} days`;
                     result.meta.sslWarning = `SSL certificate expiring in ${daysUntilExpiry} days`;
+                    console.log(`🔐 HTTPS [${monitor.url}] ⚠️ SSL DEGRADED | HTTP: ${httpStatusCode} UP`);
+                } else if (sslResult.errorType) {
+                    result.errorType = sslResult.errorType;
+                    result.errorMessage = sslResult.errorMessage || 'SSL quality issues detected';
+                    result.meta.sslWarning = result.errorMessage;
+                    console.log(`🔐 HTTPS [${monitor.url}] ⚠️ SSL DEGRADED (${sslResult.errorType}) | HTTP: ${httpStatusCode} UP`);
                 } else if (!result.meta.sslChainWarning) {
                     // Only set generic warning if chain warning isn't already set
                     result.meta.sslWarning = 'SSL quality issues detected';
+                    console.log(`🔐 HTTPS [${monitor.url}] ⚠️ SSL DEGRADED | HTTP: ${httpStatusCode} UP`);
                 }
-                console.log(`🔐 HTTPS [${monitor.url}] ⚠️ SSL DEGRADED | HTTP: ${httpStatusCode} UP`);
             } else {
                 console.log(`🔐 HTTPS [${monitor.url}] ${httpStatusCode} | Status: UP | SSL Valid (${daysUntilExpiry} days)`);
             }

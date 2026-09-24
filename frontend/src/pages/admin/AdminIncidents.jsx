@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminAPI } from '../../services/api';
 import { debounce } from '../../utils/debounce';
+import Pagination from '../../components/Pagination';
 
 const AdminIncidents = () => {
     const [incidents, setIncidents] = useState([]);
@@ -219,28 +220,13 @@ const AdminIncidents = () => {
                 </div>
 
                 {/* Pagination */}
-                <div className="px-6 py-4 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-                    <div className="text-sm text-slate-400">
-                        Showing page <span className="font-medium text-white">{pagination.page}</span> of <span className="font-medium text-white">{pagination.pages}</span>
-                        <span className="ml-2 opacity-50">({pagination.total} total)</span>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                        <button
-                            onClick={() => handlePageChange(pagination.page - 1)}
-                            disabled={pagination.page === 1 || loading}
-                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Previous
-                        </button>
-                        <button
-                            onClick={() => handlePageChange(pagination.page + 1)}
-                            disabled={pagination.page >= pagination.pages || loading}
-                            className="flex-1 sm:flex-none justify-center px-4 py-2 sm:py-1 text-sm rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
+                <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.pages}
+                    onPageChange={(p) => handlePageChange(p)}
+                    totalItems={pagination.total}
+                    itemName="incidents"
+                />
             </div>
         </div>
     );

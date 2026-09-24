@@ -70,6 +70,26 @@ const incidentSchema = new mongoose.Schema({
             type: Boolean,
             default: false
         },
+        failureEmailSent: {
+            type: Boolean,
+            default: false
+        },
+        degradedEmailSent: {
+            type: Boolean,
+            default: false
+        },
+        failureSent: {
+            type: Boolean,
+            default: false
+        },
+        degradedSent: {
+            type: Boolean,
+            default: false
+        },
+        recoverySent: {
+            type: Boolean,
+            default: false
+        },
         // Optional per-recipient details for auditing (to, success, messageId, error)
         emailDetails: {
             type: [
@@ -103,8 +123,10 @@ const incidentSchema = new mongoose.Schema({
     verifications: [
         {
             location: String,
+            country: String,
             isUp: Boolean,
             responseTime: Number,
+            statusCode: Number,
             timestamp: { type: Date, default: Date.now },
             errorMessage: String
         }
@@ -143,6 +165,17 @@ incidentSchema.pre('save', function (next) {
         this.duration = this.endTime - this.startTime;
     }
     next();
+});
+
+// Dual-Write Mirroring hooks
+import dbMirror from '../services/db-mirror.service.js';
+
+incidentSchema.post('save', function (doc) {
+    if (doc) dbMirror.mirrorSave('incidents', doc);
+});
+
+incidentSchema.post('findOneAndUpdate', function (doc) {
+    if (doc) dbMirror.mirrorSave('incidents', doc);
 });
 
 const Incident = mongoose.model('Incident', incidentSchema);

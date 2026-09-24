@@ -7,13 +7,27 @@ import { getStatusCodeCategory, getStatusCodeName } from './http-status-codes.js
 
 // HTTP/HTTPS Error Classifications
 export const HTTP_ERROR_TYPES = {
+    'SSRF_BLOCKED': {
+        severity: 1.0,
+        healthState: 'DOWN',
+        description: 'Access to private or restricted network address blocked (SSRF Protection)',
+        examples: ['SSRF_PROTECTION', 'Private IP blocked', 'SSRF_BLOCKED'],
+        protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING']
+    },
+    'DNS_SERVER_FAILURE': {
+        severity: 1.0,
+        healthState: 'DOWN',
+        description: 'DNS server connection failed or refused',
+        examples: ['ECONNREFUSED', 'DNS_SERVER_FAILURE', 'SERVFAIL'],
+        protocols: ['DNS', 'UDP', 'TCP']
+    },
     // Network-level errors (highest severity - typically DOWN)
     'DNS_ERROR': {
         severity: 1.0,
         healthState: 'DOWN',
         description: 'Domain Name System resolution failed',
-        examples: ['ENOTFOUND', 'DNS_PROBE_FINISHED_NXDOMAIN'],
-        protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'SMTP', 'SSL']
+        examples: ['ENOTFOUND', 'DNS_PROBE_FINISHED_NXDOMAIN', 'EBADNAME'],
+        protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'SMTP', 'SSL', 'DNS']
     },
 
     // Configuration/Input Errors (highest severity - DOWN)
@@ -111,15 +125,15 @@ export const HTTP_ERROR_TYPES = {
         protocols: ['HTTPS', 'SSL']
     },
     'SSL_UNTRUSTED_CERT': {
-        severity: 0.1,
-        healthState: 'UP',
+        severity: 0.4,
+        healthState: 'DEGRADED',
         description: 'Untrusted Certificate Authority — site is reachable but cert is not from a public CA',
         examples: ['UNABLE_TO_VERIFY_LEAF_SIGNATURE'],
         protocols: ['HTTPS', 'SSL']
     },
     'SELF_SIGNED_CERT': {
-        severity: 0.1,
-        healthState: 'UP',
+        severity: 0.4,
+        healthState: 'DEGRADED',
         description: 'Self-signed certificate — site is reachable but cert is not browser-trusted',
         examples: ['self signed certificate', 'DEPTH_ZERO_SELF_SIGNED_CERT'],
         protocols: ['HTTPS', 'SSL']
@@ -294,6 +308,44 @@ export const HTTP_ERROR_TYPES = {
         description: 'Informational response (1xx) - Server sent interim response but no final response',
         examples: ['100 Continue', '102 Processing', '103 Early Hints'],
         protocols: ['HTTP', 'HTTPS']
+    },
+
+    // Aliases returned by detectErrorType() for HTTP status bands — must resolve
+    // in determineHealthStateFromError via HTTP_ERROR_TYPES (not fall to UNKNOWN).
+    'SERVER_ERROR': {
+        severity: 0.9,
+        healthState: 'DOWN',
+        description: 'Server error response (5xx)',
+        examples: ['500 Internal Server Error', '502 Bad Gateway'],
+        protocols: ['HTTP', 'HTTPS']
+    },
+    'CLIENT_ERROR': {
+        severity: 0.8,
+        healthState: 'DOWN',
+        description: 'Client error response (4xx)',
+        examples: ['404 Not Found', '403 Forbidden'],
+        protocols: ['HTTP', 'HTTPS']
+    },
+    'SUCCESS': {
+        severity: 0.0,
+        healthState: 'UP',
+        description: 'Successful response (2xx)',
+        examples: ['200 OK', '201 Created'],
+        protocols: ['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING']
+    },
+    'REDIRECT': {
+        severity: 0.1,
+        healthState: 'UP',
+        description: 'Redirection response (3xx)',
+        examples: ['301 Moved Permanently', '302 Found'],
+        protocols: ['HTTP', 'HTTPS']
+    },
+    'INFORMATIONAL': {
+        severity: 0.0,
+        healthState: 'UP',
+        description: 'Informational response (1xx)',
+        examples: ['100 Continue'],
+        protocols: ['HTTP', 'HTTPS']
     }
 };
 
@@ -304,14 +356,24 @@ export const PROTOCOL_ERROR_MAPPINGS = {
         '2xx': 'UP',
         '3xx': 'UP', // Redirects are generally considered UP
         '4xx': 'CLIENT_ERROR',
-        '5xx': 'SERVER_ERROR'
+        '5xx': 'SERVER_ERROR',
+        'SERVER_ERROR': 'DOWN',
+        'CLIENT_ERROR': 'DOWN',
+        'SUCCESS': 'UP',
+        'REDIRECT': 'UP',
+        'INFORMATIONAL': 'UP'
     },
     HTTPS: {
         '1xx': 'INFORMATIONAL',
         '2xx': 'UP',
         '3xx': 'UP',
         '4xx': 'CLIENT_ERROR',
-        '5xx': 'SERVER_ERROR'
+        '5xx': 'SERVER_ERROR',
+        'SERVER_ERROR': 'DOWN',
+        'CLIENT_ERROR': 'DOWN',
+        'SUCCESS': 'UP',
+        'REDIRECT': 'UP',
+        'INFORMATIONAL': 'UP'
     },
     TCP: {
         'SUCCESS': 'UP',
@@ -331,7 +393,10 @@ export const PROTOCOL_ERROR_MAPPINGS = {
         'NXDOMAIN': 'DOWN',
         'SERVFAIL': 'DOWN',
         'REFUSED': 'DOWN',
-        'TIMEOUT': 'DOWN'
+        'TIMEOUT': 'DOWN',
+        'DNS_ERROR': 'DOWN',
+        'INVALID_INPUT': 'DOWN',
+        'DNS_SERVER_FAILURE': 'DOWN'
     },
     SMTP: {
         'SUCCESS': 'UP',
@@ -379,6 +444,38 @@ export function determineHealthStateFromError(errorType, statusCode, protocol, r
                         healthState: 'DOWN',
                         severity: 0.9,
                         reason: `Server error: ${code} ${getStatusCodeName(code)}`
+                    };
+                case 'CLIENT_ERROR':
+                    if (code === 429) {
+                        return {
+                            healthState: 'DEGRADED',
+                            severity: 0.6,
+                            reason: `Rate limited: ${code} ${getStatusCodeName(code)}`
+                        };
+                    }
+                    return {
+                        healthState: 'DOWN',
+                        severity: 0.8,
+                        reason: `Client error: ${code} ${getStatusCodeName(code)}`
+                    };
+                case 'SUCCESS':
+                    if (responseTime && responseTime > degradedThresholdMs) {
+                        return {
+                            healthState: 'DEGRADED',
+                            severity: Math.min(responseTime / 10000, 0.6),
+                            reason: `Slow response: ${responseTime}ms (threshold: ${degradedThresholdMs}ms)`
+                        };
+                    }
+                    return {
+                        healthState: 'UP',
+                        severity: 0.0,
+                        reason: `Success: ${code} ${getStatusCodeName(code)}`
+                    };
+                case 'INFORMATIONAL':
+                    return {
+                        healthState: 'UP',
+                        severity: 0.0,
+                        reason: `Informational: ${code} ${getStatusCodeName(code)}`
                     };
                 case 'REDIRECT':
                     // If we have a redirect error (loop/too many), it should be caught here 
@@ -488,36 +585,6 @@ export function formatErrorMessage(error, protocol, statusCode) {
 
 // Comprehensive error type detection
 export function detectErrorType(error, protocol, response) {
-    // Handle null/undefined error gracefully
-    if (!error) return 'UNKNOWN_ERROR';
-
-    // Network-level errors
-    if (error.code === 'ENOTFOUND' || error.message?.includes('getaddrinfo')) {
-        return 'DNS_ERROR';
-    } else if (error.code === 'ECONNREFUSED') {
-        return 'CONNECTION_REFUSED';
-    } else if (error.code === 'ECONNRESET') {
-        return 'CONNECTION_RESET';
-    } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('timed out')) {
-        return 'TIMEOUT';
-    } else if (error.code === 'ENETUNREACH') {
-        return 'NETWORK_UNREACHABLE';
-    } else if (error.code === 'EHOSTUNREACH') {
-        return 'HOST_UNREACHABLE';
-    }
-
-    // SSL/TLS errors
-    if (error.message?.includes('certificate') || error.message?.includes('SSL') || error.message?.includes('TLS')) {
-        if (error.message?.includes('revoked')) return 'CERT_REVOKED';
-        else if (error.message?.includes('expired')) return 'CERT_EXPIRED';
-        else if (error.message?.includes('not yet valid')) return 'CERT_NOT_YET_VALID';
-        else if (error.message?.includes('hostname') || error.message?.includes('match') || error.message?.includes('mismatch')) return 'CERT_HOSTNAME_MISMATCH';
-        else if (error.message?.includes('self signed') || error.message?.includes('self-signed')) return 'SELF_SIGNED_CERT';
-        else if (error.message?.includes('chain') || error.message?.includes('issuer')) return 'CERT_CHAIN_ERROR';
-        else if (error.message?.includes('excessive message size')) return 'ERR_SSL_EXCESSIVE_MESSAGE_SIZE';
-        return 'SSL_ERROR';
-    }
-
     // HTTP status code based errors
     if (response?.status) {
         const { status } = response;
@@ -528,13 +595,17 @@ export function detectErrorType(error, protocol, response) {
         if (status >= 100) return 'INTERIM_RESPONSE_TIMEOUT';
     }
 
-    // Protocol-specific errors
-    if (error.code === 'REDIRECT_LOOP' || error.message?.includes('redirect loop') || error.message?.includes('Too many redirects')) {
-        return 'REDIRECT_LOOP';
+    // Handle null/undefined error gracefully
+    if (!error) return 'UNKNOWN_ERROR';
+
+    // SSRF protection errors
+    if (error.code === 'SSRF_BLOCKED' || error.message?.includes('SSRF_PROTECTION') || error.message?.includes('SSRF Blocked') || error.message?.includes('SSRF')) {
+        return 'SSRF_BLOCKED';
     }
 
-    if (protocol === 'SMTP' && error.message?.includes('SMTP')) {
-        return 'SMTP_ERROR';
+    // DNS specific errors
+    if (protocol === 'DNS' && (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED'))) {
+        return 'DNS_SERVER_FAILURE';
     }
 
     // PING (ICMP) specific errors
@@ -561,6 +632,42 @@ export function detectErrorType(error, protocol, response) {
             return 'PING_TRANSMISSION_FAILED';
         }
         return 'PING_ERROR';
+    }
+
+    // Network-level errors
+    if (error.code === 'ENOTFOUND' || error.code === 'EBADNAME' || error.code === 'ESERVFAIL' || error.code === 'EREFUSED' || error.code === 'ENODATA' || error.message?.includes('getaddrinfo') || error.message?.includes('EBADNAME') || (protocol === 'DNS' && (error.message?.includes('queryA') || error.message?.includes('queryAAAA')))) {
+        return 'DNS_ERROR';
+    } else if (error.code === 'ECONNREFUSED') {
+        return 'CONNECTION_REFUSED';
+    } else if (error.code === 'ECONNRESET') {
+        return 'CONNECTION_RESET';
+    } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message?.includes('timeout') || error.message?.includes('timed out')) {
+        return 'TIMEOUT';
+    } else if (error.code === 'ENETUNREACH') {
+        return 'NETWORK_UNREACHABLE';
+    } else if (error.code === 'EHOSTUNREACH') {
+        return 'HOST_UNREACHABLE';
+    }
+
+    // SSL/TLS errors
+    if (error.message?.includes('certificate') || error.message?.includes('SSL') || error.message?.includes('TLS')) {
+        if (error.message?.includes('revoked')) return 'CERT_REVOKED';
+        else if (error.message?.includes('expired')) return 'CERT_EXPIRED';
+        else if (error.message?.includes('not yet valid')) return 'CERT_NOT_YET_VALID';
+        else if (error.message?.includes('hostname') || error.message?.includes('match') || error.message?.includes('mismatch')) return 'CERT_HOSTNAME_MISMATCH';
+        else if (error.message?.includes('self signed') || error.message?.includes('self-signed')) return 'SELF_SIGNED_CERT';
+        else if (error.message?.includes('chain') || error.message?.includes('issuer')) return 'CERT_CHAIN_ERROR';
+        else if (error.message?.includes('excessive message size')) return 'ERR_SSL_EXCESSIVE_MESSAGE_SIZE';
+        return 'SSL_ERROR';
+    }
+
+    // Protocol-specific errors
+    if (error.code === 'REDIRECT_LOOP' || error.message?.includes('redirect loop') || error.message?.includes('Too many redirects')) {
+        return 'REDIRECT_LOOP';
+    }
+
+    if (protocol === 'SMTP' && error.message?.includes('SMTP')) {
+        return 'SMTP_ERROR';
     }
 
     // Default error type

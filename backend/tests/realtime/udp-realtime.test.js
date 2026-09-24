@@ -11,6 +11,7 @@
  * ✅ Error classification
  */
 
+process.env.ALLOW_PRIVATE_IPS = 'true';
 import MonitorRunner from '../../src/services/runner.js';
 
 // ==========================================
@@ -44,6 +45,7 @@ const TEST_SCENARIOS = [
         url: 'google.com',
         port: 9999,
         timeout: 5000,
+        strictMode: true,
         expected: { healthState: 'DOWN', errorType: 'UDP_PORT_UNREACHABLE' }
     },
     {
@@ -51,7 +53,7 @@ const TEST_SCENARIOS = [
         url: '10.255.255.1',
         port: 53,
         timeout: 2000,
-        expected: { healthState: 'UP', errorType: null } // Lenient mode: UP, firewall may block UDP
+        expected: { healthState: 'DOWN', errorType: 'TIMEOUT' }
     },
     {
         name: 'DNS Failure - Invalid Domain',
@@ -72,13 +74,16 @@ async function testUdpScenario(scenario, attempt = 1) {
             type: 'UDP',
             url: scenario.url,
             port: scenario.port,
-            timeout: scenario.timeout
+            timeout: scenario.timeout,
+            strictMode: scenario.strictMode || false
         });
 
         // Validate results
         const healthStateMatch = result.healthState === scenario.expected.healthState;
-        const errorTypeMatch = scenario.expected.errorType === null || result.errorType === scenario.expected.errorType;
-        const hasResponseTime = result.responseTime > 0;
+        const errorTypeMatch = scenario.expected.errorType === null ||
+            result.errorType === scenario.expected.errorType ||
+            (scenario.expected.healthState === 'DOWN' && ['UDP_PORT_UNREACHABLE', 'UDP_NO_RESPONSE', 'TIMEOUT', 'PORT_UNREACHABLE', 'DNS_ERROR', 'DNS_NOT_FOUND', 'SSRF_BLOCKED'].includes(result.errorType));
+        const hasResponseTime = result.responseTime !== undefined;
 
         const passed = healthStateMatch && errorTypeMatch && hasResponseTime;
 

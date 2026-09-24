@@ -14,11 +14,11 @@ import {
 const router = express.Router();
 import rateLimit from 'express-rate-limit';
 
-// Strict limiter for auth endpoints (5 attempts per 15 min)
+// Strict limiter for auth endpoints (10 attempts in prod, 100 in dev per 15 min)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: { success: false, message: 'Too many login attempts, please try again after 15 minutes' },
+    max: process.env.NODE_ENV === 'production' ? 10 : 100,
+    message: { success: false, message: 'Too many attempts, please try again after 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req, res) => process.env.NODE_ENV === 'test',

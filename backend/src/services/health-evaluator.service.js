@@ -8,9 +8,10 @@ import axios from 'axios';
 import net from 'net';
 import dns from 'dns';
 import dgram from 'dgram';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import redisClient from '../config/redis-cache.js';
+import { validateMonitorUrl, validateTargetHost } from '../utils/url-validator.js';
 
 /**
  * Enhanced Health State Service
@@ -113,7 +114,7 @@ class HealthStateService {
 
             // State transition hysteresis (prevents flapping)
             minTimeInStateMs: 30000,         // Minimum 30 seconds in state before transition
-            consecutiveChecksForRecovery: 1, // Need 1 successful check to recover from DOWN
+            consecutiveChecksForRecovery: 2, // Need 2 consecutive successful checks to recover from DOWN/DEGRADED (unless fast-tracked)
             consecutiveChecksForDegradation: 2, // Need 2 consecutive issues to degrade
 
             // Unknown state configuration
@@ -202,12 +203,16 @@ class HealthStateService {
 
         // Seed initial state from history if currently unknown but history exists
         // This handles server restarts and ensures hysteresis works correctly immediately
+        // Fix (flapping reset): seed BOTH confirmed and raw counters so a restart
+        // doesn't wipe consecutive-failure progress and cause duplicate/late alerts.
         if (stateHistory.currentState === 'unknown' && recentChecks.length > 0) {
             const lastCheck = recentChecks[0];
-            const lastStatus = lastCheck.status || (lastCheck.isUp ? 'up' : 'down');
-            stateHistory.currentState = lastStatus.toLowerCase();
+            const lastStatus = (lastCheck.status || (lastCheck.isUp ? 'up' : 'down')).toLowerCase();
+            stateHistory.currentState = lastStatus;
             stateHistory.lastStateChange = lastCheck.createdAt || new Date();
             stateHistory.consecutiveCount = 1;
+            stateHistory.rawState = lastStatus;
+            stateHistory.rawConsecutiveCount = 1;
         }
 
         // 1. Check for UNKNOWN state first
@@ -381,12 +386,12 @@ class HealthStateService {
                 analysis.issues.push(`Network failure: ${analysis.errorType}`);
             }
             // SSL/TLS failures
-            else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE', 'CERT_CHAIN_ERROR', 'SSL_CHAIN_ERROR'].includes(analysis.errorType)) {
+            else if (['SSL_ERROR', 'CERT_ERROR', 'CERT_REVOKED', 'CERT_EXPIRED', 'CERT_NOT_YET_VALID', 'CERT_HOSTNAME_MISMATCH', 'SSL_UNTRUSTED_CERT', 'CERT_EXPIRING_SOON', 'SELF_SIGNED_CERT', 'WEAK_SIGNATURE', 'CERT_CHAIN_ERROR', 'SSL_CHAIN_ERROR'].includes(analysis.errorType)) {
                 // If it's a chain error or self-signed, it's DEGRADED (if unreachable, it's already caught by isCompletelyUp check above)
                 if (analysis.errorType === 'CERT_CHAIN_ERROR' || analysis.errorType === 'SELF_SIGNED_CERT') {
                     analysis.severity = Math.max(analysis.severity, 0.5);
                 } else if (!analysis.isCompletelyUp) {
-                    analysis.severity = 0.9;
+                    analysis.severity = 0.95;
                 }
 
                 // Use the detailed error message from the worker if available
@@ -792,17 +797,19 @@ class HealthStateService {
         if (previousState === 'up' && targetState === 'degraded') {
             // BYPASS HYSTERESIS for critical protocol/SSL errors
             // These aren't transient "glitches", they are persistent configuration/security issues
-            const isCriticalDegradation = currentCheck.issues.some(issue =>
-                issue.toLowerCase().includes('ssl') ||
-                issue.toLowerCase().includes('cert') ||
-                issue.toLowerCase().includes('chain') ||
-                issue.toLowerCase().includes('protocol')
+            const issues = Array.isArray(currentCheck.issues) ? currentCheck.issues : [];
+            const isCriticalDegradation = issues.some(issue =>
+                typeof issue === 'string' && (
+                    issue.toLowerCase().includes('ssl') ||
+                    issue.toLowerCase().includes('cert') ||
+                    issue.toLowerCase().includes('chain') ||
+                    issue.toLowerCase().includes('protocol'))
             );
 
             if (isCriticalDegradation || consecutiveCount >= confirmedThreshold) {
                 return {
                     status: targetState,
-                    reasons: currentCheck.issues,
+                    reasons: issues,
                     confidence: 0.9,
                     transitionReason: isCriticalDegradation ? 'Critical protocol/SSL issue detected - bypassing hysteresis' : 'Hysteresis confirmation met',
                     preventedFlapping: false
@@ -822,17 +829,29 @@ class HealthStateService {
         // If it's a timeout or connection refused, we might want fast failure
         // But generally we want at least 1 confirmation to assume transient network blip
         if (previousState === 'up' && targetState === 'down') {
-            // Immediate failure for critical errors if configured, otherwise require confirmation
-            // Default: Require 2 consecutive failures
-            if (consecutiveCount < confirmedThreshold) {
+            // BYPASS HYSTERESIS for critical protocol/SSL errors (revoked, expired, hostname mismatch)
+            // These aren't transient glitches, they are persistent cryptographic/configuration failures
+            const issues = Array.isArray(currentCheck.issues) ? currentCheck.issues : [];
+            const isCriticalCertError = ['CERT_REVOKED', 'CERT_EXPIRED', 'CERT_HOSTNAME_MISMATCH'].includes(currentCheck.errorType) ||
+                issues.some(i => typeof i === 'string' && (i.toLowerCase().includes('revoked') || i.toLowerCase().includes('expired')));
+
+            if (isCriticalCertError || consecutiveCount >= confirmedThreshold) {
                 return {
-                    status: previousState, // Stay UP
-                    reasons: ['Service glitch detected, awaiting confirmation'],
-                    confidence: 0.7,
-                    transitionReason: `Hysteresis: Need ${confirmedThreshold} consecutive failures (${consecutiveCount + 1}/${confirmedThreshold})`,
-                    preventedFlapping: true
+                    status: targetState,
+                    reasons: issues.length > 0 ? issues : ['Critical SSL failure detected'],
+                    confidence: 0.95,
+                    transitionReason: isCriticalCertError ? 'Critical SSL certificate failure (revoked/expired/mismatch) - bypassing hysteresis' : 'Confirmed downtime threshold met',
+                    preventedFlapping: false
                 };
             }
+
+            return {
+                status: previousState, // Stay UP
+                reasons: ['Service glitch detected, awaiting confirmation'],
+                confidence: 0.7,
+                transitionReason: `Hysteresis: Need ${confirmedThreshold} consecutive failures (${consecutiveCount + 1}/${confirmedThreshold})`,
+                preventedFlapping: true
+            };
         }
 
         // DEGRADED -> DOWN: Need confirmation
@@ -852,10 +871,13 @@ class HealthStateService {
         if ((previousState === 'down' || previousState === 'degraded') && targetState === 'up') {
             // FAST TRACK: If current check is excellent (perfect health), allow immediate recovery
             // "Excellent" = Completely UP + Latency well below threshold (e.g. < 50%)
-            const threshold = monitor && monitor.expectedResponseTime ? monitor.expectedResponseTime : 1000;
+            const threshold = (monitor && (monitor.expectedResponseTime || monitor.degradedThresholdMs)) || 1000;
+            // Null-safe: workers populate responseTimeMs/responseTime, not `latency`
+            const latency = currentCheck.responseTimeMs ?? currentCheck.responseTime ?? currentCheck.latency ?? 0;
+            const issues = currentCheck.issues || [];
             const isExcellent = currentCheck.isCompletelyUp &&
-                (currentCheck.latency < threshold * 0.8) &&
-                currentCheck.issues.length === 0;
+                (latency > 0 && latency < threshold * 0.8) &&
+                issues.length === 0;
 
             if (isExcellent) {
                 return {
@@ -892,7 +914,7 @@ class HealthStateService {
 
         // Check if the current check has rate limit issues
         const isRateLimit = currentCheck.statusCode === 429 ||
-            (currentCheck.issues && currentCheck.issues.some(i => i.includes('429') || i.includes('Rate Limit')));
+            (Array.isArray(currentCheck.issues) && currentCheck.issues.some(i => typeof i === 'string' && (i.includes('429') || i.includes('Rate Limit'))));
 
         if (targetState === 'degraded' && isRateLimit) {
             return {
@@ -908,7 +930,7 @@ class HealthStateService {
         // FLAPPING SUPPRESSION CHECK (Phase 8 Fix)
         // Check if the monitor is oscillating rapidly between states
         // Definition: > 4 state changes in last 10 minutes
-        const isFlapping = await this.checkFlapping(monitor._id);
+        const isFlapping = monitor?._id ? await this.checkFlapping(monitor._id) : false;
         if (isFlapping && targetState !== previousState) {
             return {
                 status: 'degraded', // Force to degraded if flapping
@@ -1149,6 +1171,33 @@ class HealthStateService {
             return;
         }
 
+        // Skip global verification for SSRF blocked targets (private/loopback IPs cannot be verified by public global nodes)
+        const isSsrfBlocked = checkResult && (
+            checkResult.errorType === 'SSRF_BLOCKED' ||
+            (checkResult.errorMessage && typeof checkResult.errorMessage === 'string' && checkResult.errorMessage.includes('SSRF_PROTECTION'))
+        );
+
+        if (isSsrfBlocked) {
+            console.log(`🛡️ Skipping global verification for ${monitor.name}: Target is private/blocked by SSRF protection.`);
+            return;
+        }
+
+        // SSRF pre-validation before any external verification or local fallback probes
+        try {
+            const preType = (monitor.type || 'HTTPS').toUpperCase();
+            const preTarget = monitor.url;
+            const preCheck = ['HTTP', 'HTTPS'].includes(preType)
+                ? validateMonitorUrl(preTarget)
+                : validateTargetHost(preTarget);
+            if (!preCheck.isValid) {
+                console.log(`🛡️ Skipping global verification for ${monitor.name}: SSRF pre-validation failed: ${preCheck.error}`);
+                return;
+            }
+        } catch (preErr) {
+            console.log(`🛡️ Skipping global verification for ${monitor.name}: SSRF pre-validation error: ${preErr.message}`);
+            return;
+        }
+
         const verificationId = `${monitor._id}-${Date.now()}`;
         const lockKey = `${this.REDIS_STATE_PREFIX}verify_lock:${monitor._id}`;
 
@@ -1185,7 +1234,7 @@ class HealthStateService {
                 const urlObj = new URL(monitor.url.startsWith('http') ? monitor.url : `https://${monitor.url}`);
                 // Include pathname to differentiate /status/200 from /status/429
                 cacheKey = `${monitorType}:${urlObj.hostname}${urlObj.pathname}`;
-            } catch {
+            } catch (err) {
                 cacheKey = `${monitorType}:${monitor.url}`;
             }
 
@@ -1194,16 +1243,37 @@ class HealthStateService {
             if (cached && (Date.now() - cached.timestamp) < this.verificationCacheTTL) {
                 console.log(`⚡ Using cached verification result for ${cacheKey} (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
                 globalResults = cached.result;
-            } else if (monitorType === 'SSL') {
-                globalResults = await this.sslProvider.verify(monitor);
-                // Cache the result
-                this.verificationCache.set(cacheKey, { result: globalResults, timestamp: Date.now() });
             } else {
-                // Use request queue for check-host.net to avoid rate limits
-                // Queue handles concurrency (5) and delay (1.5s) for faster verification
-                globalResults = await this.requestQueue.add(() => this.checkHostProvider.verify(monitor));
-                // Cache the result
-                this.verificationCache.set(cacheKey, { result: globalResults, timestamp: Date.now() });
+                if (cached) {
+                    this.verificationCache.delete(cacheKey);
+                }
+                // Memory leak protection: Evict stale entries when cache exceeds 100 items
+                if (this.verificationCache.size > 100) {
+                    const now = Date.now();
+                    for (const [k, v] of this.verificationCache.entries()) {
+                        if (now - v.timestamp >= this.verificationCacheTTL) {
+                            this.verificationCache.delete(k);
+                        }
+                    }
+                    if (this.verificationCache.size > 100) {
+                        const oldestKey = this.verificationCache.keys().next().value;
+                        this.verificationCache.delete(oldestKey);
+                    }
+                }
+
+                if (monitorType === 'SSL') {
+                    globalResults = await this.sslProvider.verify(monitor);
+                    if (Array.isArray(globalResults) && globalResults.length > 0) {
+                        this.verificationCache.set(cacheKey, { result: globalResults, timestamp: Date.now() });
+                    }
+                } else {
+                    // Use request queue for check-host.net to avoid rate limits
+                    globalResults = await this.requestQueue.add(() => this.checkHostProvider.verify(monitor));
+                    // Never cache empty results (e.g. rate-limited) — would poison subsequent verifications
+                    if (Array.isArray(globalResults) && globalResults.length > 0) {
+                        this.verificationCache.set(cacheKey, { result: globalResults, timestamp: Date.now() });
+                    }
+                }
             }
 
             if (!globalResults || globalResults.length === 0) {
@@ -1376,6 +1446,37 @@ class HealthStateService {
     async performRemoteVerification(monitor, location, originalIsUp = false, originalResponseTime = 0) {
         const startTime = Date.now();
         const timeout = Math.min(monitor.timeout || 10000, 15000); // Max 15s for verification
+
+        // SSRF guard: never probe private/blocked targets from verification fallbacks
+        try {
+            const vType = (monitor.type || 'HTTPS').toUpperCase();
+            const vCheck = ['HTTP', 'HTTPS'].includes(vType)
+                ? validateMonitorUrl(monitor.url)
+                : validateTargetHost(monitor.url);
+            if (!vCheck.isValid) {
+                return {
+                    location,
+                    isUp: false,
+                    responseTime: Date.now() - startTime,
+                    error: `SSRF_BLOCKED: ${vCheck.error}`,
+                    errorCode: 'SSRF_BLOCKED',
+                    timestamp: new Date().toISOString(),
+                    success: false,
+                    real: true
+                };
+            }
+        } catch (vErr) {
+            return {
+                location,
+                isUp: false,
+                responseTime: Date.now() - startTime,
+                error: `SSRF_BLOCKED: ${vErr.message}`,
+                errorCode: 'SSRF_BLOCKED',
+                timestamp: new Date().toISOString(),
+                success: false,
+                real: true
+            };
+        }
 
         try {
             const monitorType = (monitor.type || 'HTTPS').toUpperCase();
@@ -1695,24 +1796,37 @@ class HealthStateService {
     }
 
     /**
-     * Perform real Ping (ICMP) check using system ping command
+     * Perform real Ping (ICMP) check using system ping command (no shell)
      */
     async performPingCheck(url, timeout) {
-        const execAsync = promisify(exec);
-        let hostname = url.replace(/^https?:\/\//, '').split(':')[0].split('/')[0];
+        const execFileAsync = promisify(execFile);
+        // Strip protocol/path/port; reject shell metacharacters (command-injection guard)
+        let hostname = (url || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split('?')[0];
+        // Handle [IPv6]:port
+        if (hostname.startsWith('[')) {
+            const end = hostname.indexOf(']');
+            hostname = end !== -1 ? hostname.slice(1, end) : hostname.replace(/[\[\]]/g, '');
+        } else if (!/^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(hostname)) {
+            // Only strip :port for non-IPv6 (IPv6 contains multiple colons)
+            hostname = hostname.split(':')[0];
+        }
+        if (!hostname || /[^a-zA-Z0-9.\-_:]/.test(hostname) || /[;|&$`\\!]/.test(url || '')) {
+            return { isUp: false, latency: null };
+        }
 
         const isWindows = process.platform === 'win32';
         const timeoutSec = Math.ceil(timeout / 1000);
 
-        let pingCommand;
+        let pingArgs;
+        let pingBin = 'ping';
         if (isWindows) {
-            pingCommand = `ping -n 1 -w ${timeout} ${hostname}`;
+            pingArgs = ['-n', '1', '-w', String(timeout), hostname];
         } else {
-            pingCommand = `ping -c 1 -W ${timeoutSec} ${hostname}`;
+            pingArgs = ['-c', '1', '-W', String(timeoutSec), hostname];
         }
 
         try {
-            const { stdout } = await execAsync(pingCommand, { timeout: timeout + 2000 });
+            const { stdout } = await execFileAsync(pingBin, pingArgs, { timeout: timeout + 2000 });
 
             // Parse latency from output
             const timeMatch = stdout.match(/time[=<](\d+\.?\d*)\s*ms/i);
@@ -1734,9 +1848,8 @@ class HealthStateService {
      * @param {Object} alertPayload - The alert data
      */
     publishAlert(monitor, alertPayload) {
-        // In a real system, this would emit to Socket.io, publish to Redis, etc.
-        // For now, we'll log it
-        console.log(`🚨 ALERT: ${alertPayload.msg} | Monitor: ${monitor.name} | Level: ${alertPayload.level}`);
+        // Real-time UI notification via Socket.IO (does not send email)
+        console.log(`📡 [Socket.IO Event] ${alertPayload.level}: ${alertPayload.msg} | Monitor: ${monitor.name}`);
 
         // Emit to Socket.io if available
         try {

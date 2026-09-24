@@ -1,10 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
   <defs>
-    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3b82f6" />
-      <stop offset="100%" stop-color="#8b5cf6" />
+    <!-- Background Shield Gradient -->
+    <linearGradient id="pgBgGrad" x1="64" y1="8" x2="64" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f2b5c" />
+      <stop offset="50%" stop-color="#091838" />
+      <stop offset="100%" stop-color="#050c1e" />
     </linearGradient>
+
+    <!-- Outer Border Glow Gradient -->
+    <linearGradient id="pgBorderGrad" x1="20" y1="8" x2="108" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="45%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+
+    <!-- Pulse Line Gradient -->
+    <linearGradient id="pgPulseGrad" x1="28" y1="64" x2="100" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="40%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#67e8f9" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Subtle Ambient Glow -->
+    <filter id="pgGlow" x="0" y="0" width="128" height="128" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+      <feMerge>
+        <feMergeNode in="coloredBlur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
   </defs>
-  <path d="M50 10C28 10 16 18 16 18v32c0 22 34 40 34 40s34-18 34-40V18s-12-8-34-8z" fill="url(#shieldGrad)"/>
-  <path d="M26 50h10l6-12 10 24 8-12h14" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Outer Protective Shield Contour -->
+  <path d="M64 10 C90 10 106 18 108 42 C108 72 86 98 64 118 C42 98 20 72 20 42 C22 18 38 10 64 10 Z" 
+        fill="url(#pgBgGrad)" 
+        stroke="url(#pgBorderGrad)" 
+        stroke-width="5" 
+        stroke-linejoin="round"/>
+
+  <!-- Inner Subtle Protective Crest Line -->
+  <path d="M64 19 C84 19 97 25 99 44 C99 68 81 89 64 104 C47 89 29 68 29 44 C31 25 44 19 64 19 Z" 
+        fill="none" 
+        stroke="#38bdf8" 
+        stroke-width="1.2" 
+        stroke-opacity="0.3" />
+
+  <!-- Pulse / Heartbeat Telemetry Waveform -->
+  <path d="M30 64 H44 L51 49 L60 84 L69 32 L78 72 L85 64 H98" 
+        fill="none" 
+        stroke="url(#pgPulseGrad)" 
+        stroke-width="6.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        filter="url(#pgGlow)"/>
+
+  <!-- Apex Telemetry Beacon Dot (Peak at 69, 32) -->
+  <circle cx="69" cy="32" r="7.5" fill="#38bdf8" opacity="0.4" />
+  <circle cx="69" cy="32" r="3.5" fill="#ffffff" />
 </svg>

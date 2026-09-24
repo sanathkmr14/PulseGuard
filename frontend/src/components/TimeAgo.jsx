@@ -1,7 +1,33 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
-const TimeAgo = ({ timestamp, addSuffix = true }) => {
+export const formatCompactTimeAgo = (date, addSuffix = true) => {
+    if (!date) return 'Never';
+    const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return 'Invalid date';
+
+    const diffInSeconds = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+
+    if (diffInSeconds < 5) return 'Just now';
+    if (diffInSeconds < 60) return addSuffix ? `${diffInSeconds}s ago` : `${diffInSeconds}s`;
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return addSuffix ? `${diffInMinutes}m ago` : `${diffInMinutes}m`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return addSuffix ? `${diffInHours}h ago` : `${diffInHours}h`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return addSuffix ? `${diffInDays}d ago` : `${diffInDays}d`;
+
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) return addSuffix ? `${diffInMonths}mo ago` : `${diffInMonths}mo`;
+
+    const diffInYears = Math.floor(diffInDays / 365);
+    return addSuffix ? `${diffInYears}y ago` : `${diffInYears}y`;
+};
+
+const TimeAgo = ({ timestamp, addSuffix = true, compact = true }) => {
     // Force update functionality
     const [, setTick] = useState(0);
 
@@ -9,9 +35,9 @@ const TimeAgo = ({ timestamp, addSuffix = true }) => {
         // Determine smart interval based on how recent the timestamp is
         const calcInterval = () => {
             if (!timestamp) return 60000;
-            const diffInSeconds = Math.abs((new Date() - new Date(timestamp)) / 1000);
+            const diffInSeconds = Math.abs((Date.now() - new Date(timestamp).getTime()) / 1000);
 
-            if (diffInSeconds < 60) return 1000;      // Every second if < 1 minute (shows "less than 5 seconds ago")
+            if (diffInSeconds < 60) return 10000;     // Every 10s for recent checks (prevents constant re-render churn)
             if (diffInSeconds < 3600) return 30000;   // Every 30s if < 1 hour
             return 60000;                             // Every minute otherwise
         };
@@ -42,9 +68,13 @@ const TimeAgo = ({ timestamp, addSuffix = true }) => {
         // Valid date check
         if (isNaN(date.getTime())) return <span>Invalid date</span>;
 
+        const text = compact
+            ? formatCompactTimeAgo(date, addSuffix)
+            : formatDistanceToNow(date, { addSuffix, includeSeconds: true });
+
         return (
             <span title={date.toLocaleString()}>
-                {formatDistanceToNow(date, { addSuffix, includeSeconds: true })}
+                {text}
             </span>
         );
     } catch (e) {

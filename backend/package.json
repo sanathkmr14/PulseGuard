@@ -10,7 +10,7 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest --detectOpenHandles",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest --watch",
     "test:integration": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest tests/integration --detectOpenHandles",
-    "test:unit": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest tests/unit",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest tests/unit --forceExit",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules NODE_ENV=test jest --coverage"
   },
   "keywords": [

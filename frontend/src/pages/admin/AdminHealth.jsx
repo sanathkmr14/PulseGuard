@@ -28,12 +28,16 @@ const HealthCard = ({ title, status, details, color }) => (
             </span>
         </div>
         <div className="space-y-2">
-            {Object.entries(details).map(([key, value]) => (
-                <div key={key} className="flex justify-between text-sm">
-                    <span className="text-slate-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                    <span className="text-white font-mono">{formatValue(key, value)}</span>
-                </div>
-            ))}
+            {details ? (
+                Object.entries(details).map(([key, value]) => (
+                    <div key={key} className="flex justify-between text-sm">
+                        <span className="text-slate-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="text-white font-mono">{formatValue(key, value)}</span>
+                    </div>
+                ))
+            ) : (
+                <p className="text-slate-500 text-xs">No details available</p>
+            )}
         </div>
     </div>
 );

@@ -42,13 +42,22 @@ const httpServer = http.createServer((req, res) => {
         res.end('Not Found');
     }
 });
+httpServer.on('connection', (socket) => {
+    socket.on('error', () => {});
+});
+httpServer.on('clientError', (err, socket) => {
+    socket.on('error', () => {});
+    socket.destroy();
+});
 
 const tcpServer = net.createServer((socket) => {
+    socket.on('error', () => {});
     socket.write('TCP_OK');
     socket.end();
 });
 
 const udpServer = dgram.createSocket('udp4');
+udpServer.on('error', () => {});
 udpServer.on('message', (msg, rinfo) => {
     if (msg.toString() === 'PING') {
         udpServer.send('PONG', rinfo.port, rinfo.address);
@@ -56,6 +65,7 @@ udpServer.on('message', (msg, rinfo) => {
 });
 
 const smtpServer = net.createServer((socket) => {
+    socket.on('error', () => {});
     socket.write('220 pulse-guard-smtp\r\n');
     socket.on('data', (data) => {
         const cmd = data.toString().trim().toUpperCase();
@@ -70,14 +80,17 @@ const smtpServer = net.createServer((socket) => {
 
 async function startServers() {
     return Promise.all([
-        new Promise(resolve => httpServer.listen(PORT_HTTP, () => resolve())),
-        new Promise(resolve => tcpServer.listen(PORT_TCP, () => resolve())),
-        new Promise(resolve => udpServer.bind(PORT_UDP, () => resolve())),
-        new Promise(resolve => smtpServer.listen(PORT_SMTP, () => resolve()))
+        new Promise(resolve => httpServer.listen(PORT_HTTP, '127.0.0.1', () => resolve())),
+        new Promise(resolve => tcpServer.listen(PORT_TCP, '127.0.0.1', () => resolve())),
+        new Promise(resolve => udpServer.bind(PORT_UDP, '127.0.0.1', () => resolve())),
+        new Promise(resolve => smtpServer.listen(PORT_SMTP, '127.0.0.1', () => resolve()))
     ]);
 }
 
 async function stopServers() {
+    if (httpServer.closeAllConnections) httpServer.closeAllConnections();
+    if (tcpServer.closeAllConnections) tcpServer.closeAllConnections();
+    if (smtpServer.closeAllConnections) smtpServer.closeAllConnections();
     return Promise.all([
         new Promise(resolve => httpServer.close(resolve)),
         new Promise(resolve => tcpServer.close(resolve)),
@@ -126,7 +139,7 @@ describe('Comprehensive Protocol Testing', () => {
         allCodes.sort((a, b) => a.code - b.code);
 
         for (const { code, name } of allCodes) {
-            const monitor = { type: 'HTTP', url: `http://localhost:${PORT_HTTP}/${code}`, timeout: 2000, degradedThresholdMs: 500 };
+            const monitor = { type: 'HTTP', url: `http://127.0.0.1:${PORT_HTTP}/${code}`, timeout: 2000, degradedThresholdMs: 500 };
 
             try {
                 const result = await MonitorRunner.run(monitor);
@@ -147,16 +160,16 @@ describe('Comprehensive Protocol Testing', () => {
 
         // --- Protocols (TCP, UDP, DNS, SMTP, SSL) ---
         // TCP
-        const tcpResult = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: PORT_TCP });
+        const tcpResult = await MonitorRunner.run({ type: 'TCP', url: '127.0.0.1', port: PORT_TCP });
         logResult('TCP', 'Connect Success', 'UP', tcpResult.healthState, tcpResult.isUp);
         expect(tcpResult.isUp).toBe(true);
 
-        const tcpFail = await MonitorRunner.run({ type: 'TCP', url: 'localhost', port: 9999, timeout: 500 });
+        const tcpFail = await MonitorRunner.run({ type: 'TCP', url: '127.0.0.1', port: 9999, timeout: 500 });
         logResult('TCP', 'Connect Refused', 'DOWN', tcpFail.healthState, !tcpFail.isUp);
         expect(tcpFail.isUp).toBe(false);
 
         // UDP
-        const udpResult = await MonitorRunner.run({ type: 'UDP', url: 'localhost', port: PORT_UDP });
+        const udpResult = await MonitorRunner.run({ type: 'UDP', url: '127.0.0.1', port: PORT_UDP });
         logResult('UDP', 'Send Success', 'UP', udpResult.healthState, udpResult.healthState === 'UP');
         expect(udpResult.healthState).toBe('UP');
 
@@ -170,7 +183,7 @@ describe('Comprehensive Protocol Testing', () => {
         expect(dnsFail.isUp).toBe(false);
 
         // SMTP
-        const smtpResult = await MonitorRunner.run({ type: 'SMTP', url: 'localhost', port: PORT_SMTP });
+        const smtpResult = await MonitorRunner.run({ type: 'SMTP', url: '127.0.0.1', port: PORT_SMTP });
         logResult('SMTP', 'Connect Success', 'UP', smtpResult.healthState, smtpResult.isUp);
         expect(smtpResult.isUp).toBe(true);
 
@@ -180,7 +193,7 @@ describe('Comprehensive Protocol Testing', () => {
         expect(sslResult.healthState).toBe('UP');
 
         // SSL Error (Real World - Self Signed)
-        const sslErr = await MonitorRunner.run({ type: 'SSL', url: `https://localhost:${PORT_HTTP}` });
+        const sslErr = await MonitorRunner.run({ type: 'SSL', url: `https://127.0.0.1:${PORT_HTTP}` });
         logResult('SSL', 'Handshake Fail', 'DOWN', sslErr.healthState, !sslErr.isUp);
         expect(sslErr.isUp).toBe(false);
     }, 45000); // 45 seconds timeout for full run

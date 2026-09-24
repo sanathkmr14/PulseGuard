@@ -368,7 +368,7 @@ const AdminDashboard = () => {
                                 <tr key={user._id} className="group hover:bg-slate-700/30 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+                                            <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
                                                 {user.name.charAt(0).toUpperCase()}
                                             </div>
                                             <div>

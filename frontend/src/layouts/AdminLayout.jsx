@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import Logo from '../components/Logo';
 
 const AdminLayout = () => {
     const { adminUser: user, logout } = useAdminAuth();
@@ -85,14 +86,7 @@ const AdminLayout = () => {
                     {/* Sliding Sidebar */}
                     <aside className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-900 border-r border-slate-800 p-6 transform transition-transform duration-300 ease-in-out">
                         <div className="mb-8 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                </div>
-                                <span className="text-lg font-bold text-white tracking-tight">PulseGuard <span className="text-indigo-400 font-normal ml-0.5">Admin</span></span>
-                            </div>
+                            <Logo size="sm" showText={true} subtitle="Admin" />
                             <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400 hover:text-white rounded-full hover:bg-slate-800">
                                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -103,7 +97,7 @@ const AdminLayout = () => {
                             {navItems.map(item => (
                                 <Link key={item.path} to={item.path}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive(item.path)
-                                        ? 'bg-indigo-600/10 text-indigo-400 font-medium'
+                                        ? 'bg-blue-600/15 text-blue-400 font-medium'
                                         : 'text-slate-400 hover:bg-slate-800/50 hover:text-white font-medium'
                                         }`}>
                                     {item.icon}
@@ -118,12 +112,7 @@ const AdminLayout = () => {
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-slate-800 z-30">
                 <div className="flex items-center h-16 px-6 border-b border-slate-800">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center mr-3">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                    </div>
-                    <span className="text-lg font-bold text-white tracking-tight">PulseGuard <span className="text-indigo-400 font-normal ml-1">Admin</span></span>
+                    <Logo size="sm" showText={true} subtitle="Admin" />
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -132,7 +121,7 @@ const AdminLayout = () => {
                             key={item.path}
                             to={item.path}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive(item.path)
-                                ? 'bg-indigo-600/10 text-indigo-400'
+                                ? 'bg-blue-600/15 text-blue-400'
                                 : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                                 }`}
                         >

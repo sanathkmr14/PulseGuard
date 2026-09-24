@@ -22,11 +22,13 @@ import incidentRoutes from './routes/incident.routes.js';
 import statsRoutes from './routes/stats.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import maintenanceMode from './middlewares/maintenance.middleware.js';
+import safeErrorMessage from './utils/safe-error.js';
 
 
 // Import services
 import schedulerService from './services/scheduler.service.js';
 import connectDB from './config/db.js';
+import dbMirror from './services/db-mirror.service.js';
 
 // Initialize express app
 const app = express();
@@ -35,22 +37,36 @@ const httpServer = createServer(app);
 // Trust proxy: Essential if behind Load Balancer/Proxy (Heroku, AWS, Nginx)
 app.set('trust proxy', 1);
 
-// ✅ CORS must be the VERY FIRST middleware to handle OPTIONS preflight
-// requests before any other middleware (helmet, rate limiter, maintenance)
-// can interfere and cause 405/403 errors on cross-origin requests.
-// [M6 SECURITY FIX] Guard against accidental wildcard CORS with credentials.
-if (env.FRONTEND_URL === '*') {
-    throw new Error('FATAL: FRONTEND_URL cannot be wildcard (*) when credentials:true is set on CORS.');
-}
-app.use(cors({
-    origin: env.FRONTEND_URL,
+const allowedOrigins = (env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map(url => url.trim());
+
+const isOriginAllowed = (origin) => {
+    if (!origin) return true; // Allow non-browser requests (cron-job.org, curl, server-to-server)
+    if (allowedOrigins.includes(origin)) return true;
+    if (/^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(origin)) return true;
+    if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return true;
+    return false;
+};
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`Blocked by CORS: origin ${origin} not allowed`);
+            callback(new Error(`CORS blocked for origin: ${origin}`));
+        }
+    },
     credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 
 // ⚡ Keep-Alive ping endpoint — registered FIRST, before ALL middleware.
 // This ensures Render's health checks and cron-job.org keep-alive pings
 // always get a 200 response, even during startup or service degradation.
-app.get('/ping', (req, res) => res.status(200).send('pong'));
+app.get(['/ping', '/api/ping'], (req, res) => res.status(200).send('pong'));
 
 // Phase 6: JWT Middleware for Socket.IO
 import jwt from 'jsonwebtoken';
@@ -58,8 +74,11 @@ import User from './models/User.js';
 
 const io = new Server(httpServer, {
     cors: {
-        origin: env.FRONTEND_URL,
-        methods: ['GET', 'POST']
+        origin: (origin, callback) => {
+            callback(null, isOriginAllowed(origin));
+        },
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
 
@@ -207,13 +226,19 @@ app.use(hpp());
 // Security Middleware: Rate Limiter for API protection (IP-based)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 500, // Limit each IP to 500 requests per windowMs
+    max: process.env.NODE_ENV === 'production' ? 1000 : 50000, // Generous in development, 1000 in production
     message: {
         success: false,
         message: 'Too many requests, please try again later'
     },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    skip: (req) => process.env.NODE_ENV !== 'production' && (
+        req.ip === '127.0.0.1' ||
+        req.ip === '::1' ||
+        req.ip === '::ffff:127.0.0.1' ||
+        req.ip === 'localhost'
+    )
 });
 app.use('/api/', limiter);
 app.use('/api/', maintenanceMode); // Phase 11: Global maintenance mode enforcement
@@ -241,7 +266,7 @@ app.use((req, res, next) => {
 // NOTE: /ping is registered at the top of this file (before all middleware)
 
 // Enhanced Health Check: Reports DB and Scheduler status
-app.get('/health', async (req, res) => {
+app.get(['/health', '/api/health'], async (req, res) => {
     try {
         // Check database connection status
         const dbStates = {
@@ -330,10 +355,13 @@ schedulerService.setIO(io);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+    if (res.headersSent) {
+        return next(err);
+    }
     console.error('Error:', err);
     res.status(err.status || 500).json({
         success: false,
-        message: err.message || 'Internal server error'
+        message: safeErrorMessage(err, 'Internal server error')
     });
 });
 
@@ -363,6 +391,9 @@ const startServer = async () => {
 
         // Connect to database
         await connectDB();
+
+        // Initialize Dual-Write Mirror (mirrors changes across Localhost & Atlas Cloud)
+        await dbMirror.initialize();
 
         // Initialize Redis Stream Consumer (Reliable Event Processing)
         initRedisStreamConsumer();

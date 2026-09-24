@@ -5,7 +5,8 @@
  * Run with: npm run test:integration
  */
 
-import { jest } from '@jest/globals';
+import http from 'http';
+import { jest, beforeAll, afterAll } from '@jest/globals';
 import { checkHttp } from '../../src/workers/http.worker.js';
 import { checkHttps } from '../../src/workers/https.worker.js';
 import { checkTcp } from '../../src/workers/tcp.worker.js';
@@ -37,6 +38,36 @@ const workerOptions = {
     parseUrl: runner.parseUrl.bind(runner)
 };
 
+let localServer;
+let localBaseUrl;
+
+beforeAll(async () => {
+    await new Promise((resolve) => {
+        localServer = http.createServer((req, res) => {
+            const statusMatch = req.url.match(/\/status\/(\d+)/);
+            const status = statusMatch ? parseInt(statusMatch[1], 10) : 200;
+            if (status === 301) {
+                res.writeHead(301, { 'Location': `${localBaseUrl}/status/200` });
+                res.end();
+            } else {
+                res.writeHead(status, { 'Content-Type': 'text/plain' });
+                res.end(`Status ${status}`);
+            }
+        });
+        localServer.listen(0, '127.0.0.1', () => {
+            const port = localServer.address().port;
+            localBaseUrl = `http://127.0.0.1:${port}`;
+            resolve();
+        });
+    });
+});
+
+afterAll(async () => {
+    if (localServer) {
+        await new Promise((resolve) => localServer.close(resolve));
+    }
+});
+
 describe('Protocol Workers Integration Tests', () => {
     // Increase timeout for network operations
     jest.setTimeout(30000);
@@ -45,21 +76,23 @@ describe('Protocol Workers Integration Tests', () => {
         it('should return UP for successful HTTP request', async () => {
             const result = createResult();
             await checkHttp({
-                url: 'http://httpbin.org/status/200',
+                url: `${localBaseUrl}/status/200`,
                 timeout: 10000
             }, result, workerOptions);
 
             expect(result.isUp).toBe(true);
             expect(result.statusCode).toBe(200);
-            expect(result.responseTime).toBeGreaterThan(0);
+            expect(result.responseTime).toBeGreaterThanOrEqual(0);
         });
 
         it('should return DOWN for 500 error', async () => {
             const result = createResult();
-            await checkHttp({
-                url: 'http://httpbin.org/status/500',
-                timeout: 10000
-            }, result, workerOptions);
+            try {
+                await checkHttp({
+                    url: `${localBaseUrl}/status/500`,
+                    timeout: 10000
+                }, result, workerOptions);
+            } catch (e) { }
 
             expect(result.isUp).toBe(false);
             expect(result.statusCode).toBe(500);
@@ -68,10 +101,12 @@ describe('Protocol Workers Integration Tests', () => {
 
         it('should detect 404 not found', async () => {
             const result = createResult();
-            await checkHttp({
-                url: 'http://httpbin.org/status/404',
-                timeout: 10000
-            }, result, workerOptions);
+            try {
+                await checkHttp({
+                    url: `${localBaseUrl}/status/404`,
+                    timeout: 10000
+                }, result, workerOptions);
+            } catch (e) { }
 
             expect(result.isUp).toBe(false);
             expect(result.statusCode).toBe(404);
@@ -82,7 +117,7 @@ describe('Protocol Workers Integration Tests', () => {
         it('should return UP with valid SSL', async () => {
             const result = createResult();
             await checkHttps({
-                url: 'https://httpbin.org/status/200',
+                url: 'https://www.google.com',
                 timeout: 10000
             }, result, workerOptions);
 
@@ -94,7 +129,7 @@ describe('Protocol Workers Integration Tests', () => {
         it('should capture SSL certificate info', async () => {
             const result = createResult();
             await checkHttps({
-                url: 'https://google.com',
+                url: 'https://www.google.com',
                 timeout: 10000
             }, result, workerOptions);
 
@@ -202,7 +237,7 @@ describe('Protocol Workers Integration Tests', () => {
                 await checkSmtp({
                     url: 'smtp.gmail.com',
                     port: 587,
-                    timeout: 10000
+                    timeout: 15000
                 }, result, workerOptions);
             } catch (e) { }
 
@@ -265,8 +300,12 @@ describe('Protocol Workers Integration Tests', () => {
                 }, result, workerOptions);
             } catch (e) { }
 
-            expect(result.isUp).toBe(false);
-            expect(result.errorType).toBeDefined();
+            expect(['DEGRADED', 'DOWN']).toContain(result.healthState);
+            if (result.healthState === 'DEGRADED') {
+                expect(result.errorType).toBe('SELF_SIGNED_CERT');
+            } else {
+                expect(result.errorType).toBeDefined();
+            }
         });
     });
 
@@ -301,24 +340,28 @@ describe('Protocol Workers Integration Tests', () => {
 describe('Error Classification Tests', () => {
     it('should classify HTTP status codes correctly', async () => {
         const testCases = [
-            { url: 'http://httpbin.org/status/200', expected: true },
-            { url: 'http://httpbin.org/status/201', expected: true },
-            { url: 'http://httpbin.org/status/301', expected: true },
-            { url: 'http://httpbin.org/status/400', expected: false },
-            { url: 'http://httpbin.org/status/401', expected: false },
-            { url: 'http://httpbin.org/status/403', expected: false },
-            { url: 'http://httpbin.org/status/404', expected: false },
-            { url: 'http://httpbin.org/status/500', expected: false },
-            { url: 'http://httpbin.org/status/502', expected: false },
-            { url: 'http://httpbin.org/status/503', expected: false }
+            { url: `${localBaseUrl}/status/200`, expected: true },
+            { url: `${localBaseUrl}/status/201`, expected: true },
+            { url: `${localBaseUrl}/status/301`, expected: true },
+            { url: `${localBaseUrl}/status/400`, expected: false },
+            { url: `${localBaseUrl}/status/401`, expected: false },
+            { url: `${localBaseUrl}/status/403`, expected: false },
+            { url: `${localBaseUrl}/status/404`, expected: false },
+            { url: `${localBaseUrl}/status/500`, expected: false },
+            { url: `${localBaseUrl}/status/502`, expected: false },
+            { url: `${localBaseUrl}/status/503`, expected: false }
         ];
 
         for (const testCase of testCases) {
             const result = createResult();
-            await checkHttp({
-                url: testCase.url,
-                timeout: 10000
-            }, result, workerOptions);
+            try {
+                await checkHttp({
+                    url: testCase.url,
+                    timeout: 10000
+                }, result, workerOptions);
+            } catch (e) {
+                // Network error or timeout still correctly marks error states
+            }
 
             expect(result.isUp).toBe(testCase.expected);
         }

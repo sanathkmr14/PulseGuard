@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Logo from '../components/Logo';
 
 const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
@@ -12,6 +13,14 @@ const Login = () => {
 
     const location = useLocation();
     const message = location.state?.message;
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') navigate('/');
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [navigate]);
 
     if (isAuthenticated) {
         return <Navigate to="/app/dashboard" replace />;
@@ -31,26 +40,44 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] px-4">
+        <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] px-4 relative">
+            {/* Top-Right Close 'X' Button */}
+            <Link
+                to="/"
+                className="fixed top-4 right-4 sm:top-6 sm:right-6 p-2.5 rounded-full bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all duration-200 z-50 flex items-center justify-center shadow-lg group cursor-pointer"
+                title="Close and return to home"
+                aria-label="Close"
+            >
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </Link>
+
             <div className="w-full max-w-md">
                 {/* Logo */}
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent mb-2">
-                        ⚡ PulseGuard
-                    </h1>
-                    <p className="text-gray-500">Sign in to monitor your services</p>
+                <div className="flex flex-col items-center justify-center mb-8 text-center">
+                    <Link to="/" className="inline-block hover:opacity-95 transition-opacity">
+                        <Logo size="lg" showText={true} textClassName="text-3xl font-extrabold text-white tracking-tight" />
+                    </Link>
+                    <p className="text-slate-400 text-sm mt-2">Sign in to monitor your services 24/7</p>
                 </div>
 
                 {/* Card */}
                 <div className="bg-[#12121a] border border-gray-800/50 rounded-2xl p-8">
                     {message && (
-                        <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 text-sm">
-                            {message}
+                        <div className="mb-4 px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/25 rounded-lg text-emerald-400 text-xs font-medium flex items-center gap-2">
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>{message}</span>
                         </div>
                     )}
                     {error && (
-                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-                            {error}
+                        <div className="mb-4 px-3.5 py-2 bg-red-500/10 border border-red-500/25 rounded-lg text-red-400 text-xs font-medium flex items-center gap-2">
+                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span>{error}</span>
                         </div>
                     )}
 
@@ -65,7 +92,7 @@ const Login = () => {
                                 required
                                 autoComplete="email"
                                 placeholder="you@example.com"
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                             />
                         </div>
 
@@ -80,7 +107,7 @@ const Login = () => {
                                     required
                                     autoComplete="current-password"
                                     placeholder="••••••••"
-                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all pr-12"
+                                    className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-12"
                                 />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors">
@@ -94,7 +121,7 @@ const Login = () => {
                         </div>
 
                         <div className="text-right">
-                            <Link to="/forgot-password" className="text-sm text-indigo-400 hover:text-indigo-300 font-medium">
+                            <Link to="/forgot-password" className="text-sm text-blue-500 hover:text-blue-400 font-medium transition-colors">
                                 Forgot password?
                             </Link>
                         </div>
@@ -102,7 +129,7 @@ const Login = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-600/20"
+                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-600/25 hover:shadow-blue-500/35 hover:-translate-y-0.5 disabled:hover:translate-y-0"
                         >
                             {loading ? (
                                 <span className="flex items-center justify-center gap-2">
@@ -115,7 +142,7 @@ const Login = () => {
 
                     <div className="mt-6 text-center text-gray-500">
                         Don't have an account?{' '}
-                        <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium">
+                        <Link to="/register" className="text-blue-500 hover:text-blue-400 font-medium transition-colors">
                             Sign up
                         </Link>
                     </div>

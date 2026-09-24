@@ -1,4 +1,5 @@
 
+process.env.ALLOW_PRIVATE_IPS = 'true';
 import http from 'http';
 import MonitorRunner from '../../src/services/runner.js';
 import HTTP_STATUS_CODES from '../../src/utils/http-status-codes.js';
@@ -13,47 +14,29 @@ const TEST_PORT_BASE = 4000;
 // Specific mappings for Deep Validation
 const EXCEPTIONS = {
     // Rate Limiting
-    429: { status: 'DEGRADED', errorType: 'HTTP_RATE_LIMIT', severity: 0.5 },
-
-    // Degraded Client Errors
-    400: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-    401: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-    403: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-    404: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-    408: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-    418: { status: 'DEGRADED', errorType: 'HTTP_CLIENT_ERROR', severity: 0.6 },
-
-    // Special Error Types
-    502: { status: 'DOWN', errorType: 'HTTP_SERVER_ERROR', severity: 1.0 },
-    503: { status: 'DOWN', errorType: 'HTTP_SERVER_ERROR', severity: 1.0 },
-    504: { status: 'DOWN', errorType: 'HTTP_SERVER_ERROR', severity: 1.0 },
-
-    // 1xx Informational codes now treated as DEGRADED (not DOWN or UP)
-    // since they indicate the server is processing but not complete
-    100: { status: 'DEGRADED', errorType: 'HTTP_INFORMATIONAL', severity: 0.6 },
-    101: { status: 'DEGRADED', errorType: 'HTTP_INFORMATIONAL', severity: 0.6 },
-    102: { status: 'DEGRADED', errorType: 'HTTP_INFORMATIONAL', severity: 0.6 },
-    103: { status: 'DEGRADED', errorType: 'HTTP_INFORMATIONAL', severity: 0.6 },
+    429: { status: 'DEGRADED', errorType: 'HTTP_RATE_LIMIT', severity: 0.6 }
 };
 
 function getExpectedState(code) {
     // 1. Check Exceptions first
     if (EXCEPTIONS[code]) return EXCEPTIONS[code];
 
-    // 2. 2xx: Success -> UP
+    // 2. 1xx: Informational -> DEGRADED
+    if (code >= 100 && code < 200) return { status: 'DEGRADED', errorType: 'HTTP_INFORMATIONAL', severity: 0.4 };
+
+    // 3. 2xx: Success -> UP
     if (code >= 200 && code < 300) return { status: 'UP', errorType: 'HTTP_SUCCESS', severity: 0.0 };
 
-    // 3. 3xx: Redirect -> UP (handled as success by axios without followRedirect turned off, but test server returns code directly)
-    // Note: http.worker.js treats 3xx as UP.
-    if (code >= 300 && code < 400) return { status: 'UP', errorType: 'HTTP_REDIRECT', severity: 0.2 };
+    // 4. 3xx: Redirect -> UP
+    if (code >= 300 && code < 400) return { status: 'UP', errorType: 'HTTP_REDIRECT', severity: 0.0 };
 
-    // 4. 4xx: Client Error -> DOWN (Default for non-degraded)
-    if (code >= 400 && code < 500) return { status: 'DOWN', errorType: 'HTTP_CLIENT_ERROR', severity: 0.85 };
+    // 5. 4xx: Client Error -> DOWN
+    if (code >= 400 && code < 500) return { status: 'DOWN', errorType: 'HTTP_CLIENT_ERROR', severity: 0.9 };
 
-    // 5. 5xx: Server Error -> DOWN
+    // 6. 5xx: Server Error -> DOWN
     if (code >= 500 && code < 600) return { status: 'DOWN', errorType: 'HTTP_SERVER_ERROR', severity: 1.0 };
 
-    return { status: 'UNKNOWN', errorType: 'UNKNOWN_ERROR', severity: 0.5 };
+    return { status: 'DOWN', errorType: 'UNKNOWN_ERROR', severity: 0.9 };
 }
 
 // ==========================================

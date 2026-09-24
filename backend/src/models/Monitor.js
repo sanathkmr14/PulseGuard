@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import healthStateService from '../services/health-evaluator.service.js';
+import enhancedAlertService from '../services/enhanced-alert.service.js';
 
 const monitorSchema = new mongoose.Schema({
     user: {
@@ -48,6 +49,11 @@ const monitorSchema = new mongoose.Schema({
         min: 1,
         max: [20, 'Alert threshold cannot exceed 20'] // [H1] Prevent absurdly large values
     },
+    headers: {
+        type: Map,
+        of: String,
+        default: undefined
+    },
     status: {
         type: String,
         enum: ['up', 'down', 'degraded', 'paused', 'unknown'],
@@ -62,7 +68,7 @@ const monitorSchema = new mongoose.Schema({
     },
     sslExpiryThresholdDays: {
         type: Number,
-        default: 30,
+        default: 14,
         min: 1,
         max: 365
     },
@@ -79,6 +85,10 @@ const monitorSchema = new mongoose.Schema({
         default: null
     },
     consecutiveFailures: {
+        type: Number,
+        default: 0
+    },
+    consecutiveDegraded: {
         type: Number,
         default: 0
     },
@@ -111,40 +121,68 @@ const monitorSchema = new mongoose.Schema({
 monitorSchema.index({ user: 1, status: 1 });
 monitorSchema.index({ isActive: 1 });
 monitorSchema.index({ type: 1 });
+monitorSchema.index({ user: 1, url: 1, type: 1 }, { unique: true });
 
-// FIXED: Pre-remove hook for proper cascading delete of checks and incidents
-monitorSchema.pre('deleteOne', { document: true, query: false }, async function () {
+// Shared monitor cascading cleanup helper
+async function cleanupMonitorDependencies(monitorId) {
     try {
         const Check = mongoose.model('Check');
         const Incident = mongoose.model('Incident');
         const schedulerService = (await import('../services/scheduler.service.js')).default;
+        const redisClient = (await import('../config/redis-cache.js')).default;
 
-        console.log(`🗑️  Cascading delete for monitor: ${this._id}`);
+        console.log(`🗑️  Cascading delete for monitor: ${monitorId}`);
 
-        // Remove from scheduler first
-        await schedulerService.removeMonitor(this._id).catch(err =>
-            console.error(`   Scheduler remove failed:`, err.message)
+        // 1. Remove from BullMQ scheduler
+        await schedulerService.removeMonitor(monitorId).catch(err =>
+            console.error(`   Scheduler remove failed for ${monitorId}:`, err.message)
         );
 
-        // Delete all checks and incidents associated with this monitor
+        // 2. Delete all related checks and incidents from MongoDB
         const [checksResult, incidentsResult] = await Promise.all([
-            Check.deleteMany({ monitor: this._id }),
-            Incident.deleteMany({ monitor: this._id })
+            Check.deleteMany({ monitor: monitorId }),
+            Incident.deleteMany({ monitor: monitorId })
         ]);
 
-        console.log(`   ✅ Deleted ${checksResult.deletedCount} checks and ${incidentsResult.deletedCount} incidents`);
+        console.log(`   ✅ Deleted ${checksResult.deletedCount} checks and ${incidentsResult.deletedCount} incidents for ${monitorId}`);
 
-        // Cleanup health state
-        await healthStateService.cleanupState(this._id);
+        // 3. Clean up Redis keys (health state, alert suppression, and manual-check cooldown)
+        await Promise.all([
+            healthStateService.cleanupState(monitorId).catch(err => console.error('HealthState cleanup failed:', err.message)),
+            enhancedAlertService.clearAlertSuppression(monitorId).catch(err => console.error('Alert suppression cleanup failed:', err.message)),
+            redisClient.del(`cooldown:manual-check:${monitorId}`).catch(() => {})
+        ]);
+        console.log(`   ✅ Cleaned up all Redis keys for monitor ${monitorId}`);
     } catch (error) {
         console.error('❌ Monitor cascading delete error:', error);
     }
+}
+
+// Cascading delete hooks
+monitorSchema.pre('deleteOne', { document: true, query: false }, async function () {
+    await cleanupMonitorDependencies(this._id);
+});
+
+// Dual-Write Mirroring hooks
+import dbMirror from '../services/db-mirror.service.js';
+
+monitorSchema.post('save', function (doc) {
+    if (doc) dbMirror.mirrorSave('monitors', doc);
+});
+
+monitorSchema.post('findOneAndUpdate', function (doc) {
+    if (doc) dbMirror.mirrorSave('monitors', doc);
 });
 
 monitorSchema.post('findOneAndDelete', async function (doc) {
     if (doc) {
-        await healthStateService.cleanupState(doc._id);
+        dbMirror.mirrorDelete('monitors', doc._id);
+        await cleanupMonitorDependencies(doc._id);
     }
+});
+
+monitorSchema.post('deleteOne', { document: true, query: false }, function (doc) {
+    if (doc) dbMirror.mirrorDelete('monitors', doc._id);
 });
 
 const Monitor = mongoose.model('Monitor', monitorSchema);

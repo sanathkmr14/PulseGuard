@@ -118,11 +118,25 @@ class CheckHostProvider extends VerificationProvider {
                             continue;
                         }
                     }
+                    // Handle HTTP 429 status carried in payload
+                    if (startResponse.status === 429 || startResponse.data?.status === 429) {
+                        if (retryCount < maxRetries) {
+                            const retryAfter = parseInt(startResponse.headers?.['retry-after'], 10);
+                            const delay = Number.isFinite(retryAfter) ? retryAfter * 1000 : 3000 * (retryCount + 1);
+                            console.log(`⏳ HTTP 429 rate limited, retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${maxRetries})...`);
+                            await new Promise(r => setTimeout(r, delay));
+                            retryCount++;
+                            continue;
+                        }
+                    }
                     break; // Success or non-rate-limit error
                 } catch (err) {
-                    if (retryCount < maxRetries && err.message?.includes('limit')) {
-                        const delay = 3000 * (retryCount + 1);
-                        console.log(`⏳ Rate limited (error), retrying in ${delay / 1000}s...`);
+                    const status = err?.response?.status;
+                    const retryAfterHdr = parseInt(err?.response?.headers?.['retry-after'], 10);
+                    const isRateLimit = status === 429 || (retryCount < maxRetries && err.message?.includes('limit'));
+                    if (isRateLimit && retryCount < maxRetries) {
+                        const delay = Number.isFinite(retryAfterHdr) ? retryAfterHdr * 1000 : 3000 * (retryCount + 1);
+                        console.log(`⏳ Rate limited (${status === 429 ? 'HTTP 429' : 'error'}), retrying in ${delay / 1000}s...`);
                         await new Promise(r => setTimeout(r, delay));
                         retryCount++;
                         continue;
@@ -193,13 +207,26 @@ class CheckHostProvider extends VerificationProvider {
                     }
                 } else if (checkType === 'tcp' && Array.isArray(nodeData) && nodeData[0]) {
                     const tcpResult = nodeData[0];
-                    // check-host TCP result: [1, 0.123, ...] where 1 is success
-                    // Wait, looking at original code: isUp = tcpResult.time !== undefined && !tcpResult.error;
-                    // Let's stick to original logic interpretation if possible, but standard check-host response for TCP is usually object with time/error
-                    isUp = tcpResult.time !== undefined && !tcpResult.error;
-                    responseTime = Math.round((tcpResult.time || 0) * 1000);
-
-                    if (tcpResult.error) error = tcpResult.error;
+                    if (Array.isArray(tcpResult)) {
+                        isUp = tcpResult[0] === 1;
+                        responseTime = Math.round((tcpResult[1] || 0) * 1000);
+                        if (!isUp) error = tcpResult[2] || 'TCP connection failed';
+                    } else {
+                        isUp = tcpResult.time !== undefined && !tcpResult.error;
+                        responseTime = Math.round((tcpResult.time || 0) * 1000);
+                        if (tcpResult.error) error = tcpResult.error;
+                    }
+                } else if (checkType === 'udp' && Array.isArray(nodeData) && nodeData[0]) {
+                    const udpResult = nodeData[0];
+                    if (Array.isArray(udpResult)) {
+                        isUp = udpResult[0] === 1;
+                        responseTime = Math.round((udpResult[1] || 0) * 1000);
+                        if (!isUp) error = udpResult[2] || 'UDP probe failed';
+                    } else {
+                        isUp = udpResult.time !== undefined && !udpResult.error;
+                        responseTime = Math.round((udpResult.time || 0) * 1000);
+                        if (udpResult.error) error = udpResult.error;
+                    }
                 } else if (checkType === 'ping' && Array.isArray(nodeData) && nodeData[0]) {
                     const pingResults = nodeData[0];
                     const successfulPings = pingResults.filter(p => p && p[0] === 'OK');
@@ -209,8 +236,9 @@ class CheckHostProvider extends VerificationProvider {
                     }
                 } else if (checkType === 'dns' && Array.isArray(nodeData) && nodeData[0]) {
                     const dnsResult = nodeData[0];
-                    isUp = dnsResult.A && dnsResult.A.length > 0;
+                    isUp = !!((dnsResult.A && dnsResult.A.length > 0) || (dnsResult.AAAA && dnsResult.AAAA.length > 0) || (dnsResult.CNAME && dnsResult.CNAME.length > 0));
                     responseTime = 0; // DNS doesn't return response time in check-host
+                    if (!isUp && dnsResult.error) error = dnsResult.error;
                 }
 
                 parsedResults.push({

@@ -4,9 +4,9 @@ import { jest } from '@jest/globals';
 import { promisify } from 'util';
 
 const mockExec = jest.fn();
-mockExec[promisify.custom] = (cmd, options) => {
+mockExec[promisify.custom] = (...args) => {
     return new Promise((resolve, reject) => {
-        mockExec(cmd, options, (err, stdout, stderr) => {
+        const cb = (err, stdout, stderr) => {
             if (err) {
                 const error = err instanceof Error ? err : new Error(err.message || String(err));
                 error.stdout = stdout;
@@ -15,12 +15,18 @@ mockExec[promisify.custom] = (cmd, options) => {
             } else {
                 resolve({ stdout, stderr });
             }
-        });
+        };
+        mockExec(...args, cb);
     });
 };
 
 jest.unstable_mockModule('child_process', () => ({
-    exec: mockExec
+    default: {
+        exec: mockExec,
+        execFile: mockExec
+    },
+    exec: mockExec,
+    execFile: mockExec
 }));
 
 // Dynamic import to apply mocks
@@ -62,11 +68,9 @@ PING 8.8.8.8 (8.8.8.8): 56 data bytes
 2 packets transmitted, 2 packets received, 0.0% packet loss
 round-trip min/avg/max/stddev = 20.062/20.581/21.100/0.519 ms
 `;
-        mockExec.mockImplementation((cmd, options, cb) => {
-            if (typeof options === 'function') {
-                cb = options;
-            }
-            cb(null, pingOutput, '');
+        mockExec.mockImplementation((...args) => {
+            const cb = args.find(a => typeof a === 'function');
+            if (cb) cb(null, pingOutput, '');
         });
 
         // Act
@@ -87,11 +91,9 @@ PING 8.8.8.8 (8.8.8.8): 56 data bytes
 2 packets transmitted, 0 packets received, 100.0% packet loss
 `;
         // When ping fails (non-zero exit), exec returns error
-        mockExec.mockImplementation((cmd, options, cb) => {
-            if (typeof options === 'function') {
-                cb = options;
-            }
-            cb(new Error('Command failed'), pingOutput, '');
+        mockExec.mockImplementation((...args) => {
+            const cb = args.find(a => typeof a === 'function');
+            if (cb) cb(new Error('Command failed'), pingOutput, '');
         });
 
         // Act

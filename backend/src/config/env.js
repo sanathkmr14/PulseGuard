@@ -3,10 +3,25 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
+// Database Mode resolution: supports explicit DB_MODE ('local' | 'atlas') or standard MONGODB_URI
+const dbMode = (process.env.DB_MODE || '').toLowerCase();
+let resolvedMongoUri = process.env.MONGODB_URI;
+
+if (dbMode === 'atlas' && process.env.ATLAS_MONGODB_URI) {
+    resolvedMongoUri = process.env.ATLAS_MONGODB_URI;
+} else if (dbMode === 'local' && (process.env.LOCAL_MONGODB_URI || process.env.MONGODB_URI)) {
+    resolvedMongoUri = process.env.LOCAL_MONGODB_URI || process.env.MONGODB_URI;
+} else if (!resolvedMongoUri) {
+    resolvedMongoUri = process.env.LOCAL_MONGODB_URI || process.env.ATLAS_MONGODB_URI || 'mongodb://127.0.0.1:27017/pulseguard';
+}
+
 export const env = {
     NODE_ENV: process.env.NODE_ENV || 'development',
-    PORT: process.env.PORT || 5000,
-    MONGODB_URI: process.env.MONGODB_URI,
+    PORT: process.env.PORT || 5011,
+    DB_MODE: dbMode || (resolvedMongoUri?.includes('mongodb.net') ? 'atlas' : 'local'),
+    MONGODB_URI: resolvedMongoUri,
+    LOCAL_MONGODB_URI: process.env.LOCAL_MONGODB_URI || 'mongodb://127.0.0.1:27017/pulseguard',
+    ATLAS_MONGODB_URI: process.env.ATLAS_MONGODB_URI,
     REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
     JWT_SECRET: process.env.JWT_SECRET,
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
