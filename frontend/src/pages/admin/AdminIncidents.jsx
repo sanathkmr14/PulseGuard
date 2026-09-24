@@ -6,27 +6,34 @@ import Pagination from '../../components/Pagination';
 const AdminIncidents = () => {
     const [incidents, setIncidents] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
+    const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0 });
 
     // Filters
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('all'); // Default to all to show full history
     const [sort, setSort] = useState('createdAt');
 
-    const fetchIncidents = async (page = 1, currentSearch = search) => {
+    const fetchIncidents = async (targetPage = page, currentSearch = search, currentLimit = limit) => {
         try {
             setLoading(true);
             const res = await adminAPI.getIncidents({
-                page,
-                limit: 50,
+                page: targetPage,
+                limit: currentLimit,
                 search: currentSearch,
-                status: status === 'all' ? undefined : status, // API expects undefined for all if not handled
+                status: status === 'all' ? undefined : status,
                 sort
             });
 
             if (res.data.success) {
                 setIncidents(res.data.data);
-                setPagination(res.data.pagination);
+                setPagination({
+                    current: res.data.pagination?.current || targetPage,
+                    pages: res.data.pagination?.pages || 1,
+                    total: res.data.pagination?.total || 0
+                });
+                setPage(targetPage);
             }
         } catch (error) {
             console.error("Failed to fetch incidents", error);
@@ -38,23 +45,28 @@ const AdminIncidents = () => {
     // Debounced search
     const debouncedSearch = useCallback(
         debounce((query) => {
-            fetchIncidents(1, query);
+            fetchIncidents(1, query, limit);
         }, 500),
-        [status, sort] // Re-create if filters change
+        [status, sort, limit]
     );
 
     useEffect(() => {
-        fetchIncidents(1);
-    }, [status, sort]); // Refresh when non-text filters change
+        fetchIncidents(1, search, limit);
+    }, [status, sort]);
 
     const handleSearchChange = (e) => {
         setSearch(e.target.value);
         debouncedSearch(e.target.value);
     };
 
+    const handleLimitChange = (newLimit) => {
+        setLimit(newLimit);
+        fetchIncidents(1, search, newLimit);
+    };
+
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= pagination.pages) {
-            fetchIncidents(newPage);
+            fetchIncidents(newPage, search, limit);
         }
     };
 
@@ -68,8 +80,8 @@ const AdminIncidents = () => {
             </div>
 
             {/* Filters Bar */}
-            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-3 flex flex-col md:flex-row gap-2.5 shadow-sm">
-                <div className="relative flex-1">
+            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm">
+                <div className="relative w-full sm:w-64 md:w-72">
                     <input
                         type="text"
                         placeholder="Search monitor, user, or email..."
@@ -82,25 +94,27 @@ const AdminIncidents = () => {
                     </svg>
                 </div>
 
-                <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[140px] cursor-pointer"
-                >
-                    <option value="ongoing">Ongoing (Critical)</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="all">All Statuses</option>
-                </select>
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value)}
+                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-[130px] cursor-pointer"
+                    >
+                        <option value="ongoing">Ongoing (Critical)</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="all">All Statuses</option>
+                    </select>
 
-                <select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value)}
-                    className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[150px] cursor-pointer"
-                >
-                    <option value="createdAt">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="duration_desc">Longest Duration</option>
-                </select>
+                    <select
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value)}
+                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-[130px] cursor-pointer"
+                    >
+                        <option value="createdAt">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="duration_desc">Longest Duration</option>
+                    </select>
+                </div>
             </div>
 
             {/* Table */}
@@ -137,7 +151,7 @@ const AdminIncidents = () => {
                                                     onClick={() => {
                                                         setSearch('');
                                                         setStatus('all');
-                                                        fetchIncidents(1, '');
+                                                        fetchIncidents(1, '', limit);
                                                     }}
                                                     className="text-blue-400 hover:text-blue-300 text-xs font-medium"
                                                 >
@@ -224,15 +238,28 @@ const AdminIncidents = () => {
                     </table>
                 </div>
 
-                {/* Pagination */}
+                {/* Numbered Pagination & Limit Selector */}
                 {pagination.total > 0 && (
-                    <div className="px-4 py-2.5 border-t border-slate-700/50 bg-slate-900/40">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-700/50 bg-slate-900/40">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                            <span>Per page:</span>
+                            <select
+                                value={limit}
+                                onChange={(e) => handleLimitChange(Number(e.target.value))}
+                                className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-white font-mono text-[11px] focus:border-blue-500 outline-none cursor-pointer"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
                         <Pagination
-                            currentPage={pagination.page}
+                            currentPage={pagination.current}
                             totalPages={pagination.pages}
                             onPageChange={(p) => handlePageChange(p)}
                             totalItems={pagination.total}
-                            itemName="incidents"
+                            itemName="alerts"
                             compact={true}
                             hideOnSinglePage={false}
                             className="!border-0 !p-0"
