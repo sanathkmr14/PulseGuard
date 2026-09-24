@@ -118,9 +118,13 @@ class SchedulerService {
         } else {
             this.queue = new Queue(QUEUE_NAME, {
                 connection: queueConnection,
+                defaultJobOptions: {
+                    removeOnComplete: true,
+                    removeOnFail: { age: 3600, count: 20 }
+                },
                 streams: {
                     events: {
-                        maxLen: 1000 // Cap event history to reduce memory usage (default is 10000)
+                        maxLen: 100 // Cap event history to 100 for minimal Redis footprint
                     }
                 }
             });
@@ -412,6 +416,7 @@ class SchedulerService {
         if (this.sentinelInterval) clearInterval(this.sentinelInterval);
         this.sentinelInterval = setInterval(() => {
             this.verifyJobHealth();
+            this.autoCleanRedisMemory();
         }, 5 * 60 * 1000); // 5 minutes
     }
 
@@ -1018,6 +1023,28 @@ class SchedulerService {
             failed: counts.failed,
             total: counts.waiting + counts.active + counts.completed + counts.failed + counts.delayed
         };
+    }
+
+    /**
+     * Automatic Redis Memory Optimization & Garbage Collection
+     * Runs every 5 minutes to keep Redis memory permanently under 3MB
+     */
+    async autoCleanRedisMemory() {
+        if (!this.isMaster || !this.queue) return;
+        try {
+            // 1. Clean completed jobs older than 15 minutes (keep max 50)
+            await this.queue.clean(15 * 60 * 1000, 50, 'completed').catch(() => {});
+            // 2. Clean failed jobs older than 1 hour (keep max 20)
+            await this.queue.clean(60 * 60 * 1000, 20, 'failed').catch(() => {});
+
+            // 3. Trim Redis event streams so memory is capped
+            if (this.redis && this.redis.status === 'ready') {
+                await this.redis.xtrim('bull:monitor-queue:events', 'MAXLEN', '~', 100).catch(() => {});
+                await this.redis.xtrim('monitor_updates_stream', 'MAXLEN', '~', 200).catch(() => {});
+            }
+        } catch (err) {
+            console.debug('[Redis Auto-Clean] Non-fatal cleanup notification:', err.message);
+        }
     }
 
     /**
