@@ -94,11 +94,11 @@ const AdminIncidents = () => {
                     </svg>
                 </div>
 
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <div className="grid grid-cols-2 sm:flex sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                     <select
                         value={status}
                         onChange={(e) => setStatus(e.target.value)}
-                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-[130px] cursor-pointer"
+                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-2.5 sm:px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-0 sm:min-w-[130px] cursor-pointer"
                     >
                         <option value="ongoing">Ongoing (Critical)</option>
                         <option value="resolved">Resolved</option>
@@ -108,7 +108,7 @@ const AdminIncidents = () => {
                     <select
                         value={sort}
                         onChange={(e) => setSort(e.target.value)}
-                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-[130px] cursor-pointer"
+                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg px-2.5 sm:px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-full sm:w-auto min-w-0 sm:min-w-[130px] cursor-pointer"
                     >
                         <option value="createdAt">Newest First</option>
                         <option value="oldest">Oldest First</option>

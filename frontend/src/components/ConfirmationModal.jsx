@@ -262,7 +262,7 @@ const ConfirmationModal = ({
                         type="button"
                         onClick={onClose}
                         disabled={isSubmitting}
-                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        className="flex-1 sm:flex-initial text-center justify-center px-3.5 py-2.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                     >
                         Cancel
                     </button>
@@ -270,7 +270,7 @@ const ConfirmationModal = ({
                         type="button"
                         onClick={handleConfirm}
                         disabled={!isTypeConfirmValid || isSubmitting}
-                        className={`px-4 py-2 disabled:opacity-35 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.01] ${
+                        className={`flex-1 sm:flex-initial text-center justify-center px-4 py-2.5 sm:py-2 disabled:opacity-35 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.01] cursor-pointer ${
                             confirmColor === 'red'
                                 ? 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
                                 : confirmColor === 'amber'

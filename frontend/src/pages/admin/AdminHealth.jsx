@@ -132,15 +132,15 @@ const AdminHealth = () => {
                         {/* Queue Micro Chips */}
                         <div className="grid grid-cols-3 gap-1.5 mb-2">
                             <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Jobs executing right at this instant (checks complete in 50-200ms)">
-                                <div className="text-[10px] text-slate-400">Active</div>
+                                <div className="text-[9px] sm:text-[10px] text-slate-400 truncate">Active</div>
                                 <div className="text-xs font-mono font-bold text-blue-400">{queue.details?.active ?? 0}</div>
                             </div>
                             <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Monitors scheduled and ticking down to next run">
-                                <div className="text-[10px] text-slate-400">Scheduled</div>
+                                <div className="text-[9px] sm:text-[10px] text-slate-400 truncate">Scheduled</div>
                                 <div className="text-xs font-mono font-bold text-indigo-400">{queue.details?.scheduled ?? queue.details?.delayed ?? queue.details?.waiting ?? 0}</div>
                             </div>
                             <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Failed jobs">
-                                <div className="text-[10px] text-slate-400">Failed</div>
+                                <div className="text-[9px] sm:text-[10px] text-slate-400 truncate">Failed</div>
                                 <div className="text-xs font-mono font-bold text-red-400">{queue.details?.failed ?? 0}</div>
                             </div>
                         </div>
@@ -228,9 +228,9 @@ const AdminHealth = () => {
             </div>
 
             {/* Clean Status & Maintenance Strip */}
-            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-sm">
-                <div className="flex items-center gap-2.5">
-                    <span className="relative flex h-2 w-2">
+            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-2.5 shadow-sm">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="relative flex h-2 w-2 shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
@@ -238,7 +238,7 @@ const AdminHealth = () => {
                     <span className="hidden sm:inline text-slate-600">•</span>
                     <span className="text-xs text-slate-400">Regular maintenance window: Sunday at 02:00 UTC</span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 shrink-0">
+                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 w-full sm:w-auto justify-between sm:justify-end">
                     {lastUpdated && (
                         <span>Updated: {lastUpdated.toLocaleTimeString()}</span>
                     )}

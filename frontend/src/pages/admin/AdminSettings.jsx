@@ -185,7 +185,7 @@ const AdminSettings = () => {
                     <button
                         type="submit"
                         disabled={saving}
-                        className={`bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-5 rounded-lg transition-all shadow-sm shadow-blue-500/20 hover:scale-[1.02] cursor-pointer flex items-center gap-1.5 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full sm:w-auto justify-center bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2.5 sm:py-2 px-5 rounded-lg transition-all shadow-sm shadow-blue-500/20 hover:scale-[1.02] cursor-pointer flex items-center gap-1.5 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {saving && (
                             <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
