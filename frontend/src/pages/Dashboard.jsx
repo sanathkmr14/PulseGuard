@@ -62,20 +62,21 @@ const Icons = {
     ),
 };
 
-const StatCard = ({ icon, value, label, valueColor = 'text-white', badgeStyle, hoverBorder = 'hover:border-blue-500/30' }) => (
-    <div className={`bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-4 py-3.5 transition-all duration-200 ${hoverBorder} hover:bg-[#151522] group`}>
-        <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block truncate">
-                    {label}
-                </span>
-                <span className={`text-2xl font-bold font-heading tracking-tight mt-0.5 block ${valueColor}`}>
-                    {value}
-                </span>
-            </div>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 transition-transform duration-200 group-hover:scale-105 ${badgeStyle}`}>
+const StatCard = ({ icon, value, label, shortLabel, valueColor = 'text-white', badgeStyle, hoverBorder = 'hover:border-blue-500/30' }) => (
+    <div className={`bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-2 sm:px-4 sm:py-3.5 transition-all duration-200 ${hoverBorder} hover:bg-[#151522] group flex flex-col sm:flex-row items-center sm:justify-between text-center sm:text-left gap-1 sm:gap-2`}>
+        <div className="min-w-0 flex-1 order-2 sm:order-1 w-full sm:w-auto">
+            <span className="text-[9px] sm:text-[11px] font-semibold uppercase tracking-tight sm:tracking-wider text-gray-400 block truncate" title={label}>
+                <span className="sm:hidden">{shortLabel || label}</span>
+                <span className="hidden sm:inline">{label}</span>
+            </span>
+            <span className={`text-sm sm:text-2xl font-bold font-heading tracking-tight mt-0.5 block truncate ${valueColor}`}>
+                {value}
+            </span>
+        </div>
+        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center border shrink-0 transition-transform duration-200 group-hover:scale-105 order-1 sm:order-2 ${badgeStyle}`}>
+            <span className="scale-75 sm:scale-100 flex items-center justify-center">
                 {icon}
-            </div>
+            </span>
         </div>
     </div>
 );
@@ -364,27 +365,29 @@ const Dashboard = () => {
 
                 if (hasDown) {
                     return (
-                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-lg shadow-red-500/5">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-red-500/5">
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
                                     <span className="relative flex h-3 w-3">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                                     </span>
                                 </div>
-                                <div>
-                                    <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 font-heading">
-                                        System Outage Detected
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
+                                            System Outage Detected
+                                        </h2>
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap">
                                             {stats?.downMonitors} {stats?.downMonitors === 1 ? 'Service Down' : 'Services Down'}
                                         </span>
-                                    </h2>
+                                    </div>
                                     <p className="text-[11px] text-gray-400 mt-0.5">
                                         Active incidents require attention. Review alerts below.
                                     </p>
                                 </div>
                             </div>
-                            <Link to="/app/incidents" className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors">
+                            <Link to="/app/incidents" className="w-full sm:w-auto text-center px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors shadow-sm shadow-red-600/30">
                                 View Incidents
                             </Link>
                         </div>
@@ -393,27 +396,29 @@ const Dashboard = () => {
 
                 if (hasDegraded) {
                     return (
-                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-lg shadow-amber-500/5">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-amber-500/5">
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
                                     <span className="relative flex h-3 w-3">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
                                     </span>
                                 </div>
-                                <div>
-                                    <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 font-heading">
-                                        Performance Degradation
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
+                                            Performance Degradation
+                                        </h2>
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 whitespace-nowrap">
                                             {stats?.degradedMonitors} Degraded
                                         </span>
-                                    </h2>
+                                    </div>
                                     <p className="text-[11px] text-gray-400 mt-0.5">
                                         Elevated latency or SSL expiry alerts detected on monitored endpoints.
                                     </p>
                                 </div>
                             </div>
-                            <Link to="/app/incidents" className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors">
+                            <Link to="/app/incidents" className="w-full sm:w-auto text-center px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors shadow-sm shadow-amber-600/30">
                                 Review Status
                             </Link>
                         </div>
@@ -422,21 +427,23 @@ const Dashboard = () => {
 
                 if (monitors.length === 0) {
                     return (
-                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-blue-500/20 rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-sm hover:border-blue-500/30 transition-all">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-blue-500/20 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-blue-500/30 transition-all">
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
                                     <span className="relative flex h-2.5 w-2.5">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
                                     </span>
                                 </div>
-                                <div>
-                                    <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 font-heading">
-                                        Ready to Monitor
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
+                                            Ready to Monitor
+                                        </h2>
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 whitespace-nowrap">
                                             0 Active
                                         </span>
-                                    </h2>
+                                    </div>
                                     <p className="text-[11px] text-gray-400 mt-0.5">
                                         No endpoints configured yet. Add your first service to begin automated uptime telemetry and SLA tracking.
                                     </p>
@@ -444,7 +451,7 @@ const Dashboard = () => {
                             </div>
                             <Link
                                 to="/app/monitors?action=new"
-                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors flex items-center gap-1.5 shadow-sm shadow-blue-500/20"
+                                className="w-full sm:w-auto text-center px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -456,21 +463,23 @@ const Dashboard = () => {
                 }
 
                 return (
-                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-emerald-500/20 rounded-xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-sm hover:border-emerald-500/30 transition-all">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-emerald-500/20 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-emerald-500/30 transition-all">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
                                 <span className="relative flex h-2.5 w-2.5">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                                 </span>
                             </div>
-                            <div>
-                                <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2 font-heading">
-                                    All Systems Operational
-                                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
+                                        All Systems Operational
+                                    </h2>
+                                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
                                         100% Healthy
                                     </span>
-                                </h2>
+                                </div>
                                 <p className="text-[11px] text-gray-400 mt-0.5">
                                     All {stats?.totalMonitors ?? monitors.length} monitored service{(stats?.totalMonitors ?? monitors.length) === 1 ? '' : 's'} responding normally with zero active outages.
                                 </p>
@@ -479,48 +488,52 @@ const Dashboard = () => {
                         <button
                             onClick={handleManualRefresh}
                             disabled={isRefreshing}
-                            className="px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-70 cursor-pointer"
+                            className="w-full sm:w-auto justify-center px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-70 cursor-pointer"
                             title="Refresh dashboard metrics"
                         >
                             <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            <span className="hidden sm:inline">{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                            <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
                         </button>
                     </div>
                 );
             })()}
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Stats - All 5 Boxes in One Line */}
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-3 lg:gap-4">
                 <StatCard
                     icon={Icons.monitors}
-                    value={stats?.totalMonitors || monitors.length || 0}
+                    value={stats?.totalMonitors ?? monitors.length ?? 0}
                     label="Total Monitors"
+                    shortLabel="Total"
                     valueColor="text-white"
                     badgeStyle="bg-blue-500/10 text-blue-400 border-blue-500/20"
                     hoverBorder="hover:border-blue-500/30"
                 />
                 <StatCard
                     icon={Icons.active}
-                    value={stats?.activeMonitors || monitors.filter(m => m.status === 'up').length || 0}
+                    value={stats?.activeMonitors ?? monitors.filter(m => m.status === 'up').length ?? 0}
                     label="Up"
+                    shortLabel="Up"
                     valueColor="text-emerald-400"
                     badgeStyle="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                     hoverBorder="hover:border-emerald-500/30"
                 />
                 <StatCard
                     icon={Icons.down}
-                    value={stats?.downMonitors || 0}
+                    value={stats?.downMonitors ?? 0}
                     label="Down"
+                    shortLabel="Down"
                     valueColor="text-red-400"
                     badgeStyle="bg-red-500/10 text-red-400 border-red-500/20"
                     hoverBorder="hover:border-red-500/30"
                 />
                 <StatCard
                     icon={Icons.degraded}
-                    value={stats?.degradedMonitors || 0}
+                    value={stats?.degradedMonitors ?? 0}
                     label="Degraded"
+                    shortLabel="Degraded"
                     valueColor="text-amber-400"
                     badgeStyle="bg-amber-500/10 text-amber-400 border-amber-500/20"
                     hoverBorder="hover:border-amber-500/30"
@@ -529,6 +542,7 @@ const Dashboard = () => {
                     icon={Icons.uptime}
                     value={`${stats?.overallUptime !== undefined ? stats.overallUptime.toFixed(1) : '100.0'}%`}
                     label="Uptime"
+                    shortLabel="Uptime"
                     valueColor="text-emerald-400"
                     badgeStyle="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                     hoverBorder="hover:border-emerald-500/30"
@@ -954,30 +968,37 @@ const Dashboard = () => {
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400">Total Telemetry Checks</span>
                                 <span className="font-mono font-semibold text-white">
-                                    {monitors.reduce((acc, m) => acc + (m.totalChecks || 0), 0).toLocaleString()}
+                                    {(stats?.totalChecks !== undefined
+                                        ? stats.totalChecks
+                                        : monitors.reduce((acc, m) => acc + (m.totalChecks || 0), 0)
+                                    ).toLocaleString()}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400">Avg Global Latency</span>
                                 <span className="font-mono font-semibold text-blue-400">
-                                    {(() => {
-                                        const withRt = monitors.filter(m => m.lastResponseTime);
-                                        if (withRt.length === 0) return '—';
-                                        const avg = Math.round(withRt.reduce((a, m) => a + m.lastResponseTime, 0) / withRt.length);
-                                        return `${avg}ms`;
-                                    })()}
+                                    {stats?.avgLatency != null
+                                        ? `${stats.avgLatency}ms`
+                                        : (() => {
+                                            const withRt = monitors.filter(m => m.lastResponseTime);
+                                            if (withRt.length === 0) return '—';
+                                            const avg = Math.round(withRt.reduce((a, m) => a + m.lastResponseTime, 0) / withRt.length);
+                                            return `${avg}ms`;
+                                        })()}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400">Monitored Protocols</span>
                                 <span className="font-mono text-gray-300 text-[11px]">
-                                    {monitors.length === 0 ? 'None' : (Array.from(new Set(monitors.map(m => m.type || 'HTTPS'))).join(', ') || 'HTTPS')}
+                                    {stats?.protocols && stats.protocols.length > 0
+                                        ? stats.protocols.join(', ')
+                                        : (monitors.length === 0 ? 'None' : (Array.from(new Set(monitors.map(m => m.type || 'HTTPS'))).join(', ') || 'HTTPS'))}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between pt-1 border-t border-gray-800/40">
                                 <span className="text-gray-400">System SLA Rating</span>
                                 <span className="font-mono font-bold text-emerald-400">
-                                    {monitors.length === 0 ? 'N/A' : (stats?.overallUptime !== undefined ? `${stats.overallUptime.toFixed(2)}%` : '100.00%')}
+                                    {stats?.overallUptime !== undefined ? `${stats.overallUptime.toFixed(2)}%` : (monitors.length === 0 ? 'N/A' : '100.00%')}
                                 </span>
                             </div>
                         </div>

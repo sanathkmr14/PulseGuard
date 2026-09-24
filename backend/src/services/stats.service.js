@@ -153,7 +153,7 @@ class StatsService {
     // Get dashboard statistics
     async getDashboardStats(userId) {
         try {
-            const monitors = await Monitor.find({ user: userId }).select('_id status totalChecks successfulChecks uptimePercentage');
+            const monitors = await Monitor.find({ user: userId }).select('_id status totalChecks successfulChecks uptimePercentage lastResponseTime type');
 
             const totalMonitors = monitors.length;
 
@@ -166,6 +166,14 @@ class StatsService {
             const overallUptime = totalMonitors > 0
                 ? parseFloat((monitors.reduce((acc, m) => acc + (m.uptimePercentage ?? 100), 0) / totalMonitors).toFixed(2))
                 : 100;
+
+            // Global telemetry aggregations across all user monitors
+            const totalChecks = monitors.reduce((acc, m) => acc + (m.totalChecks || 0), 0);
+            const withRt = monitors.filter(m => typeof m.lastResponseTime === 'number' && m.lastResponseTime > 0);
+            const avgLatency = withRt.length > 0
+                ? Math.round(withRt.reduce((a, m) => a + m.lastResponseTime, 0) / withRt.length)
+                : null;
+            const protocols = Array.from(new Set(monitors.map(m => m.type || 'HTTPS')));
 
             const monitorIds = monitors.map(m => m._id);
 
@@ -188,7 +196,10 @@ class StatsService {
                 degradedMonitors,
                 overallUptime,
                 ongoingIncidents,
-                recentIncidents
+                recentIncidents,
+                totalChecks,
+                avgLatency,
+                protocols
             };
         } catch (error) {
             console.error('Error getting dashboard stats:', error);
@@ -199,7 +210,10 @@ class StatsService {
                 degradedMonitors: 0,
                 overallUptime: 0,
                 ongoingIncidents: 0,
-                recentIncidents: 0
+                recentIncidents: 0,
+                totalChecks: 0,
+                avgLatency: null,
+                protocols: []
             };
         }
     }

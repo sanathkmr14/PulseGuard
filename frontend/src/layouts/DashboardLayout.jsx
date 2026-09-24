@@ -159,18 +159,20 @@ const DashboardLayout = () => {
             <header className="sticky top-0 z-50 bg-[#12121a]/95 backdrop-blur-md border-b border-gray-800/80">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="relative flex items-center justify-between h-16">
-                        {/* Left: Mobile 3-Lines Button + Brand Logo */}
-                        <div className="flex items-center gap-1.5 sm:gap-3">
-                            {/* Mobile 3-Lines Menu Toggle (Left on mobile, hidden on desktop) */}
+                        {/* Left: Mobile 3-Lines Menu Toggle (Left on mobile, hidden on desktop) */}
+                        <div className="flex items-center md:hidden">
                             <button
                                 ref={mobileToggleRef}
                                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                                className="md:hidden p-2 -ml-2 text-gray-400 hover:text-white hover:bg-gray-800/60 rounded-xl transition-colors cursor-pointer"
+                                className="p-2 -ml-2 text-gray-400 hover:text-white hover:bg-gray-800/60 rounded-xl transition-colors cursor-pointer"
                                 aria-label="Toggle Navigation"
                             >
                                 {sidebarOpen ? Icons.close : Icons.menu}
                             </button>
+                        </div>
 
+                        {/* Brand Logo: Centered on mobile, left on desktop */}
+                        <div className="flex items-center absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0">
                             <Link to="/app/dashboard" className="flex items-center">
                                 <Logo size="md" showText={true} textClassName="text-xl font-bold text-white tracking-tight" />
                             </Link>
@@ -205,6 +207,9 @@ const DashboardLayout = () => {
                                 );
                             })}
                         </nav>
+
+                        {/* Right: Mobile spacer balance (hidden on desktop) */}
+                        <div className="w-8 md:hidden" />
 
                         {/* Right: User Menu (Desktop only - mobile accesses profile via 3-lines menu) */}
                         <div className="hidden md:flex items-center gap-3">
