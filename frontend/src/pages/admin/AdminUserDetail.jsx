@@ -275,56 +275,68 @@ const AdminUserDetail = () => {
     if (!user) return <div className="text-white text-center py-10">User not found</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <button
                 onClick={() => navigate('/admin/users')}
-                className="flex items-center text-slate-400 hover:text-white transition-colors group"
+                className="flex items-center text-slate-400 hover:text-white transition-colors group text-sm"
             >
-                <svg className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
                 Back to Users
             </button>
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 sm:p-8">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-5">
-                        <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center text-3xl font-bold text-white shadow-lg">
+            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-4 sm:px-5 sm:py-3.5 shadow-lg">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-11 h-11 rounded-xl bg-blue-600 border border-blue-500/30 flex items-center justify-center text-lg font-bold text-white shadow-md shadow-blue-500/20 shrink-0">
                             {user.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                            <div className="flex items-center gap-3">
-                                <h1 className="text-2xl font-bold text-white">{user.name}</h1>
+                            <div className="flex items-center gap-2.5">
+                                <h1 className="text-base sm:text-lg font-bold text-white">{user.name}</h1>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${user.isBanned
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    }`}>
+                                    {user.isBanned ? 'Banned' : 'Active'}
+                                </span>
                             </div>
-                            <p className="text-slate-400 font-mono text-sm mb-1">{user.email}</p>
-                            <p className="text-slate-500 text-xs">Joined: {new Date(user.createdAt).toLocaleDateString()}</p>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs mt-0.5">
+                                <span className="text-slate-400 font-mono">{user.email}</span>
+                                <span className="text-slate-600 hidden sm:inline">•</span>
+                                <span className="text-slate-500">Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-3 w-full md:w-auto justify-start md:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
                         <button
                             onClick={handleImpersonate}
-                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-500/20"
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shadow-md shadow-blue-500/20 flex items-center gap-1.5"
                         >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                            </svg>
                             Login as User
                         </button>
                         <button
                             onClick={handleResetPassword}
-                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                            className="px-3 py-1.5 bg-slate-700/80 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-600 rounded-lg text-xs font-medium transition-colors"
                         >
                             Reset Password
                         </button>
                         <button
                             onClick={handleBanToggle}
-                            className={`flex-1 min-w-[120px] md:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors ${user.isBanned
-                                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20'
-                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${user.isBanned
+                                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
+                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
                                 }`}
                         >
                             {user.isBanned ? 'Unban' : 'Ban'}
                         </button>
                         <button
                             onClick={handleDelete}
-                            className="flex-1 min-w-[120px] md:flex-none px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-red-500/20"
+                            className="px-3 py-1.5 bg-red-600/90 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors shadow-md shadow-red-500/20"
                         >
                             Delete User
                         </button>
