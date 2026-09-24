@@ -138,9 +138,19 @@ const AdminUserDetail = () => {
     const handleImpersonate = () => {
         openModal({
             title: 'Login as User',
-            message: `Are you sure you want to log in as ${user.name}? You will be redirected to their dashboard.`,
-            confirmText: 'Login',
+            subtitle: 'Switch session to user dashboard',
+            iconType: 'login',
             confirmColor: 'blue',
+            confirmText: 'Launch Session',
+            itemDetails: {
+                type: 'user',
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isBanned: user.isBanned,
+                monitorCount: monitorsTotalCount
+            },
+            message: `You will be temporarily authenticated as ${user.name} for 15 minutes. All impersonation actions are recorded in security audit logs.`,
             onConfirm: async () => {
                 try {
                     const res = await adminAPI.impersonateUser(user._id);
@@ -150,6 +160,8 @@ const AdminUserDetail = () => {
                     }
                 } catch (error) {
                     console.error('Impersonation failed:', error);
+                    showNotification('error', error.response?.data?.message || 'Failed to impersonate user');
+                    closeModal();
                 }
             }
         });
@@ -158,9 +170,19 @@ const AdminUserDetail = () => {
     const handleResetPassword = () => {
         openModal({
             title: 'Reset Password',
-            message: `Send password reset email to ${user.email}? They will receive a link to set a new password.`,
-            confirmText: 'Send Email',
+            subtitle: 'Send password recovery link',
+            iconType: 'key',
             confirmColor: 'amber',
+            confirmText: 'Send Reset Email',
+            itemDetails: {
+                type: 'user',
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isBanned: user.isBanned,
+                monitorCount: monitorsTotalCount
+            },
+            message: `Send an automated password reset email to ${user.email}? The user will receive a secure one-time link valid for 1 hour to choose a new password.`,
             onConfirm: async () => {
                 try {
                     await adminAPI.sendPasswordReset(user.email);
@@ -168,30 +190,44 @@ const AdminUserDetail = () => {
                     showNotification('success', 'Password reset instructions sent to user.');
                 } catch (error) {
                     console.error('Reset trigger failed:', error);
-                    showNotification('error', 'Failed to send reset email.');
                     closeModal();
+                    showNotification('error', 'Failed to send reset email.');
                 }
             }
         });
     };
 
     const handleBanToggle = () => {
-        const action = user.isBanned ? 'Unban' : 'Ban';
+        const isBanning = !user.isBanned;
         openModal({
-            title: `${action} User`,
-            message: `Are you sure you want to ${action.toLowerCase()} ${user.name}? ${user.isBanned ? 'They will regain access.' : 'They will lose access immediately.'}`,
-            confirmText: action,
-            confirmColor: user.isBanned ? 'emerald' : 'amber',
+            title: isBanning ? 'Ban User Account' : 'Unban User Account',
+            subtitle: isBanning ? 'Suspend platform access immediately' : 'Restore user access to the platform',
+            iconType: isBanning ? 'ban' : 'unban',
+            confirmColor: isBanning ? 'amber' : 'emerald',
+            confirmText: isBanning ? 'Ban User' : 'Unban User',
+            itemDetails: {
+                type: 'user',
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isBanned: user.isBanned,
+                monitorCount: monitorsTotalCount
+            },
+            message: isBanning
+                ? `Are you sure you want to ban ${user.name}? They will be immediately blocked from logging in, and all active user sessions will be revoked.`
+                : `Are you sure you want to unban ${user.name}? The account will be unlocked and the user can log in again.`,
             onConfirm: async () => {
                 try {
                     const res = await adminAPI.toggleUserBan(user._id);
                     if (res.data.success) {
                         setUser(prev => ({ ...prev, isBanned: res.data.data.isBanned }));
                         closeModal();
+                        showNotification('success', `User ${res.data.data.isBanned ? 'banned' : 'unbanned'} successfully.`);
                     }
                 } catch (error) {
                     console.error('Ban toggle failed:', error);
                     closeModal();
+                    showNotification('error', error.response?.data?.message || 'Failed to update user status');
                 }
             }
         });
@@ -199,10 +235,22 @@ const AdminUserDetail = () => {
 
     const handleDelete = () => {
         openModal({
-            title: 'Delete User',
-            message: `CRITICAL WARNING: This will permanently delete ${user.name} and ALL their monitors. This action cannot be undone.`,
-            confirmText: 'Delete Forever',
+            title: 'Delete User Account',
+            subtitle: 'Permanently remove user, monitors, and telemetry',
+            iconType: 'delete',
             confirmColor: 'red',
+            confirmText: 'Confirm & Delete User',
+            itemDetails: {
+                type: 'user',
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isBanned: user.isBanned,
+                monitorCount: monitorsTotalCount
+            },
+            message: `CRITICAL WARNING: This action cannot be undone. This will permanently delete ${user.name}'s account and ALL ${monitorsTotalCount || 0} monitors, check histories, downtime incidents, and notification settings from the database.`,
+            requireTypeConfirm: true,
+            typeConfirmTarget: user.name,
             onConfirm: async () => {
                 try {
                     await adminAPI.deleteUser(user._id);
@@ -211,6 +259,7 @@ const AdminUserDetail = () => {
                 } catch (error) {
                     console.error('Delete failed:', error);
                     closeModal();
+                    showNotification('error', error.response?.data?.message || 'Failed to delete user');
                 }
             }
         });
@@ -223,9 +272,20 @@ const AdminUserDetail = () => {
     const handleDeleteMonitor = (monitor) => {
         openModal({
             title: 'Delete Monitor',
-            message: `CRITICAL WARNING: Are you sure you want to delete ${monitor.name}? All checks and incidents will be lost forever.`,
-            confirmText: 'Delete Monitor',
+            subtitle: 'Permanently remove service and telemetry',
+            iconType: 'delete',
             confirmColor: 'red',
+            confirmText: 'Confirm & Delete Monitor',
+            itemDetails: {
+                type: 'monitor',
+                name: monitor.name,
+                url: monitor.url,
+                monitorType: monitor.type || 'HTTPS',
+                port: monitor.port
+            },
+            message: `CRITICAL WARNING: Are you sure you want to delete "${monitor.name}"? All check logs, response time metrics, and incidents will be permanently erased.`,
+            requireTypeConfirm: true,
+            typeConfirmTarget: monitor.name,
             onConfirm: async () => {
                 try {
                     await adminAPI.deleteMonitor(monitor._id);
@@ -624,9 +684,14 @@ const AdminUserDetail = () => {
                 onClose={closeModal}
                 onConfirm={modal.onConfirm}
                 title={modal.title}
+                subtitle={modal.subtitle}
                 message={modal.message}
                 confirmText={modal.confirmText}
                 confirmColor={modal.confirmColor}
+                iconType={modal.iconType}
+                itemDetails={modal.itemDetails}
+                requireTypeConfirm={modal.requireTypeConfirm}
+                typeConfirmTarget={modal.typeConfirmTarget}
             />
 
             <AdminMonitorEditModal
