@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 
 const ConfirmationModal = ({
     isOpen,
@@ -322,7 +321,7 @@ const ConfirmationModal = ({
         </div>
     );
 
-    return ReactDOM.createPortal(modalContent, document.body);
+    return modalContent;
 };
 
 export default ConfirmationModal;

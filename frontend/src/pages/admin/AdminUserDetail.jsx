@@ -26,6 +26,7 @@ const AdminUserDetail = () => {
     const [incidentsPage, setIncidentsPage] = useState(1);
     const [incidentsLimit, setIncidentsLimit] = useState(5);
     const [incidentsPagination, setIncidentsPagination] = useState({ current: 1, pages: 1, total: 0 });
+    const monitorsTotalCount = monitorsPagination?.total ?? (monitors?.length ?? 0);
 
     const handleMonitorsLimitChange = (newLimit) => {
         setMonitorsLimit(newLimit);
