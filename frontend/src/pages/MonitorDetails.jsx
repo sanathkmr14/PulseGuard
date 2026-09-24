@@ -8,7 +8,7 @@ import { useSocket } from '../hooks/useSocket';
 import Pagination from '../components/Pagination';
 import Toast from '../components/Toast';
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, size = 'md' }) => {
     const styles = {
         up: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
         down: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -16,9 +16,10 @@ const StatusBadge = ({ status }) => {
         paused: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
         unknown: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     };
+    const isSmall = size === 'sm';
     return (
-        <span className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold uppercase rounded-full border ${styles[status] || styles.unknown}`}>
-            <span className={`w-2 h-2 rounded-full animate-pulse-slow ${status === 'up' ? 'bg-emerald-400' : status === 'down' ? 'bg-red-400' : status === 'degraded' ? 'bg-amber-400' : 'bg-gray-400'}`} />
+        <span className={`inline-flex items-center gap-1.5 ${isSmall ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm'} font-semibold uppercase rounded-full border ${styles[status] || styles.unknown} whitespace-nowrap`}>
+            <span className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full animate-pulse-slow shrink-0 ${status === 'up' ? 'bg-emerald-400' : status === 'down' ? 'bg-red-400' : status === 'degraded' ? 'bg-amber-400' : 'bg-gray-400'}`} />
             {status}
         </span>
     );
@@ -439,35 +440,40 @@ const MonitorDetails = () => {
                     <span>Back to Monitors</span>
                 </Link>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">{monitor.name}</h1>
-                        <p className="text-gray-500 mt-1 truncate max-w-md font-mono text-xs">{monitor.url}</p>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h1 className="text-xl sm:text-3xl font-bold text-white font-heading truncate">{monitor.name}</h1>
+                            <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] sm:text-[11px] font-bold uppercase rounded-md border border-blue-500/20 font-mono shrink-0">
+                                {monitor.type}
+                            </span>
+                        </div>
+                        <p className="text-gray-400 truncate max-w-full sm:max-w-md font-mono text-xs">{monitor.url}</p>
                     </div>
 
-                    <div className="flex gap-2 flex-wrap items-center">
+                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                         <button onClick={handleCheckNow}
                             disabled={checking || monitor.status === 'paused' || monitor.isActive === false}
                             title={monitor.status === 'paused' || monitor.isActive === false ? 'Cannot check a paused monitor' : 'Run health check now'}
-                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5">
+                            className="px-3.5 py-2 sm:py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                             {checking ? (
                                 <>
                                     <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Checking...
+                                    <span>Checking...</span>
                                 </>
                             ) : (
                                 <>
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
-                                    Check Now
+                                    <span>Check Now</span>
                                 </>
                             )}
                         </button>
                         <button onClick={handlePauseResume}
-                            className={`px-3.5 py-1.5 rounded-lg active:scale-[0.98] transition-all flex items-center gap-1.5 text-xs font-semibold border ${monitor.status === 'paused' || monitor.isActive === false
+                            className={`px-3.5 py-2 sm:py-1.5 rounded-lg active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 text-xs font-semibold border cursor-pointer ${monitor.status === 'paused' || monitor.isActive === false
                                 ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20'
                                 : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
                                 }`}>
@@ -477,30 +483,30 @@ const MonitorDetails = () => {
                                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M8 5v14l11-7z" />
                                     </svg>
-                                    Resume
+                                    <span>Resume</span>
                                 </>
                             ) : (
                                 <>
                                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                                     </svg>
-                                    Pause
+                                    <span>Pause</span>
                                 </>
                             )}
                         </button>
                         <button onClick={openEditForm}
-                            className="px-3.5 py-1.5 bg-gray-800/80 hover:bg-gray-700 active:scale-[0.98] text-white text-xs font-semibold rounded-lg border border-gray-700/50 transition-all flex items-center gap-1.5">
+                            className="px-3.5 py-2 sm:py-1.5 bg-gray-800/80 hover:bg-gray-700 active:scale-[0.98] text-white text-xs font-semibold rounded-lg border border-gray-700/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            Edit
+                            <span>Edit</span>
                         </button>
                         <button onClick={() => setDeleteModal({ show: true, deleting: false, confirmText: '' })}
-                            className="px-3.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg border border-red-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-sm">
+                            className="px-3.5 py-2 sm:py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg border border-red-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            Delete
+                            <span>Delete</span>
                         </button>
                     </div>
                 </div>
@@ -510,7 +516,7 @@ const MonitorDetails = () => {
 
             {showEditForm && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-[#12121a]/95 backdrop-blur-md border border-gray-800/90 rounded-xl p-4 sm:p-5 w-full max-w-md shadow-2xl animate-in">
+                    <div className="bg-[#12121a]/95 backdrop-blur-md border border-gray-800/90 rounded-xl p-4 sm:p-5 w-full max-w-md shadow-2xl animate-in max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-800/60">
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-blue-500" />
@@ -676,30 +682,30 @@ const MonitorDetails = () => {
                 const hasSsl = sslDays !== undefined && sslDays !== null;
 
                 return (
-                    <div className={`grid grid-cols-2 ${hasSsl ? 'sm:grid-cols-3 lg:grid-cols-5' : 'lg:grid-cols-4'} gap-3 sm:gap-4`}>
-                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3.5 sm:px-4 py-3.5 shadow-sm hover:border-gray-700 transition-all">
+                    <div className={`grid grid-cols-2 ${hasSsl ? 'sm:grid-cols-3 lg:grid-cols-5' : 'sm:grid-cols-2 lg:grid-cols-4'} gap-2.5 sm:gap-4`}>
+                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 shadow-sm hover:border-gray-700 transition-all">
                             <p className="text-gray-400 text-xs font-medium mb-1.5 whitespace-nowrap">Status</p>
                             <StatusBadge status={monitor.status} />
                         </div>
-                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3.5 sm:px-4 py-3.5 shadow-sm hover:border-emerald-500/30 transition-all">
+                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 shadow-sm hover:border-emerald-500/30 transition-all">
                             <p className="text-gray-400 text-xs font-medium mb-1 whitespace-nowrap">Uptime</p>
-                            <p className="text-xl sm:text-2xl font-bold font-heading text-emerald-400 whitespace-nowrap">
+                            <p className="text-lg sm:text-2xl font-bold font-heading text-emerald-400 whitespace-nowrap">
                                 {stats?.uptimePercentage !== undefined && stats?.uptimePercentage !== null
                                     ? `${Number(stats.uptimePercentage).toFixed(2)}%`
                                     : '100.00%'}
                             </p>
                         </div>
-                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3.5 sm:px-4 py-3.5 shadow-sm hover:border-blue-500/30 transition-all">
+                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 shadow-sm hover:border-blue-500/30 transition-all">
                             <p className="text-gray-400 text-xs font-medium mb-1 whitespace-nowrap">Avg Response</p>
-                            <p className="text-xl sm:text-2xl font-bold font-heading text-blue-400 whitespace-nowrap">
+                            <p className="text-lg sm:text-2xl font-bold font-heading text-blue-400 whitespace-nowrap">
                                 {stats?.avgResponseTime !== undefined && stats?.avgResponseTime !== null
                                     ? `${stats.avgResponseTime}ms`
                                     : monitor.lastResponseTime ? `${monitor.lastResponseTime}ms` : '—'}
                             </p>
                         </div>
-                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3.5 sm:px-4 py-3.5 shadow-sm hover:border-gray-700 transition-all">
+                        <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 shadow-sm hover:border-gray-700 transition-all">
                             <p className="text-gray-400 text-xs font-medium mb-1 whitespace-nowrap">Total Checks</p>
-                            <p className="text-xl sm:text-2xl font-bold font-heading text-white whitespace-nowrap">
+                            <p className="text-lg sm:text-2xl font-bold font-heading text-white whitespace-nowrap">
                                 {(stats?.totalChecks ?? monitor.totalChecks ?? 0).toLocaleString()}
                             </p>
                         </div>
@@ -718,9 +724,9 @@ const MonitorDetails = () => {
                             }
 
                             return (
-                                <div className={`bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3.5 sm:px-4 py-3.5 shadow-sm ${borderClass} transition-all`}>
-                                    <p className="text-gray-400 text-xs font-medium mb-1 whitespace-nowrap">SSL Expiry</p>
-                                    <p className={`text-xl sm:text-2xl font-bold font-heading ${colorClass} whitespace-nowrap`}>
+                                <div className={`col-span-2 sm:col-span-1 bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-3 sm:px-4 py-3 sm:py-3.5 shadow-sm ${borderClass} transition-all flex sm:block items-center justify-between sm:justify-start`}>
+                                    <p className="text-gray-400 text-xs font-medium sm:mb-1 whitespace-nowrap">SSL Expiry</p>
+                                    <p className={`text-lg sm:text-2xl font-bold font-heading ${colorClass} whitespace-nowrap`}>
                                         {sslDays < 0 ? `Expired (${Math.abs(sslDays)}d ago)` : sslDays === 0 ? 'Expires Today' : `${sslDays} days`}
                                     </p>
                                 </div>
@@ -882,12 +888,12 @@ const MonitorDetails = () => {
             {/* Configuration Overview */}
             <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-4 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-white">Monitor Configuration</h2>
+                    <h2 className="text-sm font-semibold text-white font-heading">Configuration Details</h2>
                     <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold uppercase rounded-md border border-blue-500/20 font-mono">
                         {monitor.type}
                     </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                     <div>
                         <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Check Interval</p>
                         <p className="text-white text-xs sm:text-sm font-medium">{monitor.interval} minutes</p>
@@ -906,13 +912,37 @@ const MonitorDetails = () => {
                             <p className="text-white text-xs sm:text-sm font-medium">{monitor.sslExpiryThresholdDays || 14} days</p>
                         </div>
                     )}
+                    {monitor.port && (
+                        <div>
+                            <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Port</p>
+                            <p className="text-white text-xs sm:text-sm font-medium font-mono">{monitor.port}</p>
+                        </div>
+                    )}
+                    {monitor.method && (
+                        <div>
+                            <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">HTTP Method</p>
+                            <p className="text-white text-xs sm:text-sm font-medium font-mono">{monitor.method}</p>
+                        </div>
+                    )}
+                    {monitor.expectedStatusCode && (
+                        <div>
+                            <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Expected Code</p>
+                            <p className="text-white text-xs sm:text-sm font-medium font-mono">{monitor.expectedStatusCode}</p>
+                        </div>
+                    )}
+                    <div>
+                        <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Last Checked</p>
+                        <p className="text-white text-xs sm:text-sm font-medium truncate">
+                            {monitor.lastChecked ? new Date(monitor.lastChecked).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Never'}
+                        </p>
+                    </div>
                 </div>
             </div>
 
             {/* Chart */}
             {responseData?.trend?.length > 0 && (
                 <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-4 sm:p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                             <h2 className="text-sm font-semibold text-white font-heading">Response Time (24h)</h2>
@@ -963,12 +993,62 @@ const MonitorDetails = () => {
                 </div>
             )}
 
-            {/* Checks Table */}
+            {/* Checks Table & Mobile Feed */}
             <div className="glass-panel border-gray-800/50 rounded-xl overflow-hidden mb-20 shadow-xl">
-                <div className="px-4 py-3 border-b border-gray-800/30">
+                <div className="px-4 py-3 border-b border-gray-800/30 flex items-center justify-between">
                     <h2 className="text-sm font-semibold text-white font-heading">Recent Checks</h2>
+                    {checksPagination.total > 0 && (
+                        <span className="text-xs text-gray-400 font-mono">
+                            {checksPagination.total} logged
+                        </span>
+                    )}
                 </div>
-                <div className="overflow-x-auto">
+
+                {/* Mobile View: Clean Card List (< md screens) */}
+                <div className="md:hidden divide-y divide-gray-800/40">
+                    {checks.length === 0 ? (
+                        <div className="px-4 py-8 text-center text-xs text-gray-500 font-mono">
+                            No check records yet. Click "Check Now" above to initiate a check.
+                        </div>
+                    ) : (
+                        checks.map(c => (
+                            <div key={c._id} className="p-3 hover:bg-gray-800/20 transition-colors space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <StatusBadge status={c.status} size="sm" />
+                                        <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                            c.status === 'up' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                            c.status === 'degraded' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                            'bg-red-500/10 text-red-400 border border-red-500/20'
+                                        }`}>
+                                            {c.statusCode ? `HTTP ${c.statusCode}` : (c.errorType || 'N/A')}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-mono font-semibold text-white bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700/50 shrink-0">
+                                        {c.responseTime ? `${c.responseTime}ms` : '—'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400">
+                                    <span className="font-mono text-gray-400 truncate">
+                                        {new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}, {new Date(c.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                    </span>
+                                    <div className="truncate max-w-[50%] text-right font-medium shrink-0">
+                                        {c.status === 'up' && (!c.errorType || c.errorType === 'SUCCESS' || c.errorType.includes('SUCCESS')) ? (
+                                            <span className="text-emerald-400">✓ Healthy</span>
+                                        ) : c.status === 'degraded' ? (
+                                            <span className="text-amber-400 truncate">{c.errorMessage || c.degradationReasons?.[0] || 'Slow'}</span>
+                                        ) : (
+                                            <span className="text-red-400 truncate">{c.errorMessage || c.errorType || 'Failed'}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Desktop View: Full Table (md and above) */}
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full min-w-[600px]">
                         <thead className="bg-[#0a0a0f]">
                             <tr>
