@@ -60,85 +60,85 @@ const AdminUsers = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-4 sm:space-y-5 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-white mb-1">Users</h1>
-                    <p className="text-slate-400">Manage system users and access</p>
+                    <h1 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Users</h1>
+                    <p className="text-slate-400 text-xs sm:text-sm font-medium">Manage system users and access</p>
                 </div>
 
                 <div className="relative">
                     <input
                         type="text"
                         placeholder="Search users..."
-                        className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-2 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="bg-slate-800/90 border border-slate-700 text-white rounded-lg pl-8 pr-3 py-1.5 w-full sm:w-60 text-xs placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
                         value={searchTerm}
                         onChange={handleSearchChange}
                     />
-                    <svg className="w-5 h-5 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </div>
             </div>
 
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+            <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-800/80 border-b border-slate-700">
+                    <table className="w-full text-left text-xs text-slate-400">
+                        <thead className="bg-slate-900/50 text-[11px] uppercase font-semibold text-slate-400 border-b border-slate-700/40">
                             <tr>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Joined</th>
-                                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                                <th className="px-4 py-2.5">User</th>
+                                <th className="px-4 py-2.5">Status</th>
+                                <th className="px-4 py-2.5">Joined</th>
+                                <th className="px-4 py-2.5 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700/50">
+                        <tbody className="divide-y divide-slate-700/40">
                             {loading && users.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-12 text-center text-slate-500">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
+                                        <div className="flex items-center justify-center gap-2 text-xs">
+                                            <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                             Loading users...
                                         </div>
                                     </td>
                                 </tr>
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-12 text-center text-slate-500">No users found</td>
+                                    <td colSpan="4" className="px-4 py-8 text-center text-slate-500 text-xs">No users found</td>
                                 </tr>
                             ) : (
                                 users.map(user => (
-                                    <tr key={user._id} className="hover:bg-slate-700/30 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center">
-                                                <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold mr-3 shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                                    <tr key={user._id} className="hover:bg-slate-700/25 transition-colors group">
+                                        <td className="px-4 py-2.5 sm:py-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-blue-500/20 shrink-0">
                                                     {user.name?.charAt(0).toUpperCase() || 'U'}
                                                 </div>
-                                                <div>
-                                                    <div className="text-white font-medium">{user.name}</div>
-                                                    <div className="text-xs text-slate-400">{user.email}</div>
+                                                <div className="min-w-0">
+                                                    <div className="text-white font-medium text-xs sm:text-sm truncate">{user.name}</div>
+                                                    <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.isBanned
-                                                ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                        <td className="px-4 py-2.5 sm:py-3">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${user.isBanned
+                                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                                 : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                                 }`}>
                                                 {user.isBanned ? 'Banned' : 'Active'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-slate-400 text-sm">
+                                        <td className="px-4 py-2.5 sm:py-3 text-slate-400 text-xs font-mono whitespace-nowrap">
                                             {new Date(user.createdAt).toLocaleDateString(undefined, {
                                                 year: 'numeric',
                                                 month: 'short',
                                                 day: 'numeric'
                                             })}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-2.5 sm:py-3 text-right">
                                             <Link
                                                 to={`/admin/users/${user._id}`}
-                                                className="text-blue-400 hover:text-blue-300 font-medium text-sm transition-colors"
+                                                className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded hover:bg-blue-500/10 transition-colors"
                                             >
                                                 View Details
                                             </Link>
@@ -152,13 +152,13 @@ const AdminUsers = () => {
 
                 {/* Numbered Pagination & Limit Selector */}
                 {pagination.total > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-700/50 bg-slate-900/30">
-                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-700/50 bg-slate-900/40">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
                             <span>Per page:</span>
                             <select
                                 value={limit}
                                 onChange={(e) => handleLimitChange(Number(e.target.value))}
-                                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-white font-mono text-[11px] focus:border-blue-500 outline-none cursor-pointer"
                             >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
@@ -172,6 +172,7 @@ const AdminUsers = () => {
                             onPageChange={(p) => fetchUsers(p, searchTerm, limit)}
                             totalItems={pagination.total}
                             itemName="users"
+                            compact={true}
                             hideOnSinglePage={false}
                             className="!border-0 !p-0"
                         />

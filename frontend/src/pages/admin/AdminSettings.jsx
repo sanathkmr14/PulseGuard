@@ -55,61 +55,61 @@ const AdminSettings = () => {
     }
 
     return (
-        <div className="max-w-4xl space-y-6 relative">
+        <div className="max-w-3xl space-y-4 sm:space-y-5 animate-fade-in relative">
             {/* Modern Bottom-Center Success Toast */}
             <Toast message={showSuccess ? 'System settings updated successfully' : ''} type="success" onClose={() => setShowSuccess(false)} />
 
 
             <div>
-                <h1 className="text-2xl font-bold text-white mb-1">System Configuration</h1>
-                <p className="text-slate-400">Manage global settings</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-white mb-0.5">System Configuration</h1>
+                <p className="text-slate-400 text-xs sm:text-sm font-medium">Manage global settings</p>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-8">
+            <form onSubmit={handleSave} className="space-y-4 sm:space-y-5">
                 {/* Global Alert Section */}
-                <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
-                    <h2 className="text-lg font-medium text-white mb-4">Global Announcements</h2>
-                    <div className="space-y-4">
+                <div className="bg-slate-800/40 backdrop-blur-xl border border-slate-700/60 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <h2 className="text-sm sm:text-base font-bold text-white mb-3">Global Announcements</h2>
+                    <div className="space-y-3.5">
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">Banner Message</label>
+                            <label className="block text-xs font-medium text-slate-300 mb-1.5">Banner Message</label>
                             <input
                                 type="text"
-                                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                 placeholder="e.g., Scheduled maintenance at 10 PM UTC"
                                 value={globalAlert}
                                 onChange={(e) => setGlobalAlert(e.target.value)}
                             />
-                            <p className="mt-1 text-xs text-slate-500">This message will be visible to all logged-in users.</p>
+                            <p className="mt-1 text-[11px] text-slate-500">This message will be visible to all logged-in users.</p>
                         </div>
 
                         <div className="flex items-center">
                             <button
                                 type="button"
                                 onClick={() => setMaintenanceMode(!maintenanceMode)}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${maintenanceMode ? 'bg-blue-600' : 'bg-slate-700'
+                                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-blue-500 ${maintenanceMode ? 'bg-blue-600' : 'bg-slate-700'
                                     }`}
                             >
                                 <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${maintenanceMode ? 'translate-x-5' : 'translate-x-0'
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${maintenanceMode ? 'translate-x-5' : 'translate-x-0'
                                         }`}
                                 />
                             </button>
-                            <span className="ml-3 text-sm font-medium text-slate-300">Enable Maintenance Mode</span>
+                            <span className="ml-2.5 text-xs font-medium text-slate-300">Enable Maintenance Mode</span>
                         </div>
 
                         <div className="flex items-center">
                             <button
                                 type="button"
                                 onClick={() => setAllowSignups(!allowSignups)}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${allowSignups ? 'bg-blue-600' : 'bg-slate-700'
+                                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-blue-500 ${allowSignups ? 'bg-blue-600' : 'bg-slate-700'
                                     }`}
                             >
                                 <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${allowSignups ? 'translate-x-5' : 'translate-x-0'
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${allowSignups ? 'translate-x-5' : 'translate-x-0'
                                         }`}
                                 />
                             </button>
-                            <span className="ml-3 text-sm font-medium text-slate-300">Allow New User Registrations</span>
+                            <span className="ml-2.5 text-xs font-medium text-slate-300">Allow New User Registrations</span>
                         </div>
                     </div>
                 </div>
@@ -118,7 +118,7 @@ const AdminSettings = () => {
                     <button
                         type="submit"
                         disabled={saving}
-                        className={`bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-5 rounded-lg transition-all shadow-sm shadow-blue-500/20 hover:scale-[1.02] cursor-pointer ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-1.5 px-4 rounded-lg transition-all shadow-sm shadow-blue-500/20 hover:scale-[1.02] cursor-pointer ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {saving ? 'Saving...' : 'Save Configuration'}
                     </button>
