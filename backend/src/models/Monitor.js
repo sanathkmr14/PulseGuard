@@ -121,7 +121,7 @@ const monitorSchema = new mongoose.Schema({
 monitorSchema.index({ user: 1, status: 1 });
 monitorSchema.index({ isActive: 1 });
 monitorSchema.index({ type: 1 });
-monitorSchema.index({ user: 1, url: 1, type: 1 }, { unique: true });
+monitorSchema.index({ user: 1, url: 1, type: 1, port: 1 }, { unique: true });
 
 // Shared monitor cascading cleanup helper
 async function cleanupMonitorDependencies(monitorId) {

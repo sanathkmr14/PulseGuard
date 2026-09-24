@@ -137,17 +137,25 @@ export const createMonitor = async (req, res) => {
             }
         }
 
-        // RACE CONDITION FIX: Check if monitor already exists for this user/url
-        const existingMonitor = await Monitor.findOne({
+        // RACE CONDITION FIX: Check if monitor already exists for this user/url/type/port
+        const duplicateQuery = {
             user: req.user._id,
             url: monitorData.url,
             type: monitorData.type
-        });
+        };
+        if (monitorData.port !== undefined && monitorData.port !== null) {
+            duplicateQuery.port = monitorData.port;
+        } else {
+            duplicateQuery.port = { $in: [null, undefined] };
+        }
+
+        const existingMonitor = await Monitor.findOne(duplicateQuery);
 
         if (existingMonitor) {
+            const portSuffix = monitorData.port ? ` on port ${monitorData.port}` : '';
             return res.status(409).json({
                 success: false,
-                message: 'A monitor for this URL already exists.',
+                message: `A monitor for this URL${portSuffix} already exists.`,
                 data: existingMonitor
             });
         }
