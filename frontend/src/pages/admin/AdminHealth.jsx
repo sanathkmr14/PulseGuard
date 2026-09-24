@@ -129,15 +129,15 @@ const AdminHealth = () => {
 
                         {/* Queue Micro Chips */}
                         <div className="grid grid-cols-3 gap-1.5 mb-2">
-                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center">
+                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Jobs executing right at this instant (checks complete in 50-200ms)">
                                 <div className="text-[10px] text-slate-400">Active</div>
                                 <div className="text-xs font-mono font-bold text-blue-400">{queue.details?.active ?? 0}</div>
                             </div>
-                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center">
-                                <div className="text-[10px] text-slate-400">Waiting</div>
-                                <div className="text-xs font-mono font-bold text-amber-400">{queue.details?.waiting ?? 0}</div>
+                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Monitors scheduled and ticking down to next run">
+                                <div className="text-[10px] text-slate-400">Scheduled</div>
+                                <div className="text-xs font-mono font-bold text-indigo-400">{queue.details?.scheduled ?? queue.details?.delayed ?? queue.details?.waiting ?? 0}</div>
                             </div>
-                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center">
+                            <div className="bg-slate-900/60 border border-slate-700/60 rounded-lg p-1 text-center" title="Failed jobs">
                                 <div className="text-[10px] text-slate-400">Failed</div>
                                 <div className="text-xs font-mono font-bold text-red-400">{queue.details?.failed ?? 0}</div>
                             </div>

@@ -645,7 +645,7 @@ export const getSystemHealth = async (req, res) => {
 
         try {
             if (schedulerService.queue) {
-                const counts = await schedulerService.queue.getJobCounts('active', 'waiting', 'completed', 'failed');
+                const counts = await schedulerService.queue.getJobCounts('active', 'waiting', 'completed', 'failed', 'delayed');
 
                 // Get jobs processed today from Check collection (more informative than BullMQ counts)
                 const startOfDay = new Date();
@@ -658,6 +658,7 @@ export const getSystemHealth = async (req, res) => {
 
                 queueStats = {
                     ...counts,
+                    scheduled: counts.delayed || 0,
                     jobsToday,
                     lastRun: lastCheck?.timestamp || null
                 };
