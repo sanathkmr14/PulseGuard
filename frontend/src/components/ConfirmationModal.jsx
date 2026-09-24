@@ -126,7 +126,7 @@ const ConfirmationModal = ({
             />
 
             {/* Modal Card */}
-            <div className="relative bg-slate-900 border border-slate-700/90 rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl shadow-black/80 animate-in fade-in zoom-in-95">
+            <div className="relative bg-slate-900 border border-slate-700/90 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in fade-in zoom-in-95">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">

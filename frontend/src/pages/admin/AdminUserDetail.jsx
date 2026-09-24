@@ -151,7 +151,12 @@ const AdminUserDetail = () => {
                 isBanned: user.isBanned,
                 monitorCount: monitorsTotalCount
             },
-            message: `You will be temporarily authenticated as ${user.name} for 15 minutes. All impersonation actions are recorded in security audit logs.`,
+            message: (
+                <div className="space-y-0.5 leading-snug">
+                    <p>You will be temporarily authenticated as <span className="font-semibold text-white">{user.name}</span> for 15 minutes.</p>
+                    <p className="text-blue-300/85">All impersonation actions are recorded in security audit logs.</p>
+                </div>
+            ),
             onConfirm: async () => {
                 try {
                     const res = await adminAPI.impersonateUser(user._id);
@@ -183,7 +188,12 @@ const AdminUserDetail = () => {
                 isBanned: user.isBanned,
                 monitorCount: monitorsTotalCount
             },
-            message: `Send an automated password reset email to ${user.email}? The user will receive a secure one-time link valid for 1 hour to choose a new password.`,
+            message: (
+                <div className="space-y-0.5 leading-snug">
+                    <p>Send an automated password reset email to <span className="font-semibold text-white">{user.email}</span>?</p>
+                    <p className="text-amber-300/85">The user will receive a secure one-time link valid for 1 hour.</p>
+                </div>
+            ),
             onConfirm: async () => {
                 try {
                     await adminAPI.sendPasswordReset(user.email);
@@ -214,9 +224,17 @@ const AdminUserDetail = () => {
                 isBanned: user.isBanned,
                 monitorCount: monitorsTotalCount
             },
-            message: isBanning
-                ? `Are you sure you want to ban ${user.name}? They will be immediately blocked from logging in, and all active user sessions will be revoked.`
-                : `Are you sure you want to unban ${user.name}? The account will be unlocked and the user can log in again.`,
+            message: isBanning ? (
+                <div className="space-y-0.5 leading-snug">
+                    <p>Are you sure you want to ban <span className="font-semibold text-white">{user.name}</span>?</p>
+                    <p className="text-amber-300/85">They will be blocked from logging in, and all active sessions revoked.</p>
+                </div>
+            ) : (
+                <div className="space-y-0.5 leading-snug">
+                    <p>Are you sure you want to unban <span className="font-semibold text-white">{user.name}</span>?</p>
+                    <p className="text-emerald-300/85">Account will be restored and user can log in immediately.</p>
+                </div>
+            ),
             onConfirm: async () => {
                 try {
                     const res = await adminAPI.toggleUserBan(user._id);
@@ -249,7 +267,13 @@ const AdminUserDetail = () => {
                 isBanned: user.isBanned,
                 monitorCount: monitorsTotalCount
             },
-            message: `CRITICAL WARNING: This action cannot be undone. This will permanently delete ${user.name}'s account and ALL ${monitorsTotalCount || 0} monitors, check histories, downtime incidents, and notification settings from the database.`,
+            message: (
+                <div className="space-y-0.5 leading-snug">
+                    <p><strong className="font-semibold text-red-200">CRITICAL WARNING:</strong> This action cannot be undone.</p>
+                    <p>Permanently deletes <span className="font-semibold text-white">{user.name}</span>'s account and ALL <span className="font-semibold text-white">{monitorsTotalCount || 0} monitors</span>.</p>
+                    <p className="text-red-300/80">Check histories, downtime incidents, and settings will be erased.</p>
+                </div>
+            ),
             requireTypeConfirm: true,
             typeConfirmTarget: user.name,
             onConfirm: async () => {
@@ -284,7 +308,12 @@ const AdminUserDetail = () => {
                 monitorType: monitor.type || 'HTTPS',
                 port: monitor.port
             },
-            message: `CRITICAL WARNING: Are you sure you want to delete "${monitor.name}"? All check logs, response time metrics, and incidents will be permanently erased.`,
+            message: (
+                <div className="space-y-0.5 leading-snug">
+                    <p><strong className="font-semibold text-red-200">CRITICAL WARNING:</strong> Delete <span className="font-semibold text-white">"{monitor.name}"</span>?</p>
+                    <p className="text-red-300/80">All check logs, response time metrics, and incidents will be erased.</p>
+                </div>
+            ),
             requireTypeConfirm: true,
             typeConfirmTarget: monitor.name,
             onConfirm: async () => {
