@@ -8,16 +8,17 @@ const AdminUsers = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [limit, setLimit] = useState(10);
     const [pagination, setPagination] = useState({
         current: 1,
         pages: 1,
         total: 0
     });
 
-    const fetchUsers = async (page = 1, search = searchTerm) => {
+    const fetchUsers = async (page = 1, search = searchTerm, currentLimit = limit) => {
         try {
             setLoading(true);
-            const res = await adminAPI.getUsers(search, 50, page);
+            const res = await adminAPI.getUsers(search, currentLimit, page);
             if (res.data.success) {
                 setUsers(res.data.data);
                 if (res.data.pagination) {
@@ -34,13 +35,18 @@ const AdminUsers = () => {
         }
     };
 
+    const handleLimitChange = (newLimit) => {
+        setLimit(newLimit);
+        fetchUsers(1, searchTerm, newLimit);
+    };
+
     // Debounced search handler
     const debouncedSearch = useCallback(
         debounce((query) => {
             // Reset to page 1 on new search
             fetchUsers(1, query);
         }, 500),
-        []
+        [limit]
     );
 
     useEffect(() => {
@@ -144,14 +150,33 @@ const AdminUsers = () => {
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                <Pagination
-                    currentPage={pagination.current}
-                    totalPages={pagination.pages}
-                    onPageChange={(p) => fetchUsers(p)}
-                    totalItems={pagination.total}
-                    itemName="users"
-                />
+                {/* Numbered Pagination & Limit Selector */}
+                {pagination.total > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-700/50 bg-slate-900/30">
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                            <span>Per page:</span>
+                            <select
+                                value={limit}
+                                onChange={(e) => handleLimitChange(Number(e.target.value))}
+                                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
+                        <Pagination
+                            currentPage={pagination.current}
+                            totalPages={pagination.pages}
+                            onPageChange={(p) => fetchUsers(p, searchTerm, limit)}
+                            totalItems={pagination.total}
+                            itemName="users"
+                            hideOnSinglePage={false}
+                            className="!border-0 !p-0"
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -20,9 +20,22 @@ const AdminUserDetail = () => {
 
     // Pagination States
     const [monitorsPage, setMonitorsPage] = useState(1);
+    const [monitorsLimit, setMonitorsLimit] = useState(5);
     const [monitorsPagination, setMonitorsPagination] = useState({ current: 1, pages: 1, total: 0 });
+
     const [incidentsPage, setIncidentsPage] = useState(1);
+    const [incidentsLimit, setIncidentsLimit] = useState(5);
     const [incidentsPagination, setIncidentsPagination] = useState({ current: 1, pages: 1, total: 0 });
+
+    const handleMonitorsLimitChange = (newLimit) => {
+        setMonitorsLimit(newLimit);
+        setMonitorsPage(1);
+    };
+
+    const handleIncidentsLimitChange = (newLimit) => {
+        setIncidentsLimit(newLimit);
+        setIncidentsPage(1);
+    };
 
     // Loading States
     const [monitorsLoading, setMonitorsLoading] = useState(false);
@@ -78,24 +91,24 @@ const AdminUserDetail = () => {
         fetchUser();
     }, [id]);
 
-    // Fetch Monitors when tab is active or page changes
+    // Fetch Monitors when tab is active or page/limit changes
     useEffect(() => {
         if (activeTab === 'monitors' && user) {
-            fetchMonitors(monitorsPage);
+            fetchMonitors(monitorsPage, monitorsLimit);
         }
-    }, [activeTab, monitorsPage, user]);
+    }, [activeTab, monitorsPage, monitorsLimit, user]);
 
-    // Fetch Incidents when tab is active or page changes
+    // Fetch Incidents when tab is active or page/limit changes
     useEffect(() => {
         if (activeTab === 'incidents' && user) {
-            fetchIncidents(incidentsPage);
+            fetchIncidents(incidentsPage, incidentsLimit);
         }
-    }, [activeTab, incidentsPage, user]);
+    }, [activeTab, incidentsPage, incidentsLimit, user]);
 
-    const fetchMonitors = async (page) => {
+    const fetchMonitors = async (page = 1, limit = monitorsLimit) => {
         try {
             setMonitorsLoading(true);
-            const res = await adminAPI.getUserMonitors(id, page);
+            const res = await adminAPI.getUserMonitors(id, page, limit);
             if (res.data.success) {
                 setMonitors(res.data.data);
                 if (res.data.pagination) setMonitorsPagination(res.data.pagination);
@@ -107,10 +120,10 @@ const AdminUserDetail = () => {
         }
     };
 
-    const fetchIncidents = async (page) => {
+    const fetchIncidents = async (page = 1, limit = incidentsLimit) => {
         try {
             setIncidentsLoading(true);
-            const res = await adminAPI.getUserIncidents(id, page);
+            const res = await adminAPI.getUserIncidents(id, page, limit);
             if (res.data.success) {
                 setIncidents(res.data.data);
                 if (res.data.pagination) setIncidentsPagination(res.data.pagination);
@@ -409,15 +422,33 @@ const AdminUserDetail = () => {
                                             </tbody>
                                         </table>
                                     </div>
-                                    {/* Pagination Controls */}
-                                    <Pagination
-                                        currentPage={monitorsPagination.current}
-                                        totalPages={monitorsPagination.pages}
-                                        onPageChange={(p) => setMonitorsPage(p)}
-                                        totalItems={monitorsPagination.total}
-                                        itemName="monitors"
-                                        className="mt-4"
-                                    />
+                                    {/* Numbered Pagination & Limit Selector */}
+                                    {monitorsPagination.total > 0 && (
+                                        <div className="-mx-6 -mb-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-700/50 bg-slate-900/30">
+                                            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                                                <span>Per page:</span>
+                                                <select
+                                                    value={monitorsLimit}
+                                                    onChange={(e) => handleMonitorsLimitChange(Number(e.target.value))}
+                                                    className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                                >
+                                                    <option value={5}>5</option>
+                                                    <option value={10}>10</option>
+                                                    <option value={20}>20</option>
+                                                    <option value={50}>50</option>
+                                                </select>
+                                            </div>
+                                            <Pagination
+                                                currentPage={monitorsPagination.current}
+                                                totalPages={monitorsPagination.pages}
+                                                onPageChange={(p) => setMonitorsPage(p)}
+                                                totalItems={monitorsPagination.total}
+                                                itemName="monitors"
+                                                hideOnSinglePage={false}
+                                                className="!border-0 !p-0"
+                                            />
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -469,15 +500,33 @@ const AdminUserDetail = () => {
                                                     </div>
                                                 </div>
                                             ))}
-                                            {/* Pagination Controls */}
-                                            <Pagination
-                                                currentPage={incidentsPagination.current}
-                                                totalPages={incidentsPagination.pages}
-                                                onPageChange={(p) => setIncidentsPage(p)}
-                                                totalItems={incidentsPagination.total}
-                                                itemName="incidents"
-                                                className="mt-4"
-                                            />
+                                            {/* Numbered Pagination & Limit Selector */}
+                                            {incidentsPagination.total > 0 && (
+                                                <div className="-mx-6 -mb-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-700/50 bg-slate-900/30">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                                                        <span>Per page:</span>
+                                                        <select
+                                                            value={incidentsLimit}
+                                                            onChange={(e) => handleIncidentsLimitChange(Number(e.target.value))}
+                                                            className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                                        >
+                                                            <option value={5}>5</option>
+                                                            <option value={10}>10</option>
+                                                            <option value={20}>20</option>
+                                                            <option value={50}>50</option>
+                                                        </select>
+                                                    </div>
+                                                    <Pagination
+                                                        currentPage={incidentsPagination.current}
+                                                        totalPages={incidentsPagination.pages}
+                                                        onPageChange={(p) => setIncidentsPage(p)}
+                                                        totalItems={incidentsPagination.total}
+                                                        itemName="incidents"
+                                                        hideOnSinglePage={false}
+                                                        className="!border-0 !p-0"
+                                                    />
+                                                </div>
+                                            )}
                                         </>
                                     ) : (
                                         <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
