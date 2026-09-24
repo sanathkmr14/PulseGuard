@@ -3,6 +3,7 @@ import { debounce } from '../../utils/debounce';
 import { adminAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Pagination from '../../components/Pagination';
 
 const StatCard = ({ title, value, subtext, icon, color, gradient }) => (
     <div className={`relative overflow-hidden rounded-2xl border border-slate-700/50 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-${color.split('-')[1]}-500/10 bg-slate-800/40 backdrop-blur-xl group`}>
@@ -35,6 +36,53 @@ const AdminDashboard = () => {
     const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
     const navigate = useNavigate();
+
+    // Recent Signups Pagination State
+    const [signups, setSignups] = useState([]);
+    const [signupsLoading, setSignupsLoading] = useState(false);
+    const [signupsPage, setSignupsPage] = useState(1);
+    const [signupsLimit, setSignupsLimit] = useState(5);
+    const [signupsPagination, setSignupsPagination] = useState({
+        current: 1,
+        pages: 1,
+        total: 0
+    });
+
+    const fetchRecentSignups = async (page = 1, limit = signupsLimit) => {
+        try {
+            setSignupsLoading(true);
+            const res = await adminAPI.getUsers('', limit, page);
+            if (res.data.success) {
+                setSignups(res.data.data || []);
+                if (res.data.pagination) {
+                    setSignupsPagination(res.data.pagination);
+                } else {
+                    setSignupsPagination({
+                        current: page,
+                        pages: Math.ceil(((res.data.data || []).length) / limit) || 1,
+                        total: (res.data.data || []).length
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch recent signups", error);
+        } finally {
+            setSignupsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRecentSignups(signupsPage, signupsLimit);
+    }, [signupsPage, signupsLimit]);
+
+    const handleSignupsPageChange = (newPage) => {
+        setSignupsPage(newPage);
+    };
+
+    const handleSignupsLimitChange = (newLimit) => {
+        setSignupsLimit(newLimit);
+        setSignupsPage(1);
+    };
 
     // Fetch users (with search and limit)
     const fetchUsers = async (search = '') => {
@@ -342,7 +390,12 @@ const AdminDashboard = () => {
             <div className="rounded-2xl border border-slate-700/50 bg-slate-800/40 backdrop-blur-xl overflow-hidden shadow-xl">
                 <div className="p-6 border-b border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h3 className="text-lg font-bold text-white tracking-wide">Recent Signups</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-white tracking-wide">Recent Signups</h3>
+                            {signupsLoading && (
+                                <div className="w-3.5 h-3.5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                            )}
+                        </div>
                         <p className="text-slate-400 text-sm mt-1">New users joining the platform</p>
                     </div>
                     <button
@@ -364,48 +417,90 @@ const AdminDashboard = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/50">
-                            {(stats?.recentSignups || []).map((user) => (
-                                <tr key={user._id} className="group hover:bg-slate-700/30 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-                                                {user.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <div className="font-medium text-white">{user.name}</div>
-                                                <div className="text-xs text-slate-500">{user.email}</div>
-                                            </div>
+                            {signupsLoading && signups.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" className="px-6 py-12 text-center text-slate-500">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                            Loading signups...
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            Active
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {new Date(user.createdAt).toLocaleDateString(undefined, {
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric'
-                                        })}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => navigate(`/admin/users/${user._id}`)}
-                                            className="text-blue-400 hover:text-blue-300 font-medium text-sm hover:underline"
-                                        >
-                                            View Details
-                                        </button>
+                                </tr>
+                            ) : signups.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" className="py-12 text-center text-slate-500 text-sm">
+                                        No recent signups to display.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                signups.map((user) => (
+                                    <tr key={user._id} className="group hover:bg-slate-700/30 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-blue-600 border border-blue-500/30 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                                                    {user.name?.charAt(0).toUpperCase() || 'U'}
+                                                </div>
+                                                <div>
+                                                    <div className="font-medium text-white">{user.name}</div>
+                                                    <div className="text-xs text-slate-500">{user.email}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${user.isBanned
+                                                ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                }`}>
+                                                {user.isBanned ? 'Banned' : 'Active'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {new Date(user.createdAt).toLocaleDateString(undefined, {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            })}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                onClick={() => navigate(`/admin/users/${user._id}`)}
+                                                className="text-blue-400 hover:text-blue-300 font-medium text-sm hover:underline"
+                                            >
+                                                View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                {(stats?.recentSignups || []).length === 0 && (
-                    <div className="py-12 text-center text-slate-500 text-sm">
-                        No recent signups to display.
+                {/* Numbered Pagination & Limit Selector */}
+                {signupsPagination.total > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-700/50 bg-slate-900/30">
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+                            <span>Per page:</span>
+                            <select
+                                value={signupsLimit}
+                                onChange={(e) => handleSignupsLimitChange(Number(e.target.value))}
+                                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
+                        <Pagination
+                            currentPage={signupsPagination.current}
+                            totalPages={signupsPagination.pages}
+                            onPageChange={handleSignupsPageChange}
+                            totalItems={signupsPagination.total}
+                            itemName="users"
+                            hideOnSinglePage={false}
+                            className="!border-0 !p-0"
+                        />
                     </div>
                 )}
             </div>
