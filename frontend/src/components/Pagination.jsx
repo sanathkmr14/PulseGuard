@@ -13,6 +13,7 @@ const Pagination = ({
     itemName = 'items',
     showJump = true,
     hideOnSinglePage = true,
+    showInfo = true,
     compact = false,
     card = false,
     className = ''
@@ -25,6 +26,20 @@ const Pagination = ({
 
     // Generate page numbers with smart ellipsis
     const getPageNumbers = () => {
+        if (compact) {
+            // In compact mode, show at most 5 items total
+            if (totalPages <= 5) {
+                return Array.from({ length: totalPages }, (_, i) => i + 1);
+            }
+            if (currentPage <= 3) {
+                return [1, 2, 3, '...', totalPages];
+            }
+            if (currentPage >= totalPages - 2) {
+                return [1, '...', totalPages - 2, totalPages - 1, totalPages];
+            }
+            return [1, '...', currentPage, '...', totalPages];
+        }
+
         if (totalPages <= 7) {
             return Array.from({ length: totalPages }, (_, i) => i + 1);
         }
@@ -52,24 +67,26 @@ const Pagination = ({
     const pages = getPageNumbers();
 
     const containerClasses = card
-        ? `bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl ${compact ? 'p-2.5 sm:p-3 text-[11px]' : 'p-3 sm:px-4 sm:py-3 text-xs'} shadow-sm flex flex-col ${compact ? 'gap-2' : 'md:flex-row gap-4'} items-center justify-between ${className}`
-        : `flex flex-col ${compact ? 'gap-2 p-2.5 sm:p-3 text-[11px]' : 'md:flex-row gap-4 p-4 sm:p-5 text-xs'} items-center justify-between border-t border-gray-800/40 ${className}`;
+        ? `bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl ${compact ? 'p-2.5 sm:p-3 text-[11px]' : 'p-3 sm:px-4 sm:py-3 text-xs'} shadow-sm flex flex-col ${compact ? 'gap-2' : 'md:flex-row gap-4'} items-center ${showInfo ? 'justify-between' : 'justify-center'} ${className}`
+        : `flex flex-col ${compact ? 'gap-2 p-2.5 sm:p-3 text-[11px]' : 'md:flex-row gap-4 p-4 sm:p-5 text-xs'} items-center ${showInfo ? 'justify-between' : 'justify-center'} border-t border-gray-800/40 ${className}`;
 
     return (
         <div className={containerClasses}>
             {/* Info Text */}
-            <div className={`text-gray-400 font-mono text-center ${compact ? 'text-[11px]' : 'md:text-left text-xs'}`}>
-                Page <span className="font-semibold text-white">{currentPage}</span> of{' '}
-                <span className="font-semibold text-white">{totalPages}</span>
-                {totalItems !== undefined && totalItems !== null && (
-                    <span className="text-gray-500 ml-1.5">
-                        ({totalItems.toLocaleString()} total {totalItems === 1 ? (itemName.endsWith('s') ? itemName.slice(0, -1) : itemName) : itemName})
-                    </span>
-                )}
-            </div>
+            {showInfo && (
+                <div className={`text-gray-400 font-mono text-center ${compact ? 'text-[11px]' : 'md:text-left text-xs'} whitespace-nowrap`}>
+                    Page <span className="font-semibold text-white">{currentPage}</span> of{' '}
+                    <span className="font-semibold text-white">{totalPages}</span>
+                    {totalItems !== undefined && totalItems !== null && (
+                        <span className="text-gray-500 ml-1.5">
+                            ({totalItems.toLocaleString()} total {totalItems === 1 ? (itemName.endsWith('s') ? itemName.slice(0, -1) : itemName) : itemName})
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Controls */}
-            <div className={`flex flex-wrap items-center justify-center ${compact ? 'gap-1' : 'gap-1.5'}`}>
+            <div className={`flex flex-nowrap items-center justify-center shrink-0 ${compact ? 'gap-1' : 'gap-1.5'}`}>
                 {/* Previous Button */}
                 <button
                     onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
@@ -84,13 +101,13 @@ const Pagination = ({
                 </button>
 
                 {/* Page Number Buttons */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                     {pages.map((p, idx) => {
                         if (p === '...') {
                             return (
                                 <span
                                     key={`ellipsis-${idx}`}
-                                    className={`${compact ? 'w-5 h-7 text-[11px]' : 'w-6 h-8 text-xs'} flex items-center justify-center text-gray-500 select-none font-mono`}
+                                    className={`${compact ? 'w-5 h-7 text-[11px]' : 'w-6 h-8 text-xs'} flex items-center justify-center text-gray-500 select-none font-mono shrink-0`}
                                 >
                                     …
                                 </span>

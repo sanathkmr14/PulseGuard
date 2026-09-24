@@ -896,19 +896,30 @@ const Dashboard = () => {
                                         </div>
 
                                         {/* Numbered Pagination & Limit Selector */}
-                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 py-2.5 border-t border-gray-800/40 bg-[#0d0d14]/40">
-                                            <div className="flex items-center gap-1.5 text-xs text-gray-400 font-mono">
-                                                <span className="text-[11px] text-gray-500">Per page:</span>
-                                                <select
-                                                    value={incidentsLimit}
-                                                    onChange={e => handleIncidentLimitChange(Number(e.target.value))}
-                                                    className="bg-[#12121a] border border-gray-800 rounded px-2 py-0.5 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
-                                                >
-                                                    <option value={3}>3</option>
-                                                    <option value={5}>5</option>
-                                                </select>
+                                        <div className="flex flex-col gap-2 px-3 py-2.5 border-t border-gray-800/40 bg-[#0d0d14]/40">
+                                            <div className="flex items-center justify-between w-full text-xs text-gray-400 font-mono">
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <span className="text-[11px] text-gray-500 whitespace-nowrap">Per page:</span>
+                                                    <select
+                                                        value={incidentsLimit}
+                                                        onChange={e => handleIncidentLimitChange(Number(e.target.value))}
+                                                        className="bg-[#12121a] border border-gray-800 rounded px-2 py-0.5 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                                    >
+                                                        <option value={3}>3</option>
+                                                        <option value={5}>5</option>
+                                                    </select>
+                                                </div>
+                                                <div className="text-[11px] text-gray-400 font-mono whitespace-nowrap">
+                                                    Page <span className="font-semibold text-white">{incidentsPage}</span> of{' '}
+                                                    <span className="font-semibold text-white">{incidentsPagination.pages}</span>
+                                                    {incidentsPagination.total !== undefined && incidentsPagination.total !== null && (
+                                                        <span className="text-gray-500 ml-1">
+                                                            ({incidentsPagination.total} total)
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="w-full sm:w-auto">
+                                            <div className="w-full flex items-center justify-center">
                                                 <Pagination
                                                     currentPage={incidentsPage}
                                                     totalPages={incidentsPagination.pages}
@@ -917,6 +928,7 @@ const Dashboard = () => {
                                                     itemName="incidents"
                                                     compact={true}
                                                     hideOnSinglePage={false}
+                                                    showInfo={false}
                                                     className="!border-0 !p-0"
                                                 />
                                             </div>
