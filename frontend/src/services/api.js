@@ -127,7 +127,7 @@ export const adminAPI = {
     updateMonitor: (id, data) => adminInstance.put(`/admin/monitors/${id}`, data),
     deleteMonitor: (id) => adminInstance.delete(`/admin/monitors/${id}`),
     getIncidents: (params) => adminInstance.get('/admin/incidents', { params }),
-    getSystemHealth: () => adminInstance.get('/admin/stats/health'),
+    getSystemHealth: (params) => adminInstance.get('/admin/stats/health', { params }),
     // Dashboard
     getDashboardStats: (params) => adminInstance.get('/admin/stats', { params }), // supports ?userId=...
 

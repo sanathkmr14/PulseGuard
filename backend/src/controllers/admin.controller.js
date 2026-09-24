@@ -613,16 +613,20 @@ export const getUserIncidents = async (req, res) => {
 export const getSystemHealth = async (req, res) => {
     try {
         const cacheKey = 'admin:system:health';
-        try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                return res.json({
-                    success: true,
-                    data: JSON.parse(cachedData)
-                });
+        const isForceRefresh = req.query.refresh === 'true';
+
+        if (!isForceRefresh) {
+            try {
+                const cachedData = await redisClient.get(cacheKey);
+                if (cachedData) {
+                    return res.json({
+                        success: true,
+                        data: JSON.parse(cachedData)
+                    });
+                }
+            } catch (cacheErr) {
+                console.error('[Redis Cache Get Error]:', cacheErr.message);
             }
-        } catch (cacheErr) {
-            console.error('[Redis Cache Get Error]:', cacheErr.message);
         }
 
         // 1. Database Stats (MongoDB)
