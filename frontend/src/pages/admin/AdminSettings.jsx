@@ -61,7 +61,10 @@ const AdminSettings = () => {
 
             <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white mb-0.5">System Configuration</h1>
-                <p className="text-slate-400 text-xs sm:text-sm font-medium">Configure global announcements, access controls, and maintenance state</p>
+                <p className="text-slate-400 text-xs sm:text-sm font-medium whitespace-nowrap truncate">
+                    <span className="hidden sm:inline">Configure global announcements, access controls, and maintenance state</span>
+                    <span className="sm:hidden">Configure announcements & maintenance state</span>
+                </p>
             </div>
 
             <form onSubmit={handleSave} className="space-y-4">

@@ -791,15 +791,18 @@ const Monitors = () => {
                     <div className="relative bg-[#12121a]/95 backdrop-blur-md border border-gray-800/90 rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-3 mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
                                     <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
                                 </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-white font-heading">Delete Monitor</h3>
-                                    <p className="text-xs text-gray-400">Permanently remove service and telemetry</p>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="text-sm sm:text-base font-bold text-white font-heading truncate">Delete Monitor</h3>
+                                    <p className="text-[11px] sm:text-xs text-gray-400 whitespace-nowrap">
+                                        <span className="hidden sm:inline">Permanently remove service and telemetry</span>
+                                        <span className="sm:hidden">Remove service & telemetry</span>
+                                    </p>
                                 </div>
                             </div>
                             <button

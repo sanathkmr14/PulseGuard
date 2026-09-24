@@ -129,11 +129,11 @@ const ConfirmationModal = ({
             <div className="relative bg-slate-900 border border-slate-700/90 rounded-2xl p-5 sm:p-6 max-w-lg w-full shadow-2xl shadow-black/80 animate-in fade-in zoom-in-95">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                         {renderHeaderIcon()}
-                        <div>
-                            <h3 className="text-base font-bold text-white font-heading">{title}</h3>
-                            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-sm sm:text-base font-bold text-white font-heading truncate">{title}</h3>
+                            {subtitle && <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 truncate whitespace-nowrap">{subtitle}</p>}
                         </div>
                     </div>
                     <button

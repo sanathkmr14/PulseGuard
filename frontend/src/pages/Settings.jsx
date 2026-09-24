@@ -156,7 +156,10 @@ const Settings = () => {
 
             <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Settings & Alerts</h1>
-                <p className="text-gray-400 text-xs sm:text-sm mt-1">Configure multi-channel notifications to receive instant downtime and recovery alerts</p>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1 whitespace-nowrap truncate">
+                    <span className="hidden sm:inline">Configure multi-channel notifications to receive instant downtime and recovery alerts</span>
+                    <span className="sm:hidden">Configure multi-channel downtime & recovery alerts</span>
+                </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

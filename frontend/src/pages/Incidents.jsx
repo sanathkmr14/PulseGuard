@@ -261,7 +261,10 @@ const Incidents = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Incidents</h1>
-                    <p className="text-gray-400 mt-1 text-xs sm:text-sm">Real-time incident response and historical downtime telemetry</p>
+                    <p className="text-gray-400 mt-1 text-xs sm:text-sm whitespace-nowrap truncate">
+                        <span className="hidden sm:inline">Real-time incident response and historical downtime telemetry</span>
+                        <span className="sm:hidden">Real-time incident response & telemetry</span>
+                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
