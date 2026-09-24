@@ -104,8 +104,8 @@ const AdminHealth = () => {
                                 <span className="text-slate-400 text-[11px]">Indexes</span>
                                 <span className="text-white font-mono text-[11px] font-semibold">{database.details?.indexes ?? '—'}</span>
                             </div>
-                            <div className="flex justify-between items-center py-1">
-                                <span className="text-slate-400 text-[11px]">Uptime</span>
+                            <div className="flex justify-between items-center py-1" title="Continuous live database connection session duration">
+                                <span className="text-slate-400 text-[11px]">Conn Uptime</span>
                                 <span className="text-white font-mono text-[11px]">{database.details?.uptime ?? '—'}</span>
                             </div>
                         </div>
