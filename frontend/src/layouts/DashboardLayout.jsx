@@ -206,8 +206,8 @@ const DashboardLayout = () => {
                             })}
                         </nav>
 
-                        {/* Right: User Menu & Mobile Toggle */}
-                        <div className="flex items-center gap-3">
+                        {/* Right: User Menu (Desktop only - mobile accesses profile via 3-lines menu) */}
+                        <div className="hidden md:flex items-center gap-3">
                             <div className="relative" ref={userMenuRef}>
                                 <button
                                     onClick={() => setUserMenuOpen(!userMenuOpen)}
