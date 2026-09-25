@@ -37,6 +37,7 @@ const MonitorDetails = () => {
     const [stats, setStats] = useState(null);
     const [checks, setChecks] = useState([]);
     const [checksPage, setChecksPage] = useState(1);
+    const [checksLimit, setChecksLimit] = useState(10);
     const [checksPagination, setChecksPagination] = useState({ current: 1, pages: 1, total: 0 });
     const [activeIncident, setActiveIncident] = useState(null);
     const [responseData, setResponseData] = useState(null);
@@ -130,8 +131,8 @@ const MonitorDetails = () => {
     }, [id, subscribe, handleMonitorUpdate]);
 
     useEffect(() => {
-        if (id) fetchChecks(checksPage);
-    }, [checksPage, id]);
+        if (id) fetchChecks(checksPage, checksLimit);
+    }, [checksPage, checksLimit, id]);
 
     // Background synchronization every 10s to guarantee real-time data
     useEffect(() => {
@@ -144,11 +145,11 @@ const MonitorDetails = () => {
                 statsAPI.getResponseTimeStats(id, '24h').then(r => {
                     if (r.data?.data) setResponseData(r.data.data);
                 }).catch(console.error);
-                fetchChecks(checksPage);
+                fetchChecks(checksPage, checksLimit);
             }
         }, 10000);
         return () => clearInterval(intervalId);
-    }, [id, checking, checksPage]);
+    }, [id, checking, checksPage, checksLimit]);
 
 
 
@@ -195,9 +196,9 @@ const MonitorDetails = () => {
         finally { setLoading(false); }
     };
 
-    const fetchChecks = async (page = checksPage) => {
+    const fetchChecks = async (page = checksPage, limit = checksLimit) => {
         try {
-            const res = await monitorAPI.getChecks(id, { page, limit: 10 });
+            const res = await monitorAPI.getChecks(id, { page, limit });
             if (res.data.success) {
                 setChecks(res.data.data);
                 setChecksPagination({
@@ -211,12 +212,18 @@ const MonitorDetails = () => {
         }
     };
 
+    const handleChecksLimitChange = (newLimit) => {
+        setChecksLimit(newLimit);
+        setChecksPage(1);
+        fetchChecks(1, newLimit);
+    };
+
     const handleManualRefresh = async () => {
         setIsRefreshing(true);
         try {
             await Promise.allSettled([
                 fetchData(),
-                fetchChecks(checksPage)
+                fetchChecks(checksPage, checksLimit)
             ]);
         } catch (e) {
             console.error('Refresh failed:', e);
@@ -842,9 +849,9 @@ const MonitorDetails = () => {
                                     </p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-cols-3 md:grid-cols-5">
                                 {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="p-3 rounded-xl border border-gray-800/50 bg-gray-800/10 h-20 flex flex-col justify-center">
+                                    <div key={i} className="p-3 rounded-xl border border-gray-800/50 bg-gray-800/10 h-20 flex flex-col justify-center flex-shrink-0 min-w-[155px] sm:min-w-0">
                                         <div className="w-12 h-2 bg-blue-500/20 rounded mb-2" />
                                         <div className="w-20 h-4 bg-gray-800/50 rounded" />
                                     </div>
@@ -886,7 +893,7 @@ const MonitorDetails = () => {
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-cols-3 md:grid-cols-5">
                                 {verifications.map((v, i) => {
                                     // Simplified Logic: 429 shows as OFFLINE (Red) now
                                     const statusColor = v.isUp ? 'text-emerald-400' : 'text-red-400';
@@ -895,15 +902,15 @@ const MonitorDetails = () => {
                                     const statusText = v.isUp ? 'ONLINE' : 'OFFLINE';
 
                                     return (
-                                        <div key={i} className={`glass-card p-3 rounded-xl ${glowClass} cursor-pointer`}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono truncate mr-2" title={v.location}>{v.location}</span>
-                                                <span className={`w-2 h-2 rounded-full ${indicatorBg}`} />
+                                        <div key={i} className={`glass-card p-3 rounded-xl ${glowClass} cursor-pointer flex-shrink-0 min-w-[155px] sm:min-w-0`}>
+                                            <div className="flex items-center justify-between mb-2 gap-2">
+                                                <span className="text-[11px] uppercase font-bold text-gray-300 tracking-wider font-mono whitespace-nowrap" title={v.location}>{v.location}</span>
+                                                <span className={`w-2 h-2 rounded-full ${indicatorBg} shrink-0`} />
                                             </div>
                                             <p className={`text-sm font-bold font-heading ${statusColor}`}>
                                                 {statusText}
                                             </p>
-                                            <p className="text-[10px] text-gray-500 mt-0.5">{v.responseTime}ms latency</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">{v.responseTime}ms latency</p>
                                         </div>
                                     );
                                 })}
@@ -1147,15 +1154,31 @@ const MonitorDetails = () => {
 
                 {/* Pagination Controls */}
                 <div className="border-t border-gray-800/40 bg-[#0d0d14]/40">
+                    {/* Mobile: 2-row layout matching screenshot 1:1 */}
                     <div className="flex flex-col gap-2 p-3 sm:hidden">
-                        <div className="text-[11px] text-gray-400 font-mono text-center">
-                            Page <span className="font-semibold text-white">{checksPage}</span> of{' '}
-                            <span className="font-semibold text-white">{checksPagination.pages}</span>
-                            {checksPagination.total !== undefined && checksPagination.total !== null && (
-                                <span className="text-gray-500 ml-1">
-                                    ({checksPagination.total} total)
-                                </span>
-                            )}
+                        <div className="flex items-center justify-between w-full text-xs text-gray-400 font-mono">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[11px] text-gray-400 whitespace-nowrap">Per page:</span>
+                                <select
+                                    value={checksLimit}
+                                    onChange={e => handleChecksLimitChange(Number(e.target.value))}
+                                    className="bg-[#12121a] border border-gray-800 rounded px-2 py-0.5 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                </select>
+                            </div>
+                            <div className="text-[11px] text-gray-400 font-mono whitespace-nowrap">
+                                Page <span className="font-semibold text-white">{checksPage}</span> of{' '}
+                                <span className="font-semibold text-white">{checksPagination.pages}</span>
+                                {checksPagination.total !== undefined && checksPagination.total !== null && (
+                                    <span className="text-gray-500 ml-1">
+                                        ({checksPagination.total} total)
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="w-full flex items-center justify-center">
                             <Pagination
@@ -1171,15 +1194,32 @@ const MonitorDetails = () => {
                             />
                         </div>
                     </div>
-                    <div className="hidden sm:block">
-                        <Pagination
-                            currentPage={checksPage}
-                            totalPages={checksPagination.pages}
-                            onPageChange={(p) => setChecksPage(p)}
-                            totalItems={checksPagination.total}
-                            itemName="checks"
-                            className="!border-0"
-                        />
+
+                    {/* Desktop & Tablet: clean single-row toolbar */}
+                    <div className="hidden sm:flex items-center justify-between gap-3 p-3 sm:px-4">
+                        <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+                            <span>Per page:</span>
+                            <select
+                                value={checksLimit}
+                                onChange={e => handleChecksLimitChange(Number(e.target.value))}
+                                className="bg-[#12121a] border border-gray-800 rounded-lg px-2.5 py-1 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </div>
+                        <div className="w-auto">
+                            <Pagination
+                                currentPage={checksPage}
+                                totalPages={checksPagination.pages}
+                                onPageChange={(p) => setChecksPage(p)}
+                                totalItems={checksPagination.total}
+                                itemName="checks"
+                                className="!border-0 !p-0"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
