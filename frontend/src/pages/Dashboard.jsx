@@ -1075,15 +1075,22 @@ const Dashboard = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-gray-400">Monitored Protocols</span>
                                     <span className="font-mono text-gray-500 text-[10px]">
-                                        {((stats?.protocols && stats.protocols.length > 0)
-                                            ? stats.protocols.length
-                                            : (monitors.length === 0 ? 0 : Array.from(new Set(monitors.map(m => m.type || 'HTTPS'))).length))} Active
+                                        {(() => {
+                                            const list = stats?.protocols !== undefined
+                                                ? stats.protocols
+                                                : Array.from(new Set(monitors.map(m => m.type).filter(Boolean)));
+                                            return `${list?.length || 0} Active`;
+                                        })()}
                                     </span>
                                 </div>
                                 <div className="font-mono text-gray-300 text-[11px] whitespace-nowrap overflow-x-auto no-scrollbar py-0.5">
-                                    {stats?.protocols && stats.protocols.length > 0
-                                        ? stats.protocols.join(', ')
-                                        : (monitors.length === 0 ? 'None' : (Array.from(new Set(monitors.map(m => m.type || 'HTTPS'))).join(', ') || 'HTTPS'))}
+                                    {(() => {
+                                        const list = stats?.protocols !== undefined
+                                            ? stats.protocols
+                                            : Array.from(new Set(monitors.map(m => m.type).filter(Boolean)));
+                                        if (!list || list.length === 0) return 'None';
+                                        return list.join(', ');
+                                    })()}
                                 </div>
                             </div>
                             <div className="flex items-center justify-between pt-1 border-t border-gray-800/40">
