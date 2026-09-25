@@ -52,26 +52,42 @@ const Icons = {
     )
 };
 
-const StatCard = ({ icon, label, value, subtext, valueColor = 'text-white', badgeStyle }) => (
-    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl px-4 py-3.5 transition-all duration-200 hover:border-gray-700 hover:bg-[#151522] group">
-        <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block truncate">
-                    {label}
+const StatCard = ({
+    icon,
+    label,
+    shortLabel,
+    value,
+    subtext,
+    shortSubtext,
+    valueColor = 'text-white',
+    badgeStyle
+}) => (
+    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-3 sm:px-4 sm:py-3.5 transition-all duration-200 hover:border-gray-700 hover:bg-[#151522] group">
+        {/* Top Row: Label + Icon */}
+        <div className="flex items-center justify-between gap-1.5 mb-1 sm:mb-1.5">
+            <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-gray-400 truncate" title={label}>
+                <span className="sm:hidden">{shortLabel || label}</span>
+                <span className="hidden sm:inline">{label}</span>
+            </span>
+            <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center border shrink-0 transition-transform duration-200 group-hover:scale-105 ${badgeStyle}`}>
+                <span className="scale-75 sm:scale-100 flex items-center justify-center">
+                    {icon}
                 </span>
-                <span className={`text-2xl font-bold font-heading tracking-tight mt-0.5 block ${valueColor}`}>
-                    {value}
-                </span>
-                {subtext && (
-                    <span className="text-[10px] text-gray-500 block mt-0.5 truncate">
-                        {subtext}
-                    </span>
-                )}
-            </div>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 transition-transform duration-200 group-hover:scale-105 ${badgeStyle}`}>
-                {icon}
             </div>
         </div>
+
+        {/* Big Metric Value */}
+        <span className={`text-xl sm:text-2xl font-bold font-heading tracking-tight block ${valueColor}`}>
+            {value}
+        </span>
+
+        {/* Subtext info */}
+        {subtext && (
+            <span className="text-[10px] text-gray-500 block mt-0.5 truncate" title={subtext}>
+                <span className="sm:hidden">{shortSubtext || subtext}</span>
+                <span className="hidden sm:inline">{subtext}</span>
+            </span>
+        )}
     </div>
 );
 
@@ -329,36 +345,44 @@ const Incidents = () => {
             </div>
 
             {/* KPI Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
                 <StatCard
                     icon={Icons.alertTriangle}
                     label="Ongoing Incidents"
+                    shortLabel="Ongoing"
                     value={stats?.ongoingIncidents || 0}
                     subtext={stats?.ongoingIncidents > 0 ? "Requires immediate triage" : "Zero active outages"}
+                    shortSubtext={stats?.ongoingIncidents > 0 ? "Requires triage" : "Zero outages"}
                     valueColor={stats?.ongoingIncidents > 0 ? "text-red-400" : "text-emerald-400"}
                     badgeStyle={stats?.ongoingIncidents > 0 ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}
                 />
                 <StatCard
                     icon={Icons.alertCircle}
                     label="Degraded Services"
+                    shortLabel="Degraded"
                     value={stats?.degradedMonitors || 0}
                     subtext={stats?.degradedMonitors > 0 ? "High latency or SSL warning" : "Normal performance"}
+                    shortSubtext={stats?.degradedMonitors > 0 ? "Latency / SSL" : "Normal state"}
                     valueColor={stats?.degradedMonitors > 0 ? "text-amber-400" : "text-emerald-400"}
                     badgeStyle={stats?.degradedMonitors > 0 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"}
                 />
                 <StatCard
                     icon={Icons.checkCircle}
                     label="Total Recorded"
+                    shortLabel="Total"
                     value={pagination.total || 0}
                     subtext={filter === 'all' ? 'All historical events' : `Filtered by ${filter}`}
+                    shortSubtext={filter === 'all' ? 'All events' : `Filter: ${filter}`}
                     valueColor="text-white"
                     badgeStyle="bg-blue-500/10 text-blue-400 border-blue-500/20"
                 />
                 <StatCard
                     icon={Icons.pulse}
                     label="Fleet Health"
+                    shortLabel="Fleet Health"
                     value={stats?.overallUptime !== undefined ? `${stats.overallUptime.toFixed(1)}%` : '100.0%'}
                     subtext="Overall uptime rating"
+                    shortSubtext="Uptime rating"
                     valueColor="text-emerald-400"
                     badgeStyle="bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 />
