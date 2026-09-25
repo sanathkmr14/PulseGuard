@@ -1329,7 +1329,12 @@ class HealthStateService {
                     }
                 } else {
                     // Use request queue for check-host.net to avoid rate limits
-                    globalResults = await this.requestQueue.add(() => this.checkHostProvider.verify(monitor));
+                    const monitorWithContext = {
+                        ...(monitor.toObject ? monitor.toObject() : monitor),
+                        errorType: checkResult?.errorType,
+                        errorMessage: checkResult?.errorMessage
+                    };
+                    globalResults = await this.requestQueue.add(() => this.checkHostProvider.verify(monitorWithContext));
                     // Never cache empty results (e.g. rate-limited) — would poison subsequent verifications
                     if (Array.isArray(globalResults) && globalResults.length > 0) {
                         this.verificationCache.set(cacheKey, { result: globalResults, timestamp: Date.now() });

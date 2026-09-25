@@ -198,13 +198,24 @@ class CheckHostProvider extends VerificationProvider {
                     error = 'Probe timeout or unreachable';
                 } else if (checkType === 'http' && Array.isArray(nodeData) && nodeData[0]) {
                     const httpResult = nodeData[0];
-                    isUp = httpResult[0] === 1;
+                    const rawStatus = parseInt(httpResult[3] || 0, 10);
+                    statusCode = rawStatus || null;
                     responseTime = Math.round((httpResult[1] || 0) * 1000);
-                    statusCode = httpResult[3] || null;
 
-                    if (!isUp) {
-                        // Check-Host often returns an error string or code in httpResult[2]
-                        error = httpResult[2] || 'HTTP failure';
+                    // Check if monitor is failing due to a redirect loop or redirect error
+                    const isRedirectLoop = monitor.errorType === 'REDIRECT_LOOP' ||
+                        monitor.errorMessage?.toLowerCase().includes('redirect') ||
+                        (monitor.url && monitor.url.includes('/redirect/'));
+
+                    if (isRedirectLoop && rawStatus >= 300 && rawStatus < 400) {
+                        isUp = false;
+                        error = `Redirect Loop (${rawStatus})`;
+                    } else {
+                        isUp = httpResult[0] === 1;
+                        if (!isUp) {
+                            // Check-Host often returns an error string or code in httpResult[2]
+                            error = httpResult[2] || 'HTTP failure';
+                        }
                     }
                 } else if (checkType === 'tcp' && Array.isArray(nodeData) && nodeData[0]) {
                     const tcpResult = nodeData[0];

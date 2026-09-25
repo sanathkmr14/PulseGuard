@@ -639,9 +639,11 @@ class SchedulerService {
             // already recorded a check for this monitor within the last 45 seconds.
             // This prevents duplicate/interleaved check logs across multiple active workers.
             if (isScheduled) {
+                const intervalMs = (monitor.interval || 5) * 60 * 1000;
+                const dedupWindowMs = Math.min(Math.floor(intervalMs * 0.5), 120000);
                 const recentDuplicate = await Check.findOne({
                     monitor: monitor._id,
-                    timestamp: { $gte: new Date(Date.now() - 45000) }
+                    timestamp: { $gte: new Date(Date.now() - dedupWindowMs) }
                 }).lean();
                 if (recentDuplicate) {
                     console.log(`⏭️  [Node: ${this.nodeId}] Duplicate check skipped for "${monitor.name}" — check already recorded ${Math.round((Date.now() - new Date(recentDuplicate.timestamp).getTime()) / 1000)}s ago.`);
