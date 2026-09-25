@@ -259,18 +259,19 @@ const Incidents = () => {
         <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Incidents</h1>
-                    <p className="text-gray-400 mt-1 text-xs sm:text-sm whitespace-nowrap truncate">
-                        <span className="hidden sm:inline">Real-time incident response and historical downtime telemetry</span>
-                        <span className="sm:hidden">Real-time incident response & telemetry</span>
-                    </p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Incidents</h1>
+                        <p className="text-gray-400 mt-1 text-xs sm:text-sm whitespace-nowrap truncate">
+                            <span className="hidden sm:inline">Real-time incident response and historical downtime telemetry</span>
+                            <span className="sm:hidden">Real-time incident response & telemetry</span>
+                        </p>
+                    </div>
+                    {/* Mobile Refresh Button: Top Right beside Incidents */}
                     <button
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
-                        className="px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                        className="sm:hidden px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
                         title="Refresh incidents"
                     >
                         <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
@@ -278,7 +279,21 @@ const Incidents = () => {
                         </span>
                         <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
                     </button>
-                    <div className="flex bg-[#12121a] p-0.5 rounded-lg border border-gray-800 overflow-x-auto max-w-full">
+                </div>
+                <div className="flex items-center gap-2">
+                    {/* Desktop Refresh Button */}
+                    <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="hidden sm:flex px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                        title="Refresh incidents"
+                    >
+                        <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
+                            {Icons.refresh}
+                        </span>
+                        <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                    </button>
+                    <div className="flex bg-[#12121a] p-0.5 rounded-lg border border-gray-800 overflow-x-auto max-w-full w-full sm:w-auto">
                         {[
                             { id: 'all', label: 'All', count: counts.all },
                             { id: 'ongoing', label: 'Ongoing', count: counts.ongoing },
@@ -287,7 +302,7 @@ const Incidents = () => {
                             <button
                                 key={f.id}
                                 onClick={() => handleFilterChange(f.id)}
-                                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                                className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 ${
                                     filter === f.id
                                         ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 font-bold'
                                         : 'text-gray-400 hover:text-white'
