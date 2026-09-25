@@ -356,9 +356,22 @@ const Dashboard = () => {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboard</h1>
-                <p className="text-gray-500 mt-1">Monitor your services at a glance</p>
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Dashboard</h1>
+                    <p className="text-gray-500 mt-1 text-xs sm:text-sm">Monitor your services at a glance</p>
+                </div>
+                <button
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing}
+                    className="px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                    title="Refresh dashboard metrics"
+                >
+                    <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
+                        {Icons.refresh}
+                    </span>
+                    <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                </button>
             </div>
 
             {/* System Status Banner */}
@@ -568,12 +581,24 @@ const Dashboard = () => {
                                     {monitorsPagination.total || stats?.totalMonitors || monitors.length}
                                 </span>
                             </div>
-                            <Link to="/app/monitors" className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors flex items-center gap-1">
-                                <span>Manage All</span>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                            </Link>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleManualRefresh}
+                                    disabled={isRefreshing}
+                                    className="p-1 text-gray-400 hover:text-white hover:bg-gray-800/60 rounded border border-gray-800/60 transition-colors disabled:opacity-50 cursor-pointer"
+                                    title="Refresh monitors"
+                                >
+                                    <span className={isRefreshing ? 'animate-spin block text-blue-400' : 'block'}>
+                                        {Icons.refresh}
+                                    </span>
+                                </button>
+                                <Link to="/app/monitors" className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors flex items-center gap-1">
+                                    <span>Manage All</span>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </Link>
+                            </div>
                         </div>
 
                         {monitors.length === 0 ? (

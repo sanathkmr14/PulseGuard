@@ -266,7 +266,7 @@ const Incidents = () => {
                         <span className="sm:hidden">Real-time incident response & telemetry</span>
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                     <button
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
@@ -278,7 +278,7 @@ const Incidents = () => {
                         </span>
                         <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
                     </button>
-                    <div className="flex bg-[#12121a] p-0.5 rounded-lg border border-gray-800">
+                    <div className="flex bg-[#12121a] p-0.5 rounded-lg border border-gray-800 overflow-x-auto max-w-full">
                         {[
                             { id: 'all', label: 'All', count: counts.all },
                             { id: 'ongoing', label: 'Ongoing', count: counts.ongoing },

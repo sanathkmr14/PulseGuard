@@ -48,6 +48,7 @@ const MonitorDetails = () => {
     const [deleteModal, setDeleteModal] = useState({ show: false, deleting: false, confirmText: '' });
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [notification, setNotification] = useState({ type: '', message: '' });
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [selectedCheckId, setSelectedCheckId] = useState(null);
     const togglingIdsRef = useRef(new Set());
@@ -207,6 +208,20 @@ const MonitorDetails = () => {
             }
         } catch (e) {
             console.error('Failed to fetch checks:', e);
+        }
+    };
+
+    const handleManualRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.allSettled([
+                fetchData(),
+                fetchChecks(checksPage)
+            ]);
+        } catch (e) {
+            console.error('Refresh failed:', e);
+        } finally {
+            setTimeout(() => setIsRefreshing(false), 500);
         }
     };
 
@@ -433,12 +448,25 @@ const MonitorDetails = () => {
 
             {/* Header (Stable, zero layout shift) */}
             <div>
-                <Link to="/app/monitors" className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium mb-3 transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    <span>Back to Monitors</span>
-                </Link>
+                <div className="flex items-center justify-between mb-3">
+                    <Link to="/app/monitors" className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span>Back to Monitors</span>
+                    </Link>
+                    <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="px-2.5 py-1 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                        title="Refresh monitor details"
+                    >
+                        <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                    </button>
+                </div>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -996,12 +1024,25 @@ const MonitorDetails = () => {
             {/* Checks Table & Mobile Feed */}
             <div className="glass-panel border-gray-800/50 rounded-xl overflow-hidden mb-20 shadow-xl">
                 <div className="px-4 py-3 border-b border-gray-800/30 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-white font-heading">Recent Checks</h2>
-                    {checksPagination.total > 0 && (
-                        <span className="text-xs text-gray-400 font-mono">
-                            {checksPagination.total} logged
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-semibold text-white font-heading">Recent Checks</h2>
+                        {checksPagination.total > 0 && (
+                            <span className="text-[11px] text-gray-400 font-mono">
+                                ({checksPagination.total})
+                            </span>
+                        )}
+                    </div>
+                    <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="px-2 py-1 text-gray-400 hover:text-white hover:bg-gray-800/60 rounded border border-gray-800/60 transition-colors disabled:opacity-50 flex items-center gap-1.5 text-xs cursor-pointer"
+                        title="Refresh checks"
+                    >
+                        <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="hidden sm:inline">{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                    </button>
                 </div>
 
                 {/* Mobile View: Clean Card List (< md screens) */}
