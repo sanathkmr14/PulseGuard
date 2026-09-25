@@ -30,7 +30,26 @@ const isDuplicateError = (msg, errorType) => {
     if (!errorType) return false;
     const cleanMsg = msg.trim().toLowerCase().replace(/[_\s-]+/g, '');
     const cleanType = errorType.trim().toLowerCase().replace(/[_\s-]+/g, '');
-    return cleanMsg === cleanType || (cleanType === 'timeout' && cleanMsg === 'timeout');
+    if (cleanMsg === cleanType) return true;
+
+    // Generic timeout synonyms across all monitor protocols (HTTP, TCP, UDP, PING, etc.)
+    const genericTimeouts = ['timeout', 'timedout', 'etimedout', 'requesttimeout', 'connectiontimeout', 'connectiontimedout'];
+    if (cleanType.includes('timeout') && genericTimeouts.includes(cleanMsg)) {
+        return true;
+    }
+
+    // Generic network/connection synonyms
+    if (cleanType.includes('dns') && ['dnserror', 'dnslookupfailed', 'enotfound', 'getaddrinfoenotfound'].includes(cleanMsg)) {
+        return true;
+    }
+    if (cleanType.includes('refused') && ['econnrefused', 'connectionrefused', 'connecteconnrefused'].includes(cleanMsg)) {
+        return true;
+    }
+    if (cleanType.includes('reset') && ['econnreset', 'connectionreset', 'connectionresetbypeer'].includes(cleanMsg)) {
+        return true;
+    }
+
+    return false;
 };
 
 const formatCheckErrorDisplay = (msg, errorType) => {

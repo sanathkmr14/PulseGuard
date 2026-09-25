@@ -96,7 +96,9 @@ const CheckLogsDrawer = ({ isOpen, onClose, logs, monitorName }) => {
                                                                                             const msg = log.errorMessage;
                                                                                             const isDup = msg && log.errorType && (
                                                                                                 msg.trim().toLowerCase().replace(/[_\s-]+/g, '') === log.errorType.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
-                                                                                                (msg.trim().toLowerCase() === 'timeout' && log.errorType.toLowerCase().includes('timeout'))
+                                                                                                (msg.toLowerCase().includes('timeout') && log.errorType.toLowerCase().includes('timeout')) ||
+                                                                                                (msg.toLowerCase().includes('refused') && log.errorType.toLowerCase().includes('refused')) ||
+                                                                                                (msg.toLowerCase().includes('dns') && log.errorType.toLowerCase().includes('dns'))
                                                                                             );
                                                                                             if (isDup && log.errorType) return null;
                                                                                             return (

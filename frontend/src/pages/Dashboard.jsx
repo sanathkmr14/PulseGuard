@@ -948,7 +948,9 @@ const Dashboard = () => {
                                                                     const typeText = formatErrorType(inc.errorType, inc.statusCode, inc.errorMessage);
                                                                     const isDup = clean && typeText && (
                                                                         clean.trim().toLowerCase().replace(/[_\s-]+/g, '') === typeText.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
-                                                                        (clean.trim().toLowerCase() === 'timeout' && typeText.toLowerCase().includes('timeout'))
+                                                                        (clean.toLowerCase().includes('timeout') && typeText.toLowerCase().includes('timeout')) ||
+                                                                        (clean.toLowerCase().includes('refused') && typeText.toLowerCase().includes('refused')) ||
+                                                                        (clean.toLowerCase().includes('dns') && typeText.toLowerCase().includes('dns'))
                                                                     );
                                                                     if (isDup && inc.errorType) return null;
                                                                     return (

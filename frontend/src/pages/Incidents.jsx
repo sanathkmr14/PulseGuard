@@ -494,7 +494,9 @@ const Incidents = () => {
                                                 const typeText = formatErrorType(incident.errorType, incident.statusCode);
                                                 const isDup = msg && typeText && (
                                                     msg.trim().toLowerCase().replace(/[_\s-]+/g, '') === typeText.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
-                                                    (msg.trim().toLowerCase() === 'timeout' && typeText.toLowerCase().includes('timeout'))
+                                                    (msg.toLowerCase().includes('timeout') && typeText.toLowerCase().includes('timeout')) ||
+                                                    (msg.toLowerCase().includes('refused') && typeText.toLowerCase().includes('refused')) ||
+                                                    (msg.toLowerCase().includes('dns') && typeText.toLowerCase().includes('dns'))
                                                 );
                                                 if (isDup && incident.errorType) return null;
                                                 return incident.errorMessage && (
