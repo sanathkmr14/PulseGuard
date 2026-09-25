@@ -569,6 +569,9 @@ function getThresholdForProtocol(protocol, monitor = {}) {
 // Error message formatting
 export function formatErrorMessage(error, protocol, statusCode) {
     if (error.message) {
+        if (error.message.trim().toLowerCase() === 'timeout' || error.code === 'ECONNABORTED') {
+            return 'Connection timed out';
+        }
         return error.message;
     }
 

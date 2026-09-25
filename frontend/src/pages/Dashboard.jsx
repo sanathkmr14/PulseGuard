@@ -943,12 +943,23 @@ const Dashboard = () => {
                                                                         {formatErrorType(inc.errorType, inc.statusCode, inc.errorMessage)}
                                                                     </span>
                                                                 )}
-                                                                <span
-                                                                    className={`truncate flex-1 ${statusColor}`}
-                                                                    title={inc.errorMessage}
-                                                                >
-                                                                    {formatShortError(inc.errorMessage)}
-                                                                </span>
+                                                                {(() => {
+                                                                    const clean = formatShortError(inc.errorMessage);
+                                                                    const typeText = formatErrorType(inc.errorType, inc.statusCode, inc.errorMessage);
+                                                                    const isDup = clean && typeText && (
+                                                                        clean.trim().toLowerCase().replace(/[_\s-]+/g, '') === typeText.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
+                                                                        (clean.trim().toLowerCase() === 'timeout' && typeText.toLowerCase().includes('timeout'))
+                                                                    );
+                                                                    if (isDup && inc.errorType) return null;
+                                                                    return (
+                                                                        <span
+                                                                            className={`truncate flex-1 ${statusColor}`}
+                                                                            title={inc.errorMessage}
+                                                                        >
+                                                                            {clean}
+                                                                        </span>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         )}
 

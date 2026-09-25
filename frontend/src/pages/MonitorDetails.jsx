@@ -25,6 +25,23 @@ const StatusBadge = ({ status, size = 'md' }) => {
     );
 };
 
+const isDuplicateError = (msg, errorType) => {
+    if (!msg) return true;
+    if (!errorType) return false;
+    const cleanMsg = msg.trim().toLowerCase().replace(/[_\s-]+/g, '');
+    const cleanType = errorType.trim().toLowerCase().replace(/[_\s-]+/g, '');
+    return cleanMsg === cleanType || (cleanType === 'timeout' && cleanMsg === 'timeout');
+};
+
+const formatCheckErrorDisplay = (msg, errorType) => {
+    if (!msg && !errorType) return null;
+    if (!msg) return errorType;
+    if (isDuplicateError(msg, errorType)) {
+        return null; // Suppress redundant text when errorType badge is already displayed
+    }
+    return msg;
+};
+
 const MonitorDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -773,20 +790,28 @@ const MonitorDetails = () => {
 
             {/* Global Verification Analysis */}
             {(() => {
-                const latestCheckWithVerifications = checks.find(c => c.verifications?.length > 0);
+                const checkWithRealVerifications = checks.find(c =>
+                    (c.verifications || []).some(v => v.location && v.location !== 'Local (Fallback)')
+                );
+                const checkWithAnyVerifications = checks.find(c =>
+                    (c.verifications || []).length > 0
+                );
 
                 // Prioritize sources that actually HAVE verification data
-                // This fixes the "Stuck Loading" issue where activeIncident implies a failure but hasn't received verifications yet,
-                // while the check object might have already received them via socket update.
                 let forensicsSource = (selectedCheckId ? checks.find(c => c._id === selectedCheckId) : null);
 
                 // FIX: When monitor is UP and no check is explicitly selected,
                 // don't auto-display stale verification data from previous DOWN checks
                 if (!forensicsSource && monitor.status !== 'up') {
-                    if (activeIncident?.verifications?.length > 0) {
+                    const incHasReal = (activeIncident?.verifications || []).some(v => v.location && v.location !== 'Local (Fallback)');
+                    if (incHasReal) {
                         forensicsSource = activeIncident;
-                    } else if (latestCheckWithVerifications) {
-                        forensicsSource = latestCheckWithVerifications;
+                    } else if (checkWithRealVerifications) {
+                        forensicsSource = checkWithRealVerifications;
+                    } else if (activeIncident?.verifications?.length > 0) {
+                        forensicsSource = activeIncident;
+                    } else if (checkWithAnyVerifications) {
+                        forensicsSource = checkWithAnyVerifications;
                     } else {
                         // Fallback to active incident (even if empty) to show "In Progress" status
                         forensicsSource = activeIncident || checks[0] || null;
@@ -820,40 +845,64 @@ const MonitorDetails = () => {
                         </div>
                     );
                 }
-                const hasVerifications = (forensicsSource?.verifications?.filter(v => v.location !== 'Local (Fallback)')?.length || 0) > 0;
+
+                const rawVerifications = forensicsSource?.verifications || [];
+                const realVerifications = rawVerifications.filter(v => v.location && v.location !== 'Local (Fallback)');
+                const displayVerifications = realVerifications.length > 0
+                    ? realVerifications
+                    : rawVerifications.map(v => ({
+                        ...v,
+                        location: v.location === 'Local (Fallback)' ? 'Primary Node (Local)' : v.location
+                    }));
+
+                const hasVerifications = displayVerifications.length > 0;
 
                 if (!hasVerifications) {
                     if (!isUnhealthy) return null;
 
-                    // Only show pending state if check is recent (< 45 seconds) to avoid perpetual spinner
                     const latestTimestamp = forensicsSource?.timestamp || checks[0]?.timestamp;
-                    const isRecent = latestTimestamp && (Date.now() - new Date(latestTimestamp).getTime() < 45000);
-                    if (!isRecent) return null;
+                    const isRecent = latestTimestamp && (Date.now() - new Date(latestTimestamp).getTime() < 60000);
 
                     // Show pending state if unhealthy and check is actively running
                     return (
-                        <div className="glass-panel border-blue-500/20 rounded-xl p-5 relative overflow-hidden animate-pulse">
+                        <div className="glass-panel border-blue-500/20 rounded-xl p-5 relative overflow-hidden shadow-xl mb-6">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
-                                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">
+                                    {isRecent ? (
+                                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    )}
                                 </div>
                                 <div>
-                                    <h2 className="text-base font-semibold text-white font-heading">Global Verification In Progress</h2>
+                                    <h2 className="text-base font-semibold text-white font-heading">
+                                        {isRecent ? 'Global Verification In Progress' : 'Global Verification Analysis'}
+                                    </h2>
                                     <p className="text-xs text-gray-400">
-                                        {monitor.status === 'down'
-                                            ? 'Verifying status from 5 global regions to confirm failure...'
-                                            : 'Verifying global performance consistency...'}
+                                        {isRecent
+                                            ? (monitor.status === 'down'
+                                                ? 'Verifying status from global regions to confirm failure...'
+                                                : 'Verifying global performance consistency...')
+                                            : 'Multi-region verification queued for next scheduled check cycle.'}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-cols-3 md:grid-cols-5">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="p-3 rounded-xl border border-gray-800/50 bg-gray-800/10 h-20 flex flex-col justify-center flex-shrink-0 min-w-[155px] sm:min-w-0">
-                                        <div className="w-12 h-2 bg-blue-500/20 rounded mb-2" />
-                                        <div className="w-20 h-4 bg-gray-800/50 rounded" />
+                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-flow-col sm:auto-cols-fr sm:overflow-visible gap-3">
+                                {['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East'].map((region, i) => (
+                                    <div key={i} className="glass-card p-3 rounded-xl border border-gray-800/50 bg-gray-800/10 flex-shrink-0 min-w-[155px] sm:min-w-0">
+                                        <div className="flex items-center justify-between mb-2 gap-2">
+                                            <span className="text-[11px] uppercase font-bold text-gray-400 tracking-wider font-mono whitespace-nowrap">{region}</span>
+                                            <span className={`w-2 h-2 rounded-full ${isRecent ? 'bg-blue-400 animate-pulse' : 'bg-gray-600'} shrink-0`} />
+                                        </div>
+                                        <p className={`text-sm font-bold font-heading ${isRecent ? 'text-blue-400' : 'text-gray-400'}`}>
+                                            {isRecent ? 'VERIFYING...' : 'PENDING'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 mt-0.5 whitespace-nowrap">Awaiting probe response</p>
                                     </div>
                                 ))}
                             </div>
@@ -861,11 +910,10 @@ const MonitorDetails = () => {
                     );
                 }
 
-                const verifications = (forensicsSource?.verifications || []).filter(v => v.location !== 'Local (Fallback)');
                 const isFromCheck = forensicsSource.timestamp !== undefined;
 
                 return (
-                    <div className="glass-panel border-red-500/20 rounded-xl p-5 relative overflow-hidden shadow-xl">
+                    <div className="glass-panel border-red-500/20 rounded-xl p-5 relative overflow-hidden shadow-xl mb-6">
                         <div className="absolute top-0 right-0 p-3 opacity-10">
                             <svg className="w-20 h-20 text-red-500" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
@@ -893,8 +941,8 @@ const MonitorDetails = () => {
                                 )}
                             </div>
 
-                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-cols-3 md:grid-cols-5">
-                                {verifications.map((v, i) => {
+                            <div className="flex overflow-x-auto no-scrollbar gap-2.5 pb-1 sm:grid sm:grid-flow-col sm:auto-cols-fr sm:overflow-visible gap-3">
+                                {displayVerifications.map((v, i) => {
                                     // Simplified Logic: 429 shows as OFFLINE (Red) now
                                     const statusColor = v.isUp ? 'text-emerald-400' : 'text-red-400';
                                     const glowClass = v.isUp ? 'glow-emerald' : 'glow-red shadow-[0_0_15px_rgba(239,68,68,0.1)]';
@@ -928,7 +976,7 @@ const MonitorDetails = () => {
                         {monitor.type}
                     </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-none lg:grid-flow-col lg:auto-cols-fr gap-3 sm:gap-4">
                     <div>
                         <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Check Interval</p>
                         <p className="text-white text-xs sm:text-sm font-medium">{monitor.interval} minutes</p>
@@ -1086,7 +1134,16 @@ const MonitorDetails = () => {
                                         ) : c.status === 'degraded' ? (
                                             <span className="text-amber-400 truncate">{c.errorMessage || c.degradationReasons?.[0] || 'Slow'}</span>
                                         ) : (
-                                            <span className="text-red-400 truncate">{c.errorMessage || c.errorType || 'Failed'}</span>
+                                            <span className="text-red-400 truncate">
+                                                {(() => {
+                                                    const msg = c.errorMessage || (c.degradationReasons && c.degradationReasons[0]);
+                                                    if (c.statusCode) return msg || c.errorType || 'Failed';
+                                                    if (isDuplicateError(msg, c.errorType)) {
+                                                        return c.errorType === 'TIMEOUT' ? 'No Response' : 'Failed';
+                                                    }
+                                                    return msg || c.errorType || 'Failed';
+                                                })()}
+                                            </span>
                                         )}
                                     </div>
                                 </div>
@@ -1137,11 +1194,16 @@ const MonitorDetails = () => {
                                                             {c.errorType}
                                                         </span>
                                                     )}
-                                                    {(c.errorMessage || (c.degradationReasons && c.degradationReasons[0])) && (
-                                                        <span className={`${c.status === 'degraded' ? 'text-amber-400' : 'text-red-400'} text-xs font-mono`} title={c.errorMessage || c.degradationReasons[0]}>
-                                                            {c.errorMessage || c.degradationReasons[0]}
-                                                        </span>
-                                                    )}
+                                                    {(() => {
+                                                        const msg = c.errorMessage || (c.degradationReasons && c.degradationReasons[0]);
+                                                        const displayMsg = formatCheckErrorDisplay(msg, c.errorType);
+                                                        if (!displayMsg) return null;
+                                                        return (
+                                                            <span className={`${c.status === 'degraded' ? 'text-amber-400' : 'text-red-400'} text-xs font-mono`} title={displayMsg}>
+                                                                {displayMsg}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                             )}
                                         </td>

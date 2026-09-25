@@ -489,11 +489,20 @@ const Incidents = () => {
                                                     {formatErrorType(incident.errorType, incident.statusCode)}
                                                 </span>
                                             )}
-                                            {incident.errorMessage && (
-                                                <p className={`font-mono text-[11px] leading-snug truncate flex-1 ${schema.text}`} title={incident.errorMessage}>
-                                                    {incident.errorMessage}
-                                                </p>
-                                            )}
+                                            {(() => {
+                                                const msg = incident.errorMessage;
+                                                const typeText = formatErrorType(incident.errorType, incident.statusCode);
+                                                const isDup = msg && typeText && (
+                                                    msg.trim().toLowerCase().replace(/[_\s-]+/g, '') === typeText.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
+                                                    (msg.trim().toLowerCase() === 'timeout' && typeText.toLowerCase().includes('timeout'))
+                                                );
+                                                if (isDup && incident.errorType) return null;
+                                                return incident.errorMessage && (
+                                                    <p className={`font-mono text-[11px] leading-snug truncate flex-1 ${schema.text}`} title={incident.errorMessage}>
+                                                        {incident.errorMessage}
+                                                    </p>
+                                                );
+                                            })()}
                                         </div>
                                     )}
 

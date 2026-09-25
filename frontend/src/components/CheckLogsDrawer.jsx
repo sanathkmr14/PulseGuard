@@ -92,9 +92,19 @@ const CheckLogsDrawer = ({ isOpen, onClose, logs, monitorName }) => {
                                                                                                 {log.errorType}
                                                                                             </span>
                                                                                         )}
-                                                                                        <p className="text-xs text-slate-400 mt-1 break-all">
-                                                                                            {log.errorMessage}
-                                                                                        </p>
+                                                                                        {(() => {
+                                                                                            const msg = log.errorMessage;
+                                                                                            const isDup = msg && log.errorType && (
+                                                                                                msg.trim().toLowerCase().replace(/[_\s-]+/g, '') === log.errorType.trim().toLowerCase().replace(/[_\s-]+/g, '') ||
+                                                                                                (msg.trim().toLowerCase() === 'timeout' && log.errorType.toLowerCase().includes('timeout'))
+                                                                                            );
+                                                                                            if (isDup && log.errorType) return null;
+                                                                                            return (
+                                                                                                <p className="text-xs text-slate-400 mt-1 break-all">
+                                                                                                    {log.errorMessage}
+                                                                                                </p>
+                                                                                            );
+                                                                                        })()}
                                                                                     </div>
                                                                                 )}
                                                                             </div>
