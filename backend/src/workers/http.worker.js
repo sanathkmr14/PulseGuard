@@ -132,6 +132,7 @@ const performRequest = async (monitor, timeout) => {
     let redirectCount = 0;
     const maxRedirects = typeof monitor.maxRedirects === 'number' ? monitor.maxRedirects : MAX_REDIRECTS;
     const visitedUrls = new Set();
+    let lastStatusCode = null;
 
     while (true) {
         // Detect redirect loops
@@ -139,6 +140,7 @@ const performRequest = async (monitor, timeout) => {
             const err = new Error(`Redirect loop detected after ${redirectCount} hops`);
             err.code = 'REDIRECT_LOOP';
             err.redirectCount = redirectCount;
+            err.statusCode = lastStatusCode || 302;
             throw err;
         }
         // FIX: >= maxRedirects (not >) — prevents following one extra redirect beyond the limit
@@ -146,12 +148,14 @@ const performRequest = async (monitor, timeout) => {
             const err = new Error(`Too many redirects (${redirectCount})`);
             err.code = 'REDIRECT_LOOP';
             err.redirectCount = redirectCount;
+            err.statusCode = lastStatusCode || 302;
             throw err;
         }
 
         visitedUrls.add(currentUrl);
 
         const response = await makeSingleRequest(currentUrl, timeout, monitor.allowUnauthorized, monitor);
+        lastStatusCode = response.status;
 
         const isRedirect = response.status >= 300 && response.status < 400 && response.headers?.location;
 
@@ -306,6 +310,10 @@ export const checkHttp = async (monitor, result, options = {}) => {
 
     } catch (error) {
         const latency = Date.now() - result.checkStartTime;
+
+        if (error.statusCode) {
+            result.statusCode = error.statusCode;
+        }
 
         // Handle actual connection errors
         if (error.code === 'SSRF_BLOCKED' || error.message?.includes('SSRF_PROTECTION') || error.message?.includes('SSRF Blocked')) {
