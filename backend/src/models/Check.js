@@ -54,6 +54,15 @@ const checkSchema = new mongoose.Schema({
         type: [String],
         default: undefined
     },
+    // Deduplication key for scheduled checks: Math.floor(timestamp / 60000).
+    // Both the local dev server and the cloud instance set the same cycleKey for checks
+    // within the same 1-minute window. MongoDB's sparse unique index rejects the second
+    // write (E11000), so only the faster instance's result is recorded per cycle.
+    // null for manual "Check Now" — sparse index ignores nulls so they are never deduplicated.
+    cycleKey: {
+        type: Number,
+        default: null
+    },
     verifications: [
         {
             location: String,
@@ -75,6 +84,12 @@ checkSchema.index({ monitor: 1, status: 1 }); // For uptime calculations
 
 // TTL index to automatically delete old checks after 90 days
 checkSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
+
+// Deduplication: sparse unique index prevents two instances from both recording a
+// scheduled check for the same monitor in the same 1-minute window.
+// sparse:true means null cycleKey docs (manual checks) are excluded from uniqueness.
+checkSchema.index({ monitor: 1, cycleKey: 1 }, { unique: true, sparse: true });
+
 
 // Dual-Write Mirroring hook
 import dbMirror from '../services/db-mirror.service.js';

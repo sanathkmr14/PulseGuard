@@ -635,6 +635,13 @@ class SchedulerService {
                 ? 'down'
                 : healthStateResult.status;
 
+            // Deduplication: for scheduled checks, compute a 1-minute time-bucket key.
+            // If two instances (local + cloud) check the same monitor in the same minute,
+            // MongoDB's sparse unique index on {monitor, cycleKey} will reject the second
+            // write with E11000. The "winning" instance is whichever reaches the DB first.
+            // Manual checks (isImmediate) always use null so they bypass deduplication.
+            const cycleKey = isScheduled ? Math.floor(Date.now() / 60000) : null;
+
             // Create and save Check Result
             check = new Check({
                 monitor: monitor._id,
@@ -643,6 +650,7 @@ class SchedulerService {
                 statusCode: result.statusCode,
                 errorMessage: result.errorMessage,
                 errorType: result.errorType,
+                cycleKey,
                 degradationReasons: (healthStateResult.reasons || []).length > 0 ? healthStateResult.reasons : undefined,
                 sslInfo: result.meta && result.meta.validTo ? {
                     valid: result.isUp,
@@ -651,7 +659,19 @@ class SchedulerService {
                     daysRemaining: Math.floor((new Date(result.meta.validTo) - new Date()) / (1000 * 60 * 60 * 24))
                 } : undefined
             });
-            await check.save();
+
+            try {
+                await check.save();
+            } catch (saveErr) {
+                // E11000 = duplicate key — another instance already recorded this cycle.
+                // Silently skip all downstream processing; finally block still reschedules.
+                if (saveErr.code === 11000) {
+                    console.log(`⏭️  [Node: ${this.nodeId}] Duplicate check skipped for "${monitor.name}" (cycleKey: ${cycleKey}) — another instance already recorded this cycle.`);
+                    return; // skip stats / alerts / socket events for this cycle
+                }
+                throw saveErr; // surface any other DB errors
+            }
+
 
             // ATOMIC UPDATE: Ensure monitor stats are updated correctly even with concurrent checks
             const oldStatus = monitor.status;
