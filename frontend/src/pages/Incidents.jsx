@@ -504,7 +504,49 @@ const Incidents = () => {
                     </div>
 
                     {/* Numbered Pagination & Limit Selector */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-gray-800/40">
+                    {/* Mobile: 2-row layout matching screenshot 1:1 */}
+                    <div className="flex flex-col gap-2 mt-6 p-3 bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl sm:hidden">
+                        <div className="flex items-center justify-between w-full text-xs text-gray-400 font-mono">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[11px] text-gray-400 whitespace-nowrap">Per page:</span>
+                                <select
+                                    value={limit}
+                                    onChange={e => handleLimitChange(Number(e.target.value))}
+                                    className="bg-[#0a0a0f] border border-gray-800 rounded px-2 py-0.5 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                </select>
+                            </div>
+                            <div className="text-[11px] text-gray-400 font-mono whitespace-nowrap">
+                                Page <span className="font-semibold text-white">{page}</span> of{' '}
+                                <span className="font-semibold text-white">{pagination.pages}</span>
+                                {pagination.total !== undefined && pagination.total !== null && (
+                                    <span className="text-gray-500 ml-1">
+                                        ({pagination.total} total)
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="w-full flex items-center justify-center">
+                            <Pagination
+                                currentPage={page}
+                                totalPages={pagination.pages}
+                                onPageChange={handlePageChange}
+                                totalItems={pagination.total}
+                                itemName="incidents"
+                                compact={true}
+                                hideOnSinglePage={false}
+                                showInfo={false}
+                                className="!border-0 !p-0"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Desktop & Tablet: clean layout */}
+                    <div className="hidden sm:flex items-center justify-between gap-3 mt-6 pt-4 border-t border-gray-800/40">
                         <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
                             <span>Per page:</span>
                             <select
@@ -518,7 +560,7 @@ const Incidents = () => {
                                 <option value={50}>50</option>
                             </select>
                         </div>
-                        <div className="w-full sm:w-auto">
+                        <div className="w-auto">
                             <Pagination
                                 currentPage={page}
                                 totalPages={pagination.pages}

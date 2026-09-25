@@ -677,7 +677,49 @@ const Dashboard = () => {
                                 </div>
 
                                 {/* Monitored Services Numbered Pagination & Limit Selector */}
-                                <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3.5 sm:px-4 border-t border-gray-800/40 bg-[#0d0d14]/30">
+                                {/* Mobile: 2-row layout matching screenshot 1:1 */}
+                                <div className="flex flex-col gap-2 px-3 py-2.5 border-t border-gray-800/40 bg-[#0d0d14]/40 md:hidden">
+                                    <div className="flex items-center justify-between w-full text-xs text-gray-400 font-mono">
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className="text-[11px] text-gray-400 whitespace-nowrap">Per page:</span>
+                                            <select
+                                                value={monitorsLimit}
+                                                onChange={e => handleMonitorsLimitChange(Number(e.target.value))}
+                                                className="bg-[#12121a] border border-gray-800 rounded px-2 py-0.5 text-white font-mono text-xs focus:border-blue-500 outline-none cursor-pointer"
+                                            >
+                                                <option value={4}>4</option>
+                                                <option value={6}>6</option>
+                                                <option value={8}>8</option>
+                                                <option value={12}>12</option>
+                                            </select>
+                                        </div>
+                                        <div className="text-[11px] text-gray-400 font-mono whitespace-nowrap">
+                                            Page <span className="font-semibold text-white">{monitorsPage}</span> of{' '}
+                                            <span className="font-semibold text-white">{monitorsPagination.pages}</span>
+                                            {monitorsPagination.total !== undefined && monitorsPagination.total !== null && (
+                                                <span className="text-gray-500 ml-1">
+                                                    ({monitorsPagination.total} total)
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="w-full flex items-center justify-center">
+                                        <Pagination
+                                            currentPage={monitorsPage}
+                                            totalPages={monitorsPagination.pages}
+                                            onPageChange={handleMonitorsPageChange}
+                                            totalItems={monitorsPagination.total}
+                                            itemName="monitors"
+                                            compact={true}
+                                            hideOnSinglePage={false}
+                                            showInfo={false}
+                                            className="!border-0 !p-0"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Desktop: clean single-row layout */}
+                                <div className="hidden md:flex items-center justify-between gap-3 p-3.5 sm:px-4 border-t border-gray-800/40 bg-[#0d0d14]/30">
                                     <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
                                         <span>Per page:</span>
                                         <select
@@ -691,7 +733,7 @@ const Dashboard = () => {
                                             <option value={12}>12</option>
                                         </select>
                                     </div>
-                                    <div className="w-full sm:w-auto">
+                                    <div className="w-auto">
                                         <Pagination
                                             currentPage={monitorsPage}
                                             totalPages={monitorsPagination.pages}

@@ -1146,13 +1146,42 @@ const MonitorDetails = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                <Pagination
-                    currentPage={checksPage}
-                    totalPages={checksPagination.pages}
-                    onPageChange={(p) => setChecksPage(p)}
-                    totalItems={checksPagination.total}
-                    itemName="checks"
-                />
+                <div className="border-t border-gray-800/40 bg-[#0d0d14]/40">
+                    <div className="flex flex-col gap-2 p-3 sm:hidden">
+                        <div className="text-[11px] text-gray-400 font-mono text-center">
+                            Page <span className="font-semibold text-white">{checksPage}</span> of{' '}
+                            <span className="font-semibold text-white">{checksPagination.pages}</span>
+                            {checksPagination.total !== undefined && checksPagination.total !== null && (
+                                <span className="text-gray-500 ml-1">
+                                    ({checksPagination.total} total)
+                                </span>
+                            )}
+                        </div>
+                        <div className="w-full flex items-center justify-center">
+                            <Pagination
+                                currentPage={checksPage}
+                                totalPages={checksPagination.pages}
+                                onPageChange={(p) => setChecksPage(p)}
+                                totalItems={checksPagination.total}
+                                itemName="checks"
+                                compact={true}
+                                hideOnSinglePage={false}
+                                showInfo={false}
+                                className="!border-0 !p-0"
+                            />
+                        </div>
+                    </div>
+                    <div className="hidden sm:block">
+                        <Pagination
+                            currentPage={checksPage}
+                            totalPages={checksPagination.pages}
+                            onPageChange={(p) => setChecksPage(p)}
+                            totalItems={checksPagination.total}
+                            itemName="checks"
+                            className="!border-0"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Modern Delete Confirmation Modal */}
