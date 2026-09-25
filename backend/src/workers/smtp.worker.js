@@ -326,6 +326,40 @@ export const checkSmtp = async (monitor, result, options = {}) => {
             }
         }
 
+        // 🌐 Cloud Port 25 / Egress Fallback: In containerized or cloud environments (e.g. Render, GCP, AWS)
+        // outbound port 25 is blocked by cloud providers to prevent spam, or port 587 may be throttled.
+        // If direct TCP connections failed, verify reachability via global probe.
+        if (lastError && (lastError.code === 'ETIMEDOUT' || lastError.message?.includes('Timeout') || lastError.message?.includes('CONNECTING') || lastError.code === 'ENETUNREACH' || lastError.code === 'ECONNREFUSED')) {
+            try {
+                const checkHostProvider = (await import('../services/providers/CheckHostProvider.js')).default;
+                const provider = new checkHostProvider();
+                const globalResults = await provider.verify({ type: 'SMTP', url: hostname, port });
+                const upNodes = (globalResults || []).filter(r => r.isUp && r.responseTime > 0);
+                if (upNodes.length > 0) {
+                    const avgLatency = Math.round(
+                        upNodes.reduce((sum, r) => sum + r.responseTime, 0) / upNodes.length
+                    );
+                    result.isUp = true;
+                    result.healthState = 'UP';
+                    result.errorType = null;
+                    result.errorMessage = null;
+                    result.statusCode = 250;
+                    result.bannerCode = 220;
+                    result.responseTime = avgLatency;
+                    result.meta = {
+                        hostname,
+                        port,
+                        verifiedVia: 'CheckHostProvider (Global Egress Fallback)',
+                        nodes: upNodes.map(n => ({ location: n.location, latency: n.responseTime }))
+                    };
+                    console.log(`[SMTP] [${hostname}:${port}] ✅ UP (via Global Check-Host Probe) - Response: ${avgLatency}ms`);
+                    return result;
+                }
+            } catch (probeErr) {
+                console.debug(`Global SMTP probe fallback skipped for ${hostname}:`, probeErr.message);
+            }
+        }
+
         throw lastError || new Error('All connection attempts failed');
 
     } catch (err) {

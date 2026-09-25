@@ -635,11 +635,21 @@ class SchedulerService {
                 ? 'down'
                 : healthStateResult.status;
 
-            // Deduplication: for scheduled checks, compute a 1-minute time-bucket key.
-            // If two instances (local + cloud) check the same monitor in the same minute,
-            // MongoDB's sparse unique index on {monitor, cycleKey} will reject the second
-            // write with E11000. The "winning" instance is whichever reaches the DB first.
-            // Manual checks (isImmediate) always use null so they bypass deduplication.
+            // Deduplication: for scheduled checks, check if another instance (e.g. Render cloud vs Local)
+            // already recorded a check for this monitor within the last 45 seconds.
+            // This prevents duplicate/interleaved check logs across multiple active workers.
+            if (isScheduled) {
+                const recentDuplicate = await Check.findOne({
+                    monitor: monitor._id,
+                    timestamp: { $gte: new Date(Date.now() - 45000) }
+                }).lean();
+                if (recentDuplicate) {
+                    console.log(`⏭️  [Node: ${this.nodeId}] Duplicate check skipped for "${monitor.name}" — check already recorded ${Math.round((Date.now() - new Date(recentDuplicate.timestamp).getTime()) / 1000)}s ago.`);
+                    return;
+                }
+            }
+
+            // Also compute a 1-minute time-bucket key for MongoDB unique index enforcement
             const cycleKey = isScheduled ? Math.floor(Date.now() / 60000) : null;
 
             // Create and save Check Result

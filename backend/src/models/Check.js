@@ -85,10 +85,12 @@ checkSchema.index({ monitor: 1, status: 1 }); // For uptime calculations
 // TTL index to automatically delete old checks after 90 days
 checkSchema.index({ timestamp: 1 }, { expireAfterSeconds: 7776000 });
 
-// Deduplication: sparse unique index prevents two instances from both recording a
-// scheduled check for the same monitor in the same 1-minute window.
-// sparse:true means null cycleKey docs (manual checks) are excluded from uniqueness.
-checkSchema.index({ monitor: 1, cycleKey: 1 }, { unique: true, sparse: true });
+// Deduplication: partialFilterExpression ensures only documents with a numeric cycleKey are indexed.
+// Documents with null cycleKey (manual checks) are completely ignored by the unique index.
+checkSchema.index(
+    { monitor: 1, cycleKey: 1 },
+    { unique: true, partialFilterExpression: { cycleKey: { $type: 'number' } } }
+);
 
 
 // Dual-Write Mirroring hook

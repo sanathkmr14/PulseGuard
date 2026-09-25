@@ -4,6 +4,7 @@ import fs from 'fs';
 import net from 'net';
 import { resolveSecurely } from '../utils/resolver.js';
 import { classifyPingResult } from '../utils/status-classifier.js';
+import CheckHostProvider from '../services/providers/CheckHostProvider.js';
 
 function execFileAsync(file, args, options) {
     const fn = promisify(childProcess.execFile);
@@ -87,6 +88,7 @@ export const checkPing = async (monitor, result, options = {}) => {
     const timeoutMs = monitor.timeout || 5000;
     const isWindows = process.platform === 'win32';
     const pingCount = Math.max(1, Math.min(10, parseInt(monitor.count, 10) || 4));
+    let safeTarget = hostname;
 
     try {
         // 🛡️ SSRF Protection: Resolve hostname securely BEFORE connecting
@@ -94,7 +96,7 @@ export const checkPing = async (monitor, result, options = {}) => {
         const { address } = await resolveSecurely(hostname, { preferIpv4: true });
 
         // SECURITY: Use the resolved IP address directly to prevent SSRF and Command Injection
-        const safeTarget = address;
+        safeTarget = address;
         const isIpv6 = net.isIPv6(safeTarget);
 
         let pingArgs;
@@ -277,6 +279,36 @@ export const checkPing = async (monitor, result, options = {}) => {
             };
             console.log(`📡 PING [${hostname}] ❌ DOWN - DNS_ERROR | ${error.message}`);
             return;
+        }
+
+        // 🌐 Cloud ICMP Fallback: In containerized or cloud environments (e.g. Render, GCP, AWS)
+        // raw ICMP echo packets are frequently dropped by VPC security groups or blocked by unprivileged containers.
+        // If system ping fails on a public, non-SSRF target, verify reachability via global ping probes.
+        try {
+            const provider = new CheckHostProvider();
+            const globalNodes = await provider.verify({ type: 'PING', url: safeTarget || hostname });
+            const upNodes = (globalNodes || []).filter(n => n.isUp && n.responseTime > 0);
+            if (upNodes.length > 0) {
+                const avgLatency = Math.round(upNodes.reduce((sum, n) => sum + n.responseTime, 0) / upNodes.length);
+                result.isUp = true;
+                result.healthState = 'UP';
+                result.errorType = null;
+                result.errorMessage = null;
+                result.responseTime = avgLatency;
+                result.packetLoss = 0;
+                result.statusCode = 0;
+                result.pingStats = { transmitted: pingCount, received: pingCount, packetLoss: 0 };
+                result.meta = {
+                    hostname,
+                    safeTarget,
+                    verifiedVia: 'CheckHostProvider (Global ICMP Fallback)',
+                    nodes: upNodes.map(n => ({ location: n.location, latency: n.responseTime }))
+                };
+                console.log(`📡 PING [${hostname}] ✅ UP (via Global Check-Host Probe) - Response: ${avgLatency}ms`);
+                return;
+            }
+        } catch (probeErr) {
+            console.debug(`Global ping probe fallback skipped for ${hostname}:`, probeErr.message);
         }
 
         // Determine error type and use classifier

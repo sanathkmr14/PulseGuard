@@ -19,6 +19,11 @@ const connectDB = async () => {
             console.log('✅ MongoDB reconnected successfully')
         );
 
+        // Ensure all schema indexes (including sparse deduplication indexes) are built
+        import('../models/Check.js').then(m => m.default.syncIndexes()).catch(err => {
+            console.debug('Index sync notice:', err.message);
+        });
+
         return conn;
     } catch (error) {
         console.error(`❌ Error connecting to MongoDB (${isAtlas ? 'Atlas Cloud' : 'Local'}): ${error.message}`);
