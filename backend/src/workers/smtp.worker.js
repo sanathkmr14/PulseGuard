@@ -250,8 +250,9 @@ export const checkSmtp = async (monitor, result, options = {}) => {
     }
 
     try {
+        const cleanHost = (hostname || '').trim().replace(/^\[|\]$/g, '');
         // Resolve ALL addresses
-        const addresses = await lookup(hostname, { all: true, verbatim: true });
+        const addresses = await lookup(cleanHost, { all: true, verbatim: true });
 
         // Prioritize IPv4 (Family 4) over IPv6 (Family 6)
         addresses.sort((a, b) => a.family - b.family);

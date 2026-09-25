@@ -18,8 +18,9 @@ const lookupAsync = promisify(dns.lookup);
  */
 export const resolveSecurely = async (hostname, options = {}) => {
     try {
+        const cleanHost = (hostname || '').trim().replace(/^\[|\]$/g, '');
         // Resolve all addresses to ensure we catch any hidden private IPs
-        const addresses = await lookupAsync(hostname, { all: true, verbatim: true });
+        const addresses = await lookupAsync(cleanHost, { all: true, verbatim: true });
 
         if (!addresses || addresses.length === 0) {
             const notFoundErr = new Error(`ENOTFOUND: Could not resolve hostname "${hostname}"`);

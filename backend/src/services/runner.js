@@ -257,8 +257,11 @@ class MonitorRunner {
             }
         } finally {
             // FIX: Only set responseTime if worker didn't set it (fallback)
-            // Workers like PING parse actual RTT from output, don't override with command execution time
-            if (result.responseTime === 0 || result.responseTime === undefined) {
+            // Workers like PING parse actual RTT from output, don't override with command execution time.
+            // For SSRF_BLOCKED, keep responseTime at 0 (renders as '—' indicating no network traffic sent).
+            if (result.errorType === 'SSRF_BLOCKED') {
+                result.responseTime = 0;
+            } else if (result.responseTime === undefined || result.responseTime === null) {
                 result.responseTime = Date.now() - startTime;
             }
         }
