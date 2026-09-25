@@ -380,8 +380,28 @@ class HealthStateService {
                 return analysis;
             }
 
+            // SSRF and Security Policy failures (Fatal - Highest Severity)
+            if (analysis.errorType === 'SSRF_BLOCKED' || (analysis.errorMessage && typeof analysis.errorMessage === 'string' && analysis.errorMessage.includes('SSRF'))) {
+                analysis.isCompletelyUp = false;
+                analysis.severity = 1.0;
+                analysis.healthStateSuggestion = 'down';
+                const issueMsg = analysis.errorMessage || 'Target blocked by SSRF security policy';
+                if (!analysis.issues.includes(issueMsg)) {
+                    analysis.issues.push(issueMsg);
+                }
+            }
+            // Configuration & Validation failures (Fatal)
+            else if (['MALFORMED_STRUCTURE', 'INVALID_URL', 'PROTOCOL_MISMATCH', 'INVALID_CONFIG'].includes(analysis.errorType)) {
+                analysis.isCompletelyUp = false;
+                analysis.severity = 1.0;
+                analysis.healthStateSuggestion = 'down';
+                const issueMsg = analysis.errorMessage || `Configuration error: ${analysis.errorType}`;
+                if (!analysis.issues.includes(issueMsg)) {
+                    analysis.issues.push(issueMsg);
+                }
+            }
             // Network-level failures (highest severity)
-            if (['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED', 'CONNECTION_RESET', 'ECONNRESET'].includes(analysis.errorType)) {
+            else if (['TIMEOUT', 'DNS_ERROR', 'CONNECTION_REFUSED', 'ECONNABORTED', 'CONNECTION_RESET', 'ECONNRESET', 'HOST_UNREACHABLE_PING', 'PING_TIMEOUT', 'PING_NETWORK_UNREACHABLE', 'PING_DESTINATION_UNREACHABLE'].includes(analysis.errorType)) {
                 if (!analysis.isCompletelyUp) analysis.severity = 0.95;
                 analysis.issues.push(`Network failure: ${analysis.errorType}`);
             }
@@ -829,18 +849,33 @@ class HealthStateService {
         // If it's a timeout or connection refused, we might want fast failure
         // But generally we want at least 1 confirmation to assume transient network blip
         if (previousState === 'up' && targetState === 'down') {
-            // BYPASS HYSTERESIS for critical protocol/SSL errors (revoked, expired, hostname mismatch)
-            // These aren't transient glitches, they are persistent cryptographic/configuration failures
+            // BYPASS HYSTERESIS for critical protocol/security errors
+            // Security blocks (SSRF), malformed URLs, and hard cert revocations/expirations are NOT transient glitches;
+            // they are deterministic failures that should immediately mark the status as DOWN.
             const issues = Array.isArray(currentCheck.issues) ? currentCheck.issues : [];
-            const isCriticalCertError = ['CERT_REVOKED', 'CERT_EXPIRED', 'CERT_HOSTNAME_MISMATCH'].includes(currentCheck.errorType) ||
-                issues.some(i => typeof i === 'string' && (i.toLowerCase().includes('revoked') || i.toLowerCase().includes('expired')));
+            const isHardFatalError = [
+                'SSRF_BLOCKED',
+                'INVALID_URL',
+                'MALFORMED_STRUCTURE',
+                'PROTOCOL_MISMATCH',
+                'INVALID_CONFIG',
+                'CERT_REVOKED',
+                'CERT_EXPIRED',
+                'CERT_HOSTNAME_MISMATCH'
+            ].includes(currentCheck.errorType) ||
+                issues.some(i => typeof i === 'string' && (
+                    i.includes('SSRF') ||
+                    i.toLowerCase().includes('revoked') ||
+                    i.toLowerCase().includes('expired') ||
+                    i.toLowerCase().includes('malformed')
+                ));
 
-            if (isCriticalCertError || consecutiveCount >= confirmedThreshold) {
+            if (isHardFatalError || consecutiveCount >= confirmedThreshold) {
                 return {
                     status: targetState,
-                    reasons: issues.length > 0 ? issues : ['Critical SSL failure detected'],
+                    reasons: issues.length > 0 ? issues : ['Failure detected'],
                     confidence: 0.95,
-                    transitionReason: isCriticalCertError ? 'Critical SSL certificate failure (revoked/expired/mismatch) - bypassing hysteresis' : 'Confirmed downtime threshold met',
+                    transitionReason: isHardFatalError ? `Fatal error (${currentCheck.errorType || 'security/policy'}) - bypassing hysteresis` : 'Confirmed downtime threshold met',
                     preventedFlapping: false
                 };
             }
@@ -856,7 +891,25 @@ class HealthStateService {
 
         // DEGRADED -> DOWN: Need confirmation
         if (previousState === 'degraded' && targetState === 'down') {
-            if (consecutiveCount < confirmedThreshold) {
+            const issues = Array.isArray(currentCheck.issues) ? currentCheck.issues : [];
+            const isHardFatalError = [
+                'SSRF_BLOCKED',
+                'INVALID_URL',
+                'MALFORMED_STRUCTURE',
+                'PROTOCOL_MISMATCH',
+                'INVALID_CONFIG',
+                'CERT_REVOKED',
+                'CERT_EXPIRED',
+                'CERT_HOSTNAME_MISMATCH'
+            ].includes(currentCheck.errorType) ||
+                issues.some(i => typeof i === 'string' && (
+                    i.includes('SSRF') ||
+                    i.toLowerCase().includes('revoked') ||
+                    i.toLowerCase().includes('expired') ||
+                    i.toLowerCase().includes('malformed')
+                ));
+
+            if (!isHardFatalError && consecutiveCount < confirmedThreshold) {
                 return {
                     status: previousState, // Stay DEGRADED
                     reasons: ['Service degradation detected, awaiting confirmation for DOWN state'],

@@ -613,10 +613,17 @@ class SchedulerService {
             // Determine health state using Enhanced Health State Service (Industry Standard)
             healthStateResult = await enhancedHealthStateService.determineHealthState(result, monitor, recentChecks);
 
+            // Check status: An individual failed check execution (isUp === false or SSRF_BLOCKED)
+            // must NEVER be stored as 'up' in the Check logs.
+            const isFailedCheck = !result.isUp || result.errorType === 'SSRF_BLOCKED' || healthStateResult.status === 'down';
+            const checkStatus = (isFailedCheck && healthStateResult.status === 'up')
+                ? 'down'
+                : healthStateResult.status;
+
             // Create and save Check Result
             check = new Check({
                 monitor: monitor._id,
-                status: healthStateResult.status,
+                status: checkStatus,
                 responseTime: result.responseTime,
                 statusCode: result.statusCode,
                 errorMessage: result.errorMessage,

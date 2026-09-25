@@ -100,7 +100,11 @@ function mapNetworkError(code, latency, threshold) {
         'PING_TIMEOUT': { state: "🔴 DOWN", type: "PING_TIMEOUT", msg: "Ping request timed out (PING_TIMEOUT).", severity: "CRITICAL" },
         'HOST_UNREACHABLE_PING': { state: "🔴 DOWN", type: "HOST_UNREACHABLE", msg: "Host is unreachable (HOST_UNREACHABLE_PING).", severity: "CRITICAL" },
         'CONNECTION_REFUSED': { state: "🔴 DOWN", type: "PORT_CLOSED", msg: "Connection refused (CONNECTION_REFUSED).", severity: "CRITICAL" },
-        'TIMEOUT': { state: "🔴 DOWN", type: "TIMEOUT", msg: "Operation timed out (TIMEOUT).", severity: "CRITICAL" }
+        'TIMEOUT': { state: "🔴 DOWN", type: "TIMEOUT", msg: "Operation timed out (TIMEOUT).", severity: "CRITICAL" },
+        'SSRF_BLOCKED': { state: "🔴 DOWN", type: "SSRF_BLOCKED", msg: "Target blocked by SSRF security policy.", severity: "CRITICAL" },
+        'INVALID_URL': { state: "🔴 DOWN", type: "INVALID_URL", msg: "Invalid or malformed URL.", severity: "CRITICAL" },
+        'MALFORMED_STRUCTURE': { state: "🔴 DOWN", type: "MALFORMED_STRUCTURE", msg: "Invalid URL structure.", severity: "CRITICAL" },
+        'PROTOCOL_MISMATCH': { state: "🔴 DOWN", type: "PROTOCOL_MISMATCH", msg: "Protocol mismatch.", severity: "CRITICAL" }
     };
 
     const error = errorMap[code] || { state: "🔴 DOWN", type: "UNKNOWN_ERROR", msg: `Unexpected network error: ${code}`, severity: "HIGH" };
