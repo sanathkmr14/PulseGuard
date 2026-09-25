@@ -1,4 +1,5 @@
 import dns from 'dns';
+import net from 'net';
 import { promisify } from 'util';
 import { isPrivateIP } from './url-validator.js';
 
@@ -19,6 +20,22 @@ const lookupAsync = promisify(dns.lookup);
 export const resolveSecurely = async (hostname, options = {}) => {
     try {
         const cleanHost = (hostname || '').trim().replace(/^\[|\]$/g, '');
+
+        // Fast-path: if input is already a raw IP address, check it directly
+        // without dns.lookup to avoid platform-specific behaviour differences.
+        if (net.isIP(cleanHost)) {
+            const check = isPrivateIP(cleanHost);
+            if (check.isPrivate) {
+                console.warn(`🛡️ SSRF Blocked: IP address "${cleanHost}" is restricted (${check.error})`);
+                const ssrfErr = new Error(`SSRF_PROTECTION: Access to private/internal IP address "${cleanHost}" is blocked.`);
+                ssrfErr.code = 'SSRF_BLOCKED';
+                throw ssrfErr;
+            }
+            return {
+                address: cleanHost,
+                family: net.isIPv6(cleanHost) ? 6 : 4
+            };
+        }
         // Resolve all addresses to ensure we catch any hidden private IPs
         const addresses = await lookupAsync(cleanHost, { all: true, verbatim: true });
 
