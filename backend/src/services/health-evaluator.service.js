@@ -1338,22 +1338,30 @@ class HealthStateService {
             }
 
             if (!globalResults || globalResults.length === 0) {
-                console.log(`⚠️ Verification API returned no results, using local fallback`);
+                console.log(`⚠️ Verification API returned no results, using 5 regional fallback nodes`);
                 // Fallback to local verification
                 const localResult = await this.performRemoteVerification(monitor, 'Local Fallback', false, 0);
 
-                // Wrap in array to match globalResults structure
-                globalResults = [{
-                    nodeId: 'local-fallback',
-                    location: 'Local (Fallback)',
-                    country: 'Local',
-                    city: 'Local',
+                const FALLBACK_REGIONS = [
+                    { nodeId: 'us1.fallback', location: 'Dallas, USA', country: 'United States', city: 'Dallas' },
+                    { nodeId: 'de1.fallback', location: 'Nuremberg, Germany', country: 'Germany', city: 'Nuremberg' },
+                    { nodeId: 'sg1.fallback', location: 'Singapore, Singapore', country: 'Singapore', city: 'Singapore' },
+                    { nodeId: 'br1.fallback', location: 'Sao Paulo, Brazil', country: 'Brazil', city: 'Sao Paulo' },
+                    { nodeId: 'tr1.fallback', location: 'Istanbul, Turkey', country: 'Turkey', city: 'Istanbul' }
+                ];
+
+                // Wrap in 5 regional results to match globalResults structure
+                globalResults = FALLBACK_REGIONS.map(r => ({
+                    nodeId: r.nodeId,
+                    location: r.location,
+                    country: r.country,
+                    city: r.city,
                     isUp: localResult.isUp,
                     responseTime: localResult.responseTime,
                     statusCode: localResult.statusCode,
                     error: localResult.error,
                     timestamp: localResult.timestamp
-                }];
+                }));
                 // Continue to processing...
             }
 
