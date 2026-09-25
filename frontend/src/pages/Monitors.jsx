@@ -337,14 +337,14 @@ const Monitors = () => {
 
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Monitors</h1>
-                    <p className="text-gray-400 mt-1">Track your services in real-time</p>
-                </div>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Monitors</h1>
+                        <p className="text-gray-400 mt-1 text-xs sm:text-sm whitespace-nowrap truncate">Track your services in real-time</p>
+                    </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                    {/* Top Action Row on mobile: Refresh on left, Add Monitor on right */}
-                    <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                    {/* Top Action Row on mobile: Refresh and Add Monitor placed at top-right */}
+                    <div className="flex items-center gap-2 sm:hidden shrink-0">
                         <button
                             onClick={handleManualRefresh}
                             disabled={isRefreshing}
@@ -359,19 +359,35 @@ const Monitors = () => {
                             <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
                         </button>
 
-                        {/* On mobile: Add Monitor sits right here on the right of Refresh button */}
                         {!showForm && (
                             <button
                                 onClick={() => setShowForm(true)}
-                                className="sm:hidden px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white shadow-sm shadow-blue-500/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white shadow-sm shadow-blue-500/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add Monitor
+                                <span>Add</span>
                             </button>
                         )}
                     </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                    {/* Desktop Refresh Button (hidden on mobile, shown on sm and above) */}
+                    <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="hidden sm:flex px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                        title="Refresh monitors"
+                    >
+                        <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </span>
+                        <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                    </button>
 
                     <div className="flex bg-[#12121a] p-0.5 rounded-lg border border-gray-800 overflow-x-auto max-w-full">
                         {[
