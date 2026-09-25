@@ -104,7 +104,9 @@ function mapNetworkError(code, latency, threshold) {
         'SSRF_BLOCKED': { state: "🔴 DOWN", type: "SSRF_BLOCKED", msg: "Target blocked by SSRF security policy.", severity: "CRITICAL" },
         'INVALID_URL': { state: "🔴 DOWN", type: "INVALID_URL", msg: "Invalid or malformed URL.", severity: "CRITICAL" },
         'MALFORMED_STRUCTURE': { state: "🔴 DOWN", type: "MALFORMED_STRUCTURE", msg: "Invalid URL structure.", severity: "CRITICAL" },
-        'PROTOCOL_MISMATCH': { state: "🔴 DOWN", type: "PROTOCOL_MISMATCH", msg: "Protocol mismatch.", severity: "CRITICAL" }
+        'PROTOCOL_MISMATCH': { state: "🔴 DOWN", type: "PROTOCOL_MISMATCH", msg: "Protocol mismatch.", severity: "CRITICAL" },
+        'INVALID_PORT': { state: "🔴 DOWN", type: "INVALID_PORT", msg: "Invalid port number. Port must be between 1 and 65535.", severity: "CRITICAL" },
+        'INVALID_INPUT': { state: "🔴 DOWN", type: "INVALID_INPUT", msg: "Invalid input format for monitor.", severity: "CRITICAL" }
     };
 
     const error = errorMap[code] || { state: "🔴 DOWN", type: "UNKNOWN_ERROR", msg: `Unexpected network error: ${code}`, severity: "HIGH" };

@@ -859,6 +859,8 @@ class HealthStateService {
                 'MALFORMED_STRUCTURE',
                 'PROTOCOL_MISMATCH',
                 'INVALID_CONFIG',
+                'INVALID_PORT',
+                'INVALID_INPUT',
                 'CERT_REVOKED',
                 'CERT_EXPIRED',
                 'CERT_HOSTNAME_MISMATCH'
@@ -867,7 +869,9 @@ class HealthStateService {
                     i.includes('SSRF') ||
                     i.toLowerCase().includes('revoked') ||
                     i.toLowerCase().includes('expired') ||
-                    i.toLowerCase().includes('malformed')
+                    i.toLowerCase().includes('malformed') ||
+                    i.toLowerCase().includes('invalid port') ||
+                    i.toLowerCase().includes('invalid format')
                 ));
 
             if (isHardFatalError || consecutiveCount >= confirmedThreshold) {
@@ -898,6 +902,8 @@ class HealthStateService {
                 'MALFORMED_STRUCTURE',
                 'PROTOCOL_MISMATCH',
                 'INVALID_CONFIG',
+                'INVALID_PORT',
+                'INVALID_INPUT',
                 'CERT_REVOKED',
                 'CERT_EXPIRED',
                 'CERT_HOSTNAME_MISMATCH'
@@ -906,7 +912,9 @@ class HealthStateService {
                     i.includes('SSRF') ||
                     i.toLowerCase().includes('revoked') ||
                     i.toLowerCase().includes('expired') ||
-                    i.toLowerCase().includes('malformed')
+                    i.toLowerCase().includes('malformed') ||
+                    i.toLowerCase().includes('invalid port') ||
+                    i.toLowerCase().includes('invalid format')
                 ));
 
             if (!isHardFatalError && consecutiveCount < confirmedThreshold) {
