@@ -146,7 +146,22 @@ class SchedulerService {
             this.hasInitialSync = true;
             return;
         }
+
+        // API-only mode: do not start the BullMQ worker or try to acquire the master lock.
+        // This prevents the local dev server from consuming scheduled jobs that belong to the
+        // cloud instance (Render), which eliminates the dual-writer interleaving problem.
+        // Manual "Check Now" still works — it calls MonitorRunner.run() directly (not via the queue).
+        if (!env.SCHEDULER_WORKER_ENABLED) {
+            console.log('⏸️  Scheduler Worker DISABLED (SCHEDULER_WORKER_ENABLED=false). This instance is API-only.');
+            console.log('   ✅ Check Now (manual) still works — runs MonitorRunner.run() directly.');
+            console.log('   ⏭️  Scheduled checks will be handled by the cloud instance only.');
+            this.isMaster = false;
+            this.isReady = true; // API is ready; just no background workers
+            return;
+        }
+
         console.log('🔄 Initializing Scheduler Service...');
+
 
         // 1. Initialize Worker with concurrency=1 for consistent timing
         this.worker = new Worker(QUEUE_NAME, async (job) => {

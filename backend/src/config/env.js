@@ -27,7 +27,10 @@ export const env = {
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
     TESTSPRITE_API_KEY: process.env.TESTSPRITE_API_KEY,
     WORKER_CONCURRENCY: parseInt(process.env.WORKER_CONCURRENCY, 10) || 0, // 0 means auto-detect
-    // Add other environment variables here as needed
+    // When false: this instance serves the API only (no BullMQ worker, no master lock).
+    // Set to false on local dev so only the cloud instance (Render) runs scheduled checks.
+    // "Check Now" (manual) still works because it calls MonitorRunner.run() directly.
+    SCHEDULER_WORKER_ENABLED: process.env.SCHEDULER_WORKER_ENABLED !== 'false',
 };
 
 // Simple validation
