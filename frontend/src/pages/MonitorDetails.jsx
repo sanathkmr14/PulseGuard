@@ -1088,9 +1088,9 @@ const MonitorDetails = () => {
                             </span>
                         )}
                     </div>
-                    <div className="w-full h-[240px] min-w-0 overflow-hidden">
-                        <ResponsiveContainer width="100%" height={240}>
-                            <AreaChart data={responseData?.trend || []} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <div className="w-full h-[200px] sm:h-[240px] min-w-0 overflow-hidden">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={responseData?.trend || []} margin={{ top: 5, right: 10, left: -15, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -1101,14 +1101,14 @@ const MonitorDetails = () => {
                                 <XAxis
                                     dataKey="timestamp"
                                     stroke="#4b5563"
-                                    minTickGap={45}
-                                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                                    minTickGap={30}
+                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                                     tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 />
                                 <YAxis
                                     stroke="#4b5563"
-                                    width={48}
-                                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                                    width={40}
+                                    tick={{ fontSize: 10, fill: '#9ca3af' }}
                                     tickFormatter={v => `${v}ms`}
                                 />
                                 <Tooltip
@@ -1117,7 +1117,8 @@ const MonitorDetails = () => {
                                         border: '1px solid #374151',
                                         borderRadius: '8px',
                                         color: '#fff',
-                                        fontSize: '12px',
+                                        fontSize: '11px',
+                                        padding: '6px 10px',
                                         boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
                                     }}
                                     formatter={(value) => [typeof value === 'number' && !isNaN(value) ? `${Math.round(value)}ms` : 'N/A', 'Avg Latency']}
@@ -1126,7 +1127,7 @@ const MonitorDetails = () => {
                                         return isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                                     }}
                                 />
-                                <Area type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAvg)" />
+                                <Area type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAvg)" connectNulls={true} />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
