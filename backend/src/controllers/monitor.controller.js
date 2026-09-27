@@ -58,8 +58,13 @@ export const getMonitors = async (req, res) => {
                     .sort({ timestamp: -1 })
                     .limit(1);
 
+                const monitorObj = monitor.toObject();
+                if (monitorObj.type === 'PING') {
+                    monitorObj.port = null;
+                }
+
                 return {
-                    ...monitor.toObject(),
+                    ...monitorObj,
                     latestCheck: latestCheck ? {
                         status: latestCheck.status,
                         statusCode: latestCheck.statusCode,
@@ -129,8 +134,10 @@ export const createMonitor = async (req, res) => {
             }
         }
 
-        // Auto-extract port from URL if not explicitly provided
-        if (!monitorData.port && monitorData.url) {
+        // Auto-extract port from URL if not explicitly provided (PING monitors do not have ports)
+        if (monitorData.type === 'PING') {
+            delete monitorData.port;
+        } else if (!monitorData.port && monitorData.url) {
             const parsed = MonitorRunner.parseUrl(monitorData.url);
             if (parsed.port) {
                 monitorData.port = parsed.port;
@@ -189,10 +196,15 @@ export const createMonitor = async (req, res) => {
             }
         }
 
+        const monitorObj = monitor.toObject();
+        if (monitorObj.type === 'PING') {
+            monitorObj.port = null;
+        }
+
         res.status(201).json({
             success: true,
             data: {
-                ...monitor.toObject(),
+                ...monitorObj,
                 latestCheck: latestCheck ? {
                     status: latestCheck.status,
                     statusCode: latestCheck.statusCode,
@@ -230,10 +242,15 @@ export const getMonitor = async (req, res) => {
 
         const latestCheck = await Check.findOne({ monitor: monitor._id }).sort({ timestamp: -1 });
 
+        const monitorObj = monitor.toObject();
+        if (monitorObj.type === 'PING') {
+            monitorObj.port = null;
+        }
+
         res.json({
             success: true,
             data: {
-                ...monitor.toObject(),
+                ...monitorObj,
                 latestCheck: latestCheck ? {
                     status: latestCheck.status,
                     statusCode: latestCheck.statusCode,
@@ -319,8 +336,10 @@ export const updateMonitor = async (req, res) => {
         const oldUrl = monitor.url;
         const newUrl = updateData.url;
         const urlChanged = newUrl && newUrl !== oldUrl;
-        // Auto-extract port from URL if URL is updated but port is not explicitly provided
-        if (updateData.url && updateData.port === undefined) {
+        // Auto-extract port from URL if URL is updated but port is not explicitly provided (PING monitors do not have ports)
+        if ((updateData.type || monitor.type) === 'PING') {
+            updateData.port = null;
+        } else if (updateData.url && updateData.port === undefined) {
             const parsed = MonitorRunner.parseUrl(updateData.url);
             if (parsed.port) {
                 updateData.port = parsed.port;
@@ -427,10 +446,15 @@ export const updateMonitor = async (req, res) => {
 
         const latestCheck = await Check.findOne({ monitor: monitor._id }).sort({ timestamp: -1 });
 
+        const monitorObj = monitor.toObject();
+        if (monitorObj.type === 'PING') {
+            monitorObj.port = null;
+        }
+
         res.json({
             success: true,
             data: {
-                ...monitor.toObject(),
+                ...monitorObj,
                 latestCheck: latestCheck ? {
                     status: latestCheck.status,
                     statusCode: latestCheck.statusCode,

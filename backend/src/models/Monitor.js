@@ -116,6 +116,14 @@ const monitorSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Pre-validate hook: PING monitors operate at ICMP/network layer and do not use transport ports
+monitorSchema.pre('validate', function (next) {
+    if (this.type === 'PING') {
+        this.port = null;
+    }
+    next();
+});
+
 // Index for efficient queries
 // Primary compound index for common lookups
 monitorSchema.index({ user: 1, status: 1 });

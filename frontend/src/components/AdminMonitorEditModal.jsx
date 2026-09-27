@@ -24,7 +24,7 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                 name: monitor.name || '',
                 type: monitor.type || 'HTTPS',
                 url: monitor.url || '',
-                port: monitor.port ?? '',
+                port: monitor.type === 'PING' ? '' : (monitor.port ?? ''),
                 alertThreshold: monitor.alertThreshold ?? 2,
                 headers: monitor.headers ? JSON.stringify(monitor.headers instanceof Map ? Object.fromEntries(monitor.headers) : monitor.headers, null, 2) : '',
                 interval: monitor.interval || 5,
@@ -45,7 +45,9 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
         setError(null);
         try {
             const payload = { ...formData };
-            if (['TCP', 'UDP', 'SMTP'].includes(payload.type)) {
+            if (payload.type === 'PING') {
+                delete payload.port;
+            } else if (['TCP', 'UDP', 'SMTP'].includes(payload.type)) {
                 const portNum = Number(payload.port);
                 if (payload.port === '' || payload.port === null || payload.port === undefined || isNaN(portNum) || portNum < 1 || portNum > 65535) {
                     setError(`Port is required and must be between 1 and 65535 for ${payload.type} monitors`);
@@ -114,8 +116,18 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-slate-400 mb-1">Type</label>
-                            <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}
-                                className="w-full px-3 py-1.5 bg-slate-950/60 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 outline-none cursor-pointer">
+                            <select
+                                value={formData.type}
+                                onChange={e => {
+                                    const nextType = e.target.value;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        type: nextType,
+                                        ...(nextType === 'PING' ? { port: '' } : {})
+                                    }));
+                                }}
+                                className="w-full px-3 py-1.5 bg-slate-950/60 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 outline-none cursor-pointer"
+                            >
                                 {['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING'].map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
@@ -141,12 +153,14 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
 
                     {showAdvanced && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
-                            <div>
-                                <label className="block text-xs font-medium text-slate-400 mb-1">Port</label>
-                                <input type="number" placeholder="e.g. 443" min="1" max="65535" value={formData.port ?? ''} onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
-                                    className="w-full px-3 py-1.5 bg-slate-950/60 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 outline-none font-mono" />
-                                <p className="text-[11px] text-slate-500 mt-0.5">Required for TCP/UDP/SMTP</p>
-                            </div>
+                            {formData.type !== 'PING' && (
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">Port</label>
+                                    <input type="number" placeholder="e.g. 443" min="1" max="65535" value={formData.port ?? ''} onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
+                                        className="w-full px-3 py-1.5 bg-slate-950/60 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 outline-none font-mono" />
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Required for TCP/UDP/SMTP</p>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-xs font-medium text-slate-400 mb-1">Alert Threshold</label>
                                 <input type="number" placeholder="2" min="1" max="20" value={formData.alertThreshold ?? 2} onChange={e => setFormData({ ...formData, alertThreshold: +e.target.value })}

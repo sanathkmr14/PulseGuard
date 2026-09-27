@@ -192,7 +192,7 @@ const ConfirmationModal = ({
                                     </span>
                                 </div>
                                 <p className="text-xs font-mono text-slate-400 truncate">
-                                    {itemDetails.url}{itemDetails.port ? `:${itemDetails.port}` : ''}
+                                    {itemDetails.url}{itemDetails.port && itemDetails.monitorType !== 'PING' ? `:${itemDetails.port}` : ''}
                                 </p>
                             </div>
                         ) : null}

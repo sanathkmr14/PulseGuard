@@ -306,7 +306,7 @@ const AdminUserDetail = () => {
                 name: monitor.name,
                 url: monitor.url,
                 monitorType: monitor.type || 'HTTPS',
-                port: monitor.port
+                port: monitor.type === 'PING' ? undefined : monitor.port
             },
             message: (
                 <div className="space-y-0.5 leading-snug">

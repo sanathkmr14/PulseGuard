@@ -381,8 +381,13 @@ const MonitorDetails = () => {
             }
 
             const payload = { ...editFormData };
-            if (payload.port === '' || payload.port === null) delete payload.port;
-            else payload.port = Number(payload.port);
+            if (payload.type === 'PING') {
+                payload.port = null;
+            } else if (payload.port === '' || payload.port === null) {
+                delete payload.port;
+            } else {
+                payload.port = Number(payload.port);
+            }
             if (payload.alertThreshold !== undefined && payload.alertThreshold !== '') payload.alertThreshold = Number(payload.alertThreshold);
             if (typeof payload.headers === 'string') {
                 const h = payload.headers.trim();
@@ -442,7 +447,7 @@ const MonitorDetails = () => {
             name: monitor.name,
             type: monitor.type,
             url: monitor.url,
-            port: monitor.port ?? '',
+            port: monitor.type === 'PING' ? '' : (monitor.port ?? ''),
             alertThreshold: monitor.alertThreshold ?? 2,
             headers: monitor.headers ? JSON.stringify(monitor.headers instanceof Map ? Object.fromEntries(monitor.headers) : monitor.headers, null, 2) : '',
             interval: monitor.interval,
@@ -620,7 +625,14 @@ const MonitorDetails = () => {
                                     <label className="block text-[11px] font-medium text-gray-400 mb-1">Type</label>
                                     <select
                                         value={editFormData.type}
-                                        onChange={e => setEditFormData({ ...editFormData, type: e.target.value })}
+                                        onChange={e => {
+                                            const nextType = e.target.value;
+                                            setEditFormData(prev => ({
+                                                ...prev,
+                                                type: nextType,
+                                                ...(nextType === 'PING' ? { port: '' } : {})
+                                            }));
+                                        }}
                                         className="w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
                                     >
                                         {['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING'].map(t => <option key={t} value={t}>{t}</option>)}
@@ -663,19 +675,21 @@ const MonitorDetails = () => {
                             {/* Advanced Fields (Collapsed by default) */}
                             {showAdvanced && (
                                 <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-gray-800/50">
-                                    <div>
-                                        <label className="block text-[11px] font-medium text-gray-400 mb-1">Port</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            max="65535"
-                                            placeholder="e.g. 443"
-                                            value={editFormData.port ?? ''}
-                                            onChange={e => setEditFormData({ ...editFormData, port: e.target.value === '' ? '' : +e.target.value })}
-                                            className="w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
-                                        />
-                                        <p className="text-[10px] text-gray-600 mt-0.5">Required for TCP/UDP/SMTP</p>
-                                    </div>
+                                    {editFormData.type !== 'PING' && (
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-gray-400 mb-1">Port</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="65535"
+                                                placeholder="e.g. 443"
+                                                value={editFormData.port ?? ''}
+                                                onChange={e => setEditFormData({ ...editFormData, port: e.target.value === '' ? '' : +e.target.value })}
+                                                className="w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
+                                            />
+                                            <p className="text-[10px] text-gray-600 mt-0.5">Required for TCP/UDP/SMTP</p>
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-[11px] font-medium text-gray-400 mb-1">Alert Threshold</label>
                                         <input
@@ -1047,7 +1061,7 @@ const MonitorDetails = () => {
                             <p className="text-white text-xs sm:text-sm font-medium">{monitor.sslExpiryThresholdDays || 14} days</p>
                         </div>
                     )}
-                    {monitor.port && (
+                    {monitor.port && monitor.type !== 'PING' && (
                         <div>
                             <p className="text-gray-500 text-[10px] uppercase font-bold mb-0.5">Port</p>
                             <p className="text-white text-xs sm:text-sm font-medium font-mono">{monitor.port}</p>

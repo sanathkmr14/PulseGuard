@@ -152,8 +152,13 @@ const Monitors = () => {
         setSaving(true);
         try {
             const payload = { ...formData };
-            if (payload.port === '' || payload.port === null) delete payload.port;
-            else payload.port = Number(payload.port);
+            if (payload.type === 'PING') {
+                delete payload.port;
+            } else if (payload.port === '' || payload.port === null) {
+                delete payload.port;
+            } else {
+                payload.port = Number(payload.port);
+            }
             if (payload.alertThreshold !== undefined && payload.alertThreshold !== '') payload.alertThreshold = Number(payload.alertThreshold);
             if (typeof payload.headers === 'string') {
                 const h = payload.headers.trim();
@@ -209,7 +214,7 @@ const Monitors = () => {
             name: monitor.name,
             type: monitor.type,
             url: monitor.url,
-            port: monitor.port ?? '',
+            port: monitor.type === 'PING' ? '' : (monitor.port ?? ''),
             alertThreshold: monitor.alertThreshold ?? 2,
             headers: monitor.headers ? JSON.stringify(monitor.headers instanceof Map ? Object.fromEntries(monitor.headers) : monitor.headers, null, 2) : '',
             interval: monitor.interval,
@@ -471,7 +476,14 @@ const Monitors = () => {
                                 <label className="block text-[11px] font-medium text-gray-400 mb-1">Type</label>
                                 <select
                                     value={formData.type}
-                                    onChange={e => setFormData({ ...formData, type: e.target.value })}
+                                    onChange={e => {
+                                        const nextType = e.target.value;
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            type: nextType,
+                                            ...(nextType === 'PING' ? { port: '' } : {})
+                                        }));
+                                    }}
                                     className="w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
                                 >
                                     {['HTTP', 'HTTPS', 'TCP', 'UDP', 'DNS', 'SMTP', 'SSL', 'PING'].map(t => <option key={t} value={t}>{t}</option>)}
@@ -541,18 +553,20 @@ const Monitors = () => {
                         {showAdvanced && (
                             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-800/50">
                                 {/* Port */}
-                                <div className="flex-1 min-w-[80px] max-w-[110px]">
-                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Port</label>
-                                    <input
-                                        type="number"
-                                        placeholder="443"
-                                        min="1"
-                                        max="65535"
-                                        value={formData.port ?? ''}
-                                        onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
-                                        className="w-full px-2 py-1 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
-                                    />
-                                </div>
+                                {formData.type !== 'PING' && (
+                                    <div className="flex-1 min-w-[80px] max-w-[110px]">
+                                        <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Port</label>
+                                        <input
+                                            type="number"
+                                            placeholder="443"
+                                            min="1"
+                                            max="65535"
+                                            value={formData.port ?? ''}
+                                            onChange={e => setFormData({ ...formData, port: e.target.value === '' ? '' : +e.target.value })}
+                                            className="w-full px-2 py-1 bg-[#0a0a0f] border border-gray-800 rounded-lg text-xs text-white focus:border-blue-500 outline-none"
+                                        />
+                                    </div>
+                                )}
                                 {/* Alert Threshold */}
                                 <div className="flex-1 min-w-[80px] max-w-[110px]">
                                     <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Alert After</label>
