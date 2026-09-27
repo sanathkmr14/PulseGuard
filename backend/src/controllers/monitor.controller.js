@@ -529,6 +529,70 @@ export const deleteMonitor = async (req, res) => {
     }
 };
 
+export const deleteAllMonitors = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const monitors = await Monitor.find({ user: userId });
+
+        if (!monitors || monitors.length === 0) {
+            return res.json({ success: true, message: 'No monitors found to delete', count: 0 });
+        }
+
+        const monitorIds = monitors.map(m => m._id);
+        const monitorObjectIds = monitorIds.map(id => new mongoose.Types.ObjectId(id));
+
+        console.log(`🗑️  Bulk deleting ${monitors.length} monitors for user ${userId}`);
+
+        // Step 1: Remove all monitors from scheduler
+        await Promise.allSettled(
+            monitorIds.map(id => schedulerService.removeMonitor(id))
+        );
+
+        // Step 2: Delete all checks and incidents associated with these monitors
+        const [checksResult, incidentsResult] = await Promise.all([
+            Check.deleteMany({ monitor: { $in: monitorObjectIds } }),
+            Incident.deleteMany({ monitor: { $in: monitorObjectIds } })
+        ]);
+        console.log(`   ✅ Bulk deleted ${checksResult.deletedCount} checks, ${incidentsResult.deletedCount} incidents`);
+
+        // Step 3: Delete all monitors
+        const deletedMonitorsResult = await Monitor.deleteMany({ _id: { $in: monitorObjectIds } });
+        console.log(`   ✅ Bulk deleted ${deletedMonitorsResult.deletedCount} monitors`);
+
+        // Step 4: Mirror deletes
+        monitorObjectIds.forEach(id => {
+            dbMirror.mirrorDelete('monitors', id);
+        });
+        dbMirror.mirrorDeleteMany('checks', { monitor: { $in: monitorObjectIds } });
+        dbMirror.mirrorDeleteMany('incidents', { monitor: { $in: monitorObjectIds } });
+
+        // Step 5: Clean up Redis keys
+        await Promise.allSettled([
+            ...monitorIds.map(id => healthStateService.cleanupState(id)),
+            ...monitorIds.map(id => enhancedAlertService.clearAlertSuppression(id)),
+            ...monitorIds.map(id => redisClient.del(`cooldown:manual-check:${id}`).catch(() => {}))
+        ]);
+
+        // Step 6: Broadcast real-time event
+        if (req.app?.get?.('io')) {
+            try {
+                req.app.get('io').to(`user_${userId}`).emit('all_monitors_deleted', { count: monitors.length });
+            } catch (socketErr) {
+                console.warn('Socket error on all_monitors_deleted:', socketErr.message);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: `Successfully deleted all ${monitors.length} monitors`,
+            count: monitors.length
+        });
+    } catch (error) {
+        console.error('❌ Delete all monitors error:', error);
+        res.status(400).json({ success: false, message: safeErrorMessage(error, 'Failed to delete all monitors') });
+    }
+};
+
 export const getMonitorStats = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {

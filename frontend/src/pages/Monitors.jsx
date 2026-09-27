@@ -54,6 +54,7 @@ const Monitors = () => {
     const { subscribe } = useSocket();
     const [error, setError] = useState(null);
     const [deleteModal, setDeleteModal] = useState({ show: false, monitor: null, deleting: false, confirmText: '' });
+    const [deleteAllModal, setDeleteAllModal] = useState({ show: false, deleting: false, confirmText: '' });
 
     // Open form automatically if navigating with ?action=new
     useEffect(() => {
@@ -133,6 +134,7 @@ const Monitors = () => {
         const unsubs = [
             subscribe('monitor_update', handleUpdate),
             subscribe('monitor_status_change', handleUpdate),
+            subscribe('all_monitors_deleted', handleUpdate),
             subscribe('incident_created', handleUpdate),
             subscribe('incident_resolved', handleUpdate)
         ];
@@ -323,6 +325,29 @@ const Monitors = () => {
         }
     };
 
+    const openDeleteAllModal = () => {
+        setDeleteAllModal({ show: true, deleting: false, confirmText: '' });
+    };
+
+    const closeDeleteAllModal = () => {
+        setDeleteAllModal({ show: false, deleting: false, confirmText: '' });
+    };
+
+    const confirmDeleteAll = async () => {
+        setDeleteAllModal(prev => ({ ...prev, deleting: true }));
+        try {
+            const res = await monitorAPI.deleteAll();
+            closeDeleteAllModal();
+            showNotification('success', res.data?.message || 'All monitors deleted successfully');
+            swrCache.delete('monitors_list');
+            await fetchMonitors(1, 'all', limit);
+        } catch (e) {
+            console.error('Delete all failed:', e);
+            setError(e.response?.data?.message || 'Failed to delete all monitors');
+            setDeleteAllModal(prev => ({ ...prev, deleting: false }));
+        }
+    };
+
     if (loading) return (
         <div className="flex items-center justify-center h-64">
             <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
@@ -348,20 +373,34 @@ const Monitors = () => {
                         <p className="text-gray-400 mt-1 text-xs sm:text-sm whitespace-nowrap truncate">Track your services in real-time</p>
                     </div>
 
-                    {/* Mobile Refresh Button: Top Right beside Monitors title (identical to Incidents) */}
-                    <button
-                        onClick={handleManualRefresh}
-                        disabled={isRefreshing}
-                        className="sm:hidden px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
-                        title="Refresh monitors"
-                    >
-                        <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                        </span>
-                        <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
-                    </button>
+                    {/* Mobile Buttons: Top Right beside Monitors title */}
+                    <div className="flex items-center gap-1.5 sm:hidden shrink-0">
+                        {counts.all > 0 && !showForm && (
+                            <button
+                                onClick={openDeleteAllModal}
+                                className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium border border-red-500/20 transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95"
+                                title="Delete all monitors"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete All</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-medium border border-gray-700/50 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-60 cursor-pointer"
+                            title="Refresh monitors"
+                        >
+                            <span className={isRefreshing ? 'animate-spin text-blue-400' : ''}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </span>
+                            <span>{isRefreshing ? 'Updating...' : 'Refresh'}</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
@@ -433,17 +472,31 @@ const Monitors = () => {
                         )}
                     </div>
 
-                    {/* Desktop Add Monitor (shown only on sm and above) */}
+                    {/* Desktop Delete All & Add Monitor (shown only on sm and above) */}
                     {!showForm && (
-                        <button
-                            onClick={() => setShowForm(true)}
-                            className="hidden sm:flex px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white shadow-sm shadow-blue-500/20 transition-all items-center gap-1.5 shrink-0 cursor-pointer"
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add Monitor
-                        </button>
+                        <div className="hidden sm:flex items-center gap-2">
+                            {counts.all > 0 && (
+                                <button
+                                    onClick={openDeleteAllModal}
+                                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                    title="Delete all monitors"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete All
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setShowForm(true)}
+                                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white shadow-sm shadow-blue-500/20 transition-all items-center gap-1.5 shrink-0 cursor-pointer flex"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Monitor
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -959,6 +1012,110 @@ const Monitors = () => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                         <span>Confirm & Delete</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete All Confirmation Modal */}
+            {deleteAllModal.show && (
+                <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+                    <div className="bg-[#12121a] border border-gray-800 rounded-2xl p-5 w-full max-w-md shadow-2xl">
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-gray-800/60">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-sm font-bold text-white font-heading">Delete All Monitors</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeDeleteAllModal}
+                                disabled={deleteAllModal.deleting}
+                                className="text-gray-500 hover:text-gray-300 p-1 rounded-lg hover:bg-gray-800/60 transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Summary Card */}
+                        <div className="bg-[#0b0f19] border border-gray-800/80 rounded-xl p-3 mb-3.5">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="font-semibold text-white text-sm">All Configured Services</span>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 uppercase font-semibold">
+                                    {counts.all || monitors.length} Total
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-400">
+                                This will remove every monitor you have configured and permanently cease all automated health checks.
+                            </p>
+                        </div>
+
+                        {/* Danger Warning Alert */}
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-xs text-red-300 flex items-start gap-2.5 mb-4 leading-relaxed">
+                            <svg className="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span>
+                                <strong>CRITICAL WARNING:</strong> This action <strong>cannot be undone</strong>. All checks, latency metrics, and incident history across all {counts.all || monitors.length} monitors will be permanently erased.
+                            </span>
+                        </div>
+
+                        {/* Confirmation Input Field */}
+                        <div className="space-y-1.5 mb-5">
+                            <label className="block text-xs text-gray-300">
+                                To confirm, type <span className="font-mono font-bold text-red-400 select-all bg-red-950/50 px-1.5 py-0.5 rounded border border-red-500/20">DELETE ALL</span> or <span className="font-mono font-bold text-red-400">DELETE</span> below:
+                            </label>
+                            <input
+                                type="text"
+                                value={deleteAllModal.confirmText || ''}
+                                onChange={(e) => setDeleteAllModal(prev => ({ ...prev, confirmText: e.target.value }))}
+                                placeholder='Type "DELETE ALL" or "DELETE"'
+                                disabled={deleteAllModal.deleting}
+                                autoFocus
+                                className="w-full bg-[#0b0f19] border border-gray-700/80 focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 outline-none transition-all font-mono"
+                            />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-800/60">
+                            <button
+                                type="button"
+                                onClick={closeDeleteAllModal}
+                                disabled={deleteAllModal.deleting}
+                                className="px-3.5 py-2 bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteAll}
+                                disabled={
+                                    (deleteAllModal.confirmText?.trim().toUpperCase() !== 'DELETE ALL' && 
+                                     deleteAllModal.confirmText?.trim().toUpperCase() !== 'DELETE') || 
+                                    deleteAllModal.deleting
+                                }
+                                className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-35 disabled:hover:bg-red-600 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm shadow-red-600/20 hover:scale-[1.01]"
+                            >
+                                {deleteAllModal.deleting ? (
+                                    <>
+                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Deleting All...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        <span>Delete All Monitors</span>
                                     </>
                                 )}
                             </button>

@@ -13,6 +13,7 @@ import {
     getMonitor,
     updateMonitor,
     deleteMonitor,
+    deleteAllMonitors,
     getMonitorStats,
     getMonitorChecks,
     checkMonitorNow,
@@ -36,6 +37,10 @@ router.get('/', getMonitors);
 // @route   POST /api/monitors
 // Strict rate limit: creating monitors is resource-intensive
 router.post('/', strictUserRateLimiter, createMonitor);
+
+// @route   DELETE /api/monitors/all
+// Bulk operation: delete all monitors for user
+router.delete('/all', strictUserRateLimiter, deleteAllMonitors);
 
 // @route   GET /api/monitors/:id
 router.get('/:id', getMonitor);

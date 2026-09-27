@@ -89,6 +89,7 @@ export const monitorAPI = {
     create: (data) => api.post('/monitors', data),
     update: (id, data) => api.put(`/monitors/${id}`, data),
     delete: (id) => api.delete(`/monitors/${id}`),
+    deleteAll: () => api.delete('/monitors/all'),
     getStats: (id) => api.get(`/monitors/${id}/stats`),
     getChecks: (id, params) => api.get(`/monitors/${id}/checks`, { params }),
     checkNow: (id) => api.post(`/monitors/${id}/check-now`),
