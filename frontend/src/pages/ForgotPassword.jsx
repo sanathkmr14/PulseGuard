@@ -51,20 +51,20 @@ const ForgotPassword = () => {
             </Link>
 
             <div className="w-full max-w-md">
-                <div className="flex flex-col items-center justify-center mb-8 text-center">
-                    <Link to="/" className="inline-block hover:opacity-95 transition-opacity mb-4">
-                        <Logo size="lg" showText={true} textClassName="text-2xl font-bold text-white tracking-tight" />
+                <div className="flex flex-col items-center justify-center mb-6 sm:mb-8 text-center">
+                    <Link to="/" className="inline-block hover:opacity-95 transition-opacity mb-3 sm:mb-4">
+                        <Logo size="lg" showText={true} textClassName="text-xl sm:text-2xl font-bold text-white tracking-tight" />
                     </Link>
-                    <h1 className="text-2xl font-bold text-white mb-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">
                         Forgot <span className="text-blue-500">password?</span>
                     </h1>
-                    <p className="text-slate-400 text-sm">Enter your email and we'll send you a reset link</p>
+                    <p className="text-slate-400 text-xs sm:text-sm">Enter your email and we'll send you a reset link</p>
                 </div>
 
-                <div className="bg-[#12121a] border border-gray-800/50 rounded-2xl p-8 relative">
+                <div className="bg-[#12121a] border border-gray-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 relative">
 
                     {status && (
-                        <div className={`mb-4 px-3.5 py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                        <div className={`mb-3 sm:mb-4 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
                             status.type === 'success' 
                                 ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' 
                                 : 'bg-red-500/10 border border-red-500/25 text-red-400'
@@ -80,34 +80,34 @@ const ForgotPassword = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-5">
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                            <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-1 sm:mb-2">Email</label>
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                                 placeholder="you@example.com"
-                                className="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                className="w-full px-3.5 py-2 sm:px-4 sm:py-3 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                             />
                         </div>
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-600/25 hover:shadow-blue-500/35 hover:-translate-y-0.5 disabled:hover:translate-y-0"
+                            className="w-full py-2.5 sm:py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-lg sm:rounded-xl transition-all duration-200 shadow-md sm:shadow-lg shadow-blue-600/25 hover:shadow-blue-500/35 hover:-translate-y-0.5 disabled:hover:translate-y-0 cursor-pointer"
                         >
                             {loading ? (
                                 <span className="flex items-center justify-center gap-2">
-                                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Sending...
+                                    <span className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <span>Sending...</span>
                                 </span>
                             ) : 'Send reset link'}
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center text-gray-500">
+                    <div className="mt-4 sm:mt-6 text-center text-xs sm:text-sm text-gray-500">
                         Remembered it?{' '}
                         <Link to="/login" className="text-blue-500 hover:text-blue-400 font-medium transition-colors">
                             Back to sign in
