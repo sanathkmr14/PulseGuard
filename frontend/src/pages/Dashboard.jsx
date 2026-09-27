@@ -606,7 +606,10 @@ const Dashboard = () => {
                             <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center">
                                 <div className="flex justify-center mb-2 text-gray-500">{Icons.search}</div>
                                 <h3 className="text-sm font-semibold text-white mb-1 font-heading">No monitors yet</h3>
-                                <p className="text-xs text-gray-400 mb-3.5 max-w-xs mx-auto leading-relaxed">Add your first endpoint to start tracking uptime</p>
+                                <p className="text-xs text-gray-400 mb-3.5 max-w-xs mx-auto truncate whitespace-nowrap sm:whitespace-normal sm:leading-relaxed">
+                                    <span className="sm:hidden">Start tracking endpoint uptime.</span>
+                                    <span className="hidden sm:inline">Add your first endpoint to start tracking uptime</span>
+                                </p>
                                 <Link to="/app/monitors?action=new" className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-colors">
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -858,10 +861,17 @@ const Dashboard = () => {
                                         <h3 className="text-xs font-semibold text-white mb-0.5 font-heading">
                                             {incidentsFilter === 'ongoing' ? 'All Systems Operational' : `No ${incidentsFilter === 'resolved' ? 'Resolved' : ''} Incidents`}
                                         </h3>
-                                        <p className="text-[11px] text-gray-400 max-w-xs mx-auto leading-relaxed">
-                                            {incidentsFilter === 'ongoing'
-                                                ? 'Zero active outages or performance degradations detected.'
-                                                : `There are currently no ${incidentsFilter} incidents recorded.`}
+                                        <p className="text-[11px] text-gray-400 max-w-xs mx-auto truncate whitespace-nowrap sm:whitespace-normal sm:leading-relaxed">
+                                            <span className="sm:hidden">
+                                                {incidentsFilter === 'ongoing'
+                                                    ? 'Zero active outages detected.'
+                                                    : `No ${incidentsFilter} incidents recorded.`}
+                                            </span>
+                                            <span className="hidden sm:inline">
+                                                {incidentsFilter === 'ongoing'
+                                                    ? 'Zero active outages or performance degradations detected.'
+                                                    : `There are currently no ${incidentsFilter} incidents recorded.`}
+                                            </span>
                                         </p>
                                         {incidentsFilter !== 'all' && (incidentsCounts.all > 0) && (
                                             <button

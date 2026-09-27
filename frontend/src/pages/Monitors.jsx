@@ -689,8 +689,9 @@ const Monitors = () => {
                             </svg>
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-white mb-1.5 font-heading">No monitors configured yet</h3>
-                        <p className="text-xs text-gray-400 mb-5 max-w-md mx-auto leading-relaxed">
-                            Monitor websites, APIs, SSL & ports with real-time multi-region health checks.
+                        <p className="text-xs text-gray-400 mb-5 max-w-md mx-auto truncate whitespace-nowrap sm:whitespace-normal sm:leading-relaxed">
+                            <span className="sm:hidden">Start tracking your endpoints in real-time.</span>
+                            <span className="hidden sm:inline">Monitor websites, APIs, SSL & ports with real-time multi-region health checks.</span>
                         </p>
                         <button
                             onClick={() => { setShowForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -710,8 +711,9 @@ const Monitors = () => {
                             </svg>
                         </div>
                         <h3 className="text-base font-bold text-white mb-1 font-heading">No {filter} monitors</h3>
-                        <p className="text-xs text-gray-400 mb-4 max-w-sm mx-auto leading-relaxed">
-                            There are currently no monitors matching &quot;{filter}&quot;.
+                        <p className="text-xs text-gray-400 mb-4 max-w-sm mx-auto truncate whitespace-nowrap sm:whitespace-normal sm:leading-relaxed">
+                            <span className="sm:hidden">No services match &quot;{filter}&quot;.</span>
+                            <span className="hidden sm:inline">There are currently no monitors matching &quot;{filter}&quot;.</span>
                         </p>
                         <button
                             onClick={() => handleFilterChange('all')}

@@ -418,10 +418,19 @@ const Incidents = () => {
                             ? 'No Resolved Incidents Yet'
                             : 'All Systems Operating Normally'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-gray-400 max-w-md mx-auto leading-relaxed">
-                        {filter === 'ongoing'
-                            ? 'Every monitored service is passing health checks with zero active disruptions.'
-                            : 'No downtime incidents recorded for your monitors. Your endpoints are running reliably within SLA.'}
+                    <p className="text-xs sm:text-sm text-gray-400 max-w-md mx-auto truncate whitespace-nowrap sm:whitespace-normal sm:leading-relaxed">
+                        <span className="sm:hidden">
+                            {filter === 'ongoing'
+                                ? 'All services passing health checks.'
+                                : filter === 'resolved'
+                                ? 'No resolved incidents recorded.'
+                                : 'All systems operating within SLA.'}
+                        </span>
+                        <span className="hidden sm:inline">
+                            {filter === 'ongoing'
+                                ? 'Every monitored service is passing health checks with zero active disruptions.'
+                                : 'No downtime incidents recorded for your monitors. Your endpoints are running reliably within SLA.'}
+                        </span>
                     </p>
 
                     <div className="mt-5 sm:mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
