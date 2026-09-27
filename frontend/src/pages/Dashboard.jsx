@@ -399,7 +399,7 @@ const Dashboard = () => {
                                             {stats?.downMonitors} {stats?.downMonitors === 1 ? 'Service Down' : 'Services Down'}
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
                                         Active incidents require immediate attention.
                                     </p>
                                 </div>
@@ -430,7 +430,7 @@ const Dashboard = () => {
                                             {stats?.degradedMonitors} Degraded
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
                                         Elevated latency or SSL expiry alerts detected.
                                     </p>
                                 </div>
@@ -461,8 +461,9 @@ const Dashboard = () => {
                                             0 Active
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
-                                        Add your first service to begin automated uptime telemetry.
+                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                        <span className="sm:hidden">Add your first service to start monitoring.</span>
+                                        <span className="hidden sm:inline">Add your first service to begin automated uptime telemetry.</span>
                                     </p>
                                 </div>
                             </div>
@@ -497,7 +498,7 @@ const Dashboard = () => {
                                         100% Healthy
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                                <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
                                     All {stats?.totalMonitors ?? monitors.length} monitored service{(stats?.totalMonitors ?? monitors.length) === 1 ? '' : 's'} responding normally.
                                 </p>
                             </div>
