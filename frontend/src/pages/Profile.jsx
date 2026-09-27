@@ -76,7 +76,10 @@ const Profile = () => {
         <div className="space-y-4 sm:space-y-6">
             <div>
                 <h1 className="text-xl sm:text-3xl font-bold text-white font-heading">Profile</h1>
-                <p className="text-gray-400 text-xs sm:text-sm mt-0.5 sm:mt-1">Manage your personal information and account settings</p>
+                <p className="text-gray-400 text-xs sm:text-sm mt-0.5 sm:mt-1 whitespace-nowrap truncate">
+                    <span className="hidden sm:inline">Manage your personal information and account settings</span>
+                    <span className="sm:hidden">Manage profile & account settings</span>
+                </p>
             </div>
 
             {/* Profile Card */}
@@ -122,12 +125,14 @@ const Profile = () => {
                         <div className="space-y-3 sm:space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div>
-                                    <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-2">Current Password</label>
+                                    <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-2">
+                                        Current Password <span className="text-[10px] text-gray-500 font-normal">(needed to update)</span>
+                                    </label>
                                     <div className="relative">
                                         <input type={showCurrentPassword ? "text" : "password"}
                                             value={formData.currentPassword || ''}
                                             onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                                            placeholder="Required to change email or password"
+                                            placeholder="Enter current password"
                                             className="w-full px-3.5 py-2.5 sm:px-4 sm:py-3 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-gray-600 pr-10 sm:pr-12" />
                                         <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                                             className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors cursor-pointer">
@@ -223,21 +228,24 @@ const Profile = () => {
             {/* Danger Zone */}
             <div className="bg-[#12121a]/95 backdrop-blur-md border border-red-500/20 rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:border-red-500/30 transition-all">
                 {/* Header */}
-                <div className="flex items-center justify-between px-3.5 py-3 sm:px-5 sm:py-4 border-b border-red-500/15 bg-red-500/[0.02]">
-                    <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="flex items-center justify-between px-3.5 py-2.5 sm:px-5 sm:py-4 border-b border-red-500/15 bg-red-500/[0.02] gap-2">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                         <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
                             <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-red-400 font-heading">
                                 Danger Zone
                             </h3>
-                            <p className="text-[10px] sm:text-[11px] text-gray-500">Irreversible account deletion and data purge</p>
+                            <p className="text-[10px] sm:text-[11px] text-gray-500 whitespace-nowrap truncate">
+                                <span className="hidden sm:inline">Irreversible account deletion and data purge</span>
+                                <span className="sm:hidden">Permanent account & data purge</span>
+                            </p>
                         </div>
                     </div>
-                    <span className="px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                    <span className="px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 whitespace-nowrap shrink-0">
                         High Risk
                     </span>
                 </div>
@@ -248,14 +256,15 @@ const Profile = () => {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                             <div className="min-w-0 flex-1">
                                 <h4 className="text-xs sm:text-sm font-bold text-white font-heading">Delete Account</h4>
-                                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 leading-relaxed">
-                                    Permanently wipe your account profile, all configured monitors, historical telemetry checks, and incident logs. This action cannot be undone.
+                                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 whitespace-nowrap truncate">
+                                    <span className="hidden sm:inline">Permanently wipe your account profile, all configured monitors, historical telemetry checks, and incident logs.</span>
+                                    <span className="sm:hidden">Permanently wipe profile, monitors & telemetry</span>
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowDeleteConfirm(true)}
-                                className="w-full sm:w-auto justify-center px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-500/50 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 shrink-0 self-stretch sm:self-center cursor-pointer shadow-sm shadow-red-500/5"
+                                className="w-full sm:w-auto justify-center px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 hover:border-red-500/50 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm shadow-red-500/5"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -266,14 +275,14 @@ const Profile = () => {
                     ) : (
                         <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-200">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs">
-                                <span className="flex items-center gap-1.5 font-bold text-red-400 text-xs">
+                                <span className="flex items-center gap-1.5 font-bold text-red-400 text-xs whitespace-nowrap">
                                     <svg className="w-3.5 h-3.5 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
-                                    Authorize Account Deletion
+                                    Authorize Deletion
                                 </span>
                                 <span className="text-gray-600 hidden sm:inline">•</span>
-                                <span className="text-gray-400 text-[11px] sm:text-xs">Enter your password below to confirm permanent wipe.</span>
+                                <span className="text-gray-400 text-[11px] sm:text-xs whitespace-nowrap truncate">Enter password to confirm wipe</span>
                             </div>
 
                             <div className="space-y-1 sm:space-y-1.5">
@@ -285,7 +294,7 @@ const Profile = () => {
                                         type={showDeletePassword ? "text" : "password"}
                                         value={deletePassword}
                                         onChange={(e) => setDeletePassword(e.target.value)}
-                                        placeholder="Enter your current password"
+                                        placeholder="Enter current password"
                                         className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg text-white text-xs placeholder-gray-600 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all pr-10"
                                     />
                                     <button
@@ -307,10 +316,10 @@ const Profile = () => {
                                     type="checkbox"
                                     checked={deleteCheckbox}
                                     onChange={(e) => setDeleteCheckbox(e.target.checked)}
-                                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-gray-700 text-red-600 focus:ring-red-500 bg-[#0a0a0f] accent-red-600 cursor-pointer"
+                                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded border-gray-700 text-red-600 focus:ring-red-500 bg-[#0a0a0f] accent-red-600 cursor-pointer shrink-0"
                                 />
-                                <span className="text-[11px] sm:text-xs text-gray-400">
-                                    I understand that this action is permanent and cannot be undone.
+                                <span className="text-[11px] sm:text-xs text-gray-400 whitespace-nowrap truncate">
+                                    I understand that this action is permanent
                                 </span>
                             </label>
 
