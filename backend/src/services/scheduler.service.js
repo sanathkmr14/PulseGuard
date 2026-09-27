@@ -361,7 +361,7 @@ class SchedulerService {
                 console.log(`🧹 Found ${allJobs.length} total jobs, cleaning up...`);
 
                 // Wait for active jobs to complete (max 5 seconds)
-                const activeJobs = allJobs.filter(j => j.data); // Filter valid jobs only
+                const activeJobs = (allJobs || []).filter(j => j && j.data); // Filter valid jobs only
                 if (activeJobs.length > 0) {
                     console.log(`⏳ Waiting for ${activeJobs.length} active jobs to complete...`);
                     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -369,13 +369,15 @@ class SchedulerService {
 
                 // Now remove all non-active jobs
                 let removedCount = 0;
-                for (const job of allJobs) {
+                for (const job of (allJobs || [])) {
+                    if (!job) continue;
                     try {
                         const state = await job.getState();
 
                         // FIX: Aggressive Zombie Purge
                         // Legacy hyphen/colon IDs are purged; current deterministic IDs use underscore prefix (scheduled_<id>, immediate_<id>).
-                        const isOldPattern = (job.id.startsWith('scheduled-') || job.id.startsWith('immediate-') || job.id.includes(':'));
+                        const jobIdStr = String(job.id || '');
+                        const isOldPattern = (jobIdStr.startsWith('scheduled-') || jobIdStr.startsWith('immediate-') || jobIdStr.includes(':'));
 
                         if (state === 'active') {
                             console.log(`   ⚠️ Skipping active job ${job.id}`);
@@ -392,7 +394,7 @@ class SchedulerService {
                             removedCount++;
                         }
                     } catch (err) {
-                        console.debug(`   ⚠️ Could not process job ${job.id}: ${err.message}`);
+                        console.debug(`   ⚠️ Could not process job ${job?.id}: ${err.message}`);
                     }
                 }
                 console.log(`🧹 Removed ${removedCount} old jobs`);
@@ -565,12 +567,15 @@ class SchedulerService {
             }
 
             const jobs = await this.queue.getJobs(['delayed', 'waiting', 'active', 'prioritized', 'failed', 'completed']);
-            const matches = jobs.filter(j =>
-                j.data?.monitorId === monitorIdStr ||
-                (j.id && String(j.id).includes(monitorIdStr))
+            const matches = (jobs || []).filter(j =>
+                j && (
+                    j.data?.monitorId === monitorIdStr ||
+                    (j.id && String(j.id).includes(monitorIdStr))
+                )
             );
 
             for (const match of matches) {
+                if (!match) continue;
                 try {
                     const state = await match.getState();
                     if (state !== 'active') {
@@ -590,6 +595,10 @@ class SchedulerService {
 
     // Process the actual Check with Enhanced Health State Logic
     async processJob(job) {
+        if (!job || !job.data) {
+            console.warn('processJob: missing job or job data');
+            return;
+        }
         const { monitorId, isImmediate, isScheduled } = job.data;
 
         // Defensive: Validate monitorId exists

@@ -123,7 +123,9 @@ describe('Controller Bug Fixes Verification', () => {
             };
             jest.spyOn(Monitor, 'findById').mockResolvedValue(otherUserMonitor);
             jest.spyOn(Incident, 'find').mockReturnValue({
-                sort: jest.fn().mockResolvedValue([])
+                sort: jest.fn().mockReturnValue({
+                    limit: jest.fn().mockResolvedValue([])
+                })
             });
             jest.spyOn(Incident, 'findOne').mockReturnValue({
                 sort: jest.fn().mockResolvedValue(null)
