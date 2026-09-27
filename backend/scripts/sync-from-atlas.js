@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const LOCAL_URI = process.env.LOCAL_MONGODB_URI || 'mongodb://127.0.0.1:27017/PulseGuard';
+const LOCAL_URI = process.env.LOCAL_MONGODB_URI || 'mongodb://127.0.0.1:27017/pulseguard';
 const ATLAS_URI = process.env.ATLAS_MONGODB_URI;
 
 if (!ATLAS_URI) {
@@ -43,21 +43,45 @@ async function syncFromAtlas() {
 
     for (const name of COLLECTIONS) {
         try {
-            const docs = await atlas.collection(name).find({}).toArray();
-            console.log(`📦  [${name}]  ${docs.length} document(s) found in Atlas`);
+            const totalDocs = await atlas.collection(name).countDocuments();
+            console.log(`📦  [${name}]  ${totalDocs} document(s) found in Atlas`);
 
-            if (docs.length > 0) {
-                // Upsert each document so we never lose locally-created data
-                const bulk = local.collection(name).initializeUnorderedBulkOp();
-                for (const doc of docs) {
-                    bulk.find({ _id: doc._id }).upsert().replaceOne(doc);
+            if (totalDocs > 0) {
+                const cursor = atlas.collection(name).find({});
+                let batch = [];
+                let processed = 0;
+
+                while (await cursor.hasNext()) {
+                    const doc = await cursor.next();
+                    batch.push(doc);
+
+                    if (batch.length >= 1000) {
+                        const bulk = local.collection(name).initializeUnorderedBulkOp();
+                        for (const d of batch) {
+                            bulk.find({ _id: d._id }).upsert().replaceOne(d);
+                        }
+                        await bulk.execute();
+                        processed += batch.length;
+                        process.stdout.write(`\r   ✔  synced ${processed} / ${totalDocs} (${Math.round((processed / totalDocs) * 100)}%)`);
+                        batch = [];
+                    }
                 }
-                const result = await bulk.execute();
-                console.log(`   ✔  upserted ${result.upsertedCount}  |  modified ${result.modifiedCount}`);
-                grandTotal += docs.length;
+
+                if (batch.length > 0) {
+                    const bulk = local.collection(name).initializeUnorderedBulkOp();
+                    for (const d of batch) {
+                        bulk.find({ _id: d._id }).upsert().replaceOne(d);
+                    }
+                    await bulk.execute();
+                    processed += batch.length;
+                    process.stdout.write(`\r   ✔  synced ${processed} / ${totalDocs} (100%)\n`);
+                } else {
+                    console.log('');
+                }
+                grandTotal += totalDocs;
             }
         } catch (err) {
-            console.warn(`   ⚠️  Skipped [${name}]: ${err.message}`);
+            console.warn(`\n   ⚠️  Skipped [${name}]: ${err.message}`);
         }
     }
 
