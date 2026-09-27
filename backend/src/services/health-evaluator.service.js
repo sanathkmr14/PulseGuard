@@ -209,7 +209,7 @@ class HealthStateService {
             const lastCheck = recentChecks[0];
             const lastStatus = (lastCheck.status || (lastCheck.isUp ? 'up' : 'down')).toLowerCase();
             stateHistory.currentState = lastStatus;
-            stateHistory.lastStateChange = lastCheck.createdAt || new Date();
+            stateHistory.lastStateChange = new Date(lastCheck.timestamp || lastCheck.createdAt || Date.now()).getTime();
             stateHistory.consecutiveCount = 1;
             stateHistory.rawState = lastStatus;
             stateHistory.rawConsecutiveCount = 1;
@@ -541,7 +541,7 @@ class HealthStateService {
             };
         }
 
-        const responseTimes = successfulChecks.map(check => check.responseTime);
+        const responseTimes = successfulChecks.map(check => Number(check.responseTime ?? check.responseTimeMs ?? 0));
 
         // Calculate baseline metrics
         const baselineResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
@@ -553,8 +553,8 @@ class HealthStateService {
         const reliabilityScore = recentChecks.filter(check => check.isUp || check.status === 'up' || check.status === 'UP').length / totalChecks;
 
         // Determine stability (coefficient of variation < 50% is considered stable)
-        const coefficientOfVariation = standardDeviation / baselineResponseTime;
-        const isStable = coefficientOfVariation < 0.5 && reliabilityScore > 0.8;
+        const coefficientOfVariation = baselineResponseTime > 0 ? (standardDeviation / baselineResponseTime) : 0;
+        const isStable = (baselineResponseTime === 0 || coefficientOfVariation < 0.5) && reliabilityScore > 0.8;
 
         // Calculate trend (improving, degrading, stable)
         let trend = 'stable';
@@ -1072,6 +1072,11 @@ class HealthStateService {
                 const history = JSON.parse(data);
                 // Ensure stateChanges exists
                 if (!history.stateChanges) history.stateChanges = [];
+                if (history.lastStateChange) {
+                    history.lastStateChange = typeof history.lastStateChange === 'number'
+                        ? history.lastStateChange
+                        : new Date(history.lastStateChange).getTime() || Date.now();
+                }
                 return history;
             }
         } catch (err) {
@@ -1134,17 +1139,19 @@ class HealthStateService {
             history.lastStateChange = now;
             history.consecutiveCount = 1;
 
-            // TRACK FLAPPING VIA REDIS LIST (Phase 8 Multi-instance fix)
-            const changesKey = `${this.REDIS_CHANGES_PREFIX}${monitorId}`;
-            try {
-                // Add timestamp to list
-                await this.redis.lpush(changesKey, now);
-                // Keep only last 10 entries
-                await this.redis.ltrim(changesKey, 0, 9);
-                // Set expiry (1 hour should be enough for any lookback)
-                await this.redis.expire(changesKey, 3600);
-            } catch (err) {
-                console.warn(`[HealthStateService] Redis LPUSH failed for ${monitorId}:`, err.message);
+            // TRACK FLAPPING VIA REDIS LIST (Only track genuine state oscillations, not suppressed transitions)
+            if (!preventedFlapping) {
+                const changesKey = `${this.REDIS_CHANGES_PREFIX}${monitorId}`;
+                try {
+                    // Add timestamp to list
+                    await this.redis.lpush(changesKey, now);
+                    // Keep only last 10 entries
+                    await this.redis.ltrim(changesKey, 0, 9);
+                    // Set expiry (1 hour should be enough for any lookback)
+                    await this.redis.expire(changesKey, 3600);
+                } catch (err) {
+                    console.warn(`[HealthStateService] Redis LPUSH failed for ${monitorId}:`, err.message);
+                }
             }
         }
 
@@ -1906,13 +1913,18 @@ class HealthStateService {
         }
 
         const isWindows = process.platform === 'win32';
+        const isMac = process.platform === 'darwin';
         const timeoutSec = Math.ceil(timeout / 1000);
 
         let pingArgs;
         let pingBin = 'ping';
         if (isWindows) {
             pingArgs = ['-n', '1', '-w', String(timeout), hostname];
+        } else if (isMac) {
+            // BSD ping on macOS expects -W in milliseconds
+            pingArgs = ['-c', '1', '-W', String(timeout), hostname];
         } else {
+            // iputils ping on Linux expects -W in seconds
             pingArgs = ['-c', '1', '-W', String(timeoutSec), hostname];
         }
 

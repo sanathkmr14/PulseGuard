@@ -9,7 +9,7 @@ import {
 
 const router = express.Router();
 
-router.get('/config', protect, getSystemConfig); // GET /api/stats/config
+router.get('/config', getSystemConfig); // GET /api/stats/config (Public)
 router.get('/dashboard', protect, getDashboardStats);
 router.get('/uptime/:monitorId', protect, getUptimeStats);
 router.get('/response-time/:monitorId', protect, getResponseTimeStats);

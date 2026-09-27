@@ -102,7 +102,7 @@ export const getMonitorIncidents = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
-        const incidents = await Incident.find({ monitor: monitor._id }).sort({ startTime: -1 });
+        const incidents = await Incident.find({ monitor: monitor._id }).sort({ startTime: -1 }).limit(100);
 
         res.json({
             success: true,

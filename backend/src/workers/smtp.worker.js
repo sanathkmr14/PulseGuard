@@ -25,8 +25,10 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index, monito
             // Defensive: clear the totalTimeout in case cleanup() is called
             // without a preceding clearTimeout() (e.g. from unexpected code paths).
             clearTimeout(totalTimeout);
-            socket.removeAllListeners();
-            socket.destroy();
+            try {
+                socket.on('error', () => {});
+                socket.destroy();
+            } catch {}
         };
 
         const totalTimeoutMs = Math.min(timeout, 15000); // 15s per IP max for STARTTLS
@@ -143,7 +145,10 @@ const checkSmtpIp = async (ip, port, hostname, timeout, addresses, index, monito
 
                         tlsSocket.on('error', (err) => {
                             clearTimeout(totalTimeout);
-                            tlsSocket.removeAllListeners();
+                            try {
+                                tlsSocket.on('error', () => {});
+                                tlsSocket.destroy();
+                            } catch {}
                             cleanup();
                             reject(new Error(`TLS upgrade failed on ${ip}: ${err.message}`));
                         });
@@ -224,10 +229,21 @@ export const checkSmtp = async (monitor, result, options = {}) => {
         if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'smtp://' + u;
         try {
             const parsed = new URL(u);
-            return { hostname: parsed.hostname, port: parsed.port ? parseInt(parsed.port, 10) : defaultPort };
+            return { hostname: parsed.hostname.replace(/^\[|\]$/g, ''), port: parsed.port ? parseInt(parsed.port, 10) : defaultPort };
         } catch {
-            const parts = (urlStr || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split(':');
-            return { hostname: parts[0], port: parts[1] ? parseInt(parts[1], 10) : defaultPort };
+            let clean = (urlStr || '').trim().replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
+            if (clean.startsWith('[') && clean.includes(']')) {
+                const closeIdx = clean.indexOf(']');
+                const ipPart = clean.slice(1, closeIdx);
+                const rest = clean.slice(closeIdx + 1);
+                const portPart = rest.startsWith(':') ? parseInt(rest.slice(1), 10) : defaultPort;
+                return { hostname: ipPart, port: portPart };
+            }
+            if (clean.includes(':') && (clean.match(/:/g) || []).length === 1) {
+                const parts = clean.split(':');
+                return { hostname: parts[0], port: parts[1] ? parseInt(parts[1], 10) : defaultPort };
+            }
+            return { hostname: clean, port: defaultPort };
         }
     });
 
@@ -236,8 +252,22 @@ export const checkSmtp = async (monitor, result, options = {}) => {
     const timeout = monitor.timeout || 30000;
     const { hostname, port } = parseUrl(monitor.url, monitor.port || 25);
 
+    // Validate port (1–65535) before connecting
+    const safePort = Number.isInteger(port) ? port : parseInt(port, 10);
+    if (!Number.isInteger(safePort) || safePort < 1 || safePort > 65535) {
+        result.healthState = 'DOWN';
+        result.isUp = false;
+        result.errorType = 'INVALID_PORT';
+        result.errorMessage = `Invalid port number: ${port}. Port must be between 1 and 65535.`;
+        result.responseTime = 0;
+        result.statusCode = null;
+        result.bannerCode = null;
+        console.log(`[SMTP] ❌ Invalid port: ${port}`);
+        return result;
+    }
+
     // Port 465 uses implicit SSL (SMTPS) — plain TCP handshake will always fail.
-    if (port === 465) {
+    if (safePort === 465) {
         result.healthState = 'DOWN';
         result.isUp = false;
         result.errorType = 'INVALID_CONFIG';
@@ -270,7 +300,7 @@ export const checkSmtp = async (monitor, result, options = {}) => {
             }
         }
 
-        console.log(`[SMTP DEBUG] Found ${addresses.length} IPs for ${hostname}. Port ${port}. Trying all...`);
+        console.log(`[SMTP DEBUG] Found ${addresses.length} IPs for ${hostname}. Port ${safePort}. Trying all...`);
 
         let lastError = null;
 
@@ -287,7 +317,7 @@ export const checkSmtp = async (monitor, result, options = {}) => {
             const ip = addresses[i].address;
             try {
                 const ipTimeout = Math.max(1, Math.min(remainingTime, Math.max(8000, Math.floor(remainingTime / (addresses.length - i)))));
-                const stepResult = await checkSmtpIp(ip, port, hostname, ipTimeout, addresses, i, monitor);
+                const stepResult = await checkSmtpIp(ip, safePort, hostname, ipTimeout, addresses, i, monitor);
 
                 if (stepResult.isUp) {
                     console.log(`[SMTP SUCCESS] Connected via ${ip}${stepResult.usedStartTls ? ' (STARTTLS)' : ''}`);

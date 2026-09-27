@@ -13,10 +13,21 @@ export const checkTcp = async (monitor, result, options = {}) => {
         if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'tcp://' + u;
         try {
             const parsed = new URL(u);
-            return { hostname: parsed.hostname, port: parsed.port || defaultPort };
+            return { hostname: parsed.hostname.replace(/^\[|\]$/g, ''), port: parsed.port || defaultPort };
         } catch {
-            const parts = (urlStr || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split(':');
-            return { hostname: parts[0], port: parts[1] || defaultPort };
+            let clean = (urlStr || '').trim().replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
+            if (clean.startsWith('[') && clean.includes(']')) {
+                const closeIdx = clean.indexOf(']');
+                const ipPart = clean.slice(1, closeIdx);
+                const rest = clean.slice(closeIdx + 1);
+                const portPart = rest.startsWith(':') ? rest.slice(1) : defaultPort;
+                return { hostname: ipPart, port: portPart };
+            }
+            if (clean.includes(':') && (clean.match(/:/g) || []).length === 1) {
+                const parts = clean.split(':');
+                return { hostname: parts[0], port: parts[1] || defaultPort };
+            }
+            return { hostname: clean, port: defaultPort };
         }
     });
 
@@ -83,16 +94,20 @@ export const checkTcp = async (monitor, result, options = {}) => {
                 console.log(`🔌 TCP [${hostname}:${safePort}] ✅ UP - Connected | ResponseTime: ${responseTime}ms`);
             }
 
-            socket.removeAllListeners();
-            socket.destroy();
+            try {
+                socket.on('error', () => {});
+                socket.destroy();
+            } catch {}
             resolve(result);
         });
 
         socket.on('timeout', () => {
             if (isDone) return;
             isDone = true;
-            socket.removeAllListeners();
-            socket.destroy();
+            try {
+                socket.on('error', () => {});
+                socket.destroy();
+            } catch {}
             const responseTime = Date.now() - startTime;
             result.responseTime = responseTime;
             const err = new Error(`TCP connection timed out after ${timeout}ms`);
@@ -113,8 +128,10 @@ export const checkTcp = async (monitor, result, options = {}) => {
         socket.on('error', (err) => {
             if (isDone) return;
             isDone = true;
-            socket.removeAllListeners();
-            socket.destroy();
+            try {
+                socket.on('error', () => {});
+                socket.destroy();
+            } catch {}
             const responseTime = Date.now() - startTime;
             result.responseTime = responseTime;
 
@@ -141,7 +158,20 @@ export const checkTcp = async (monitor, result, options = {}) => {
             resolve(result);
         });
 
-        socket.connect(safePort, address);
+        try {
+            socket.connect(safePort, address);
+        } catch (connectErr) {
+            if (isDone) return;
+            isDone = true;
+            try { socket.destroy(); } catch {}
+            result.responseTime = Date.now() - startTime;
+            result.errorType = detectErrorType ? detectErrorType(connectErr, 'TCP', null) : 'CONNECTION_FAILED';
+            result.errorMessage = formatErrorMessage ? formatErrorMessage(connectErr, 'TCP') : connectErr.message;
+            result.statusCode = null;
+            result.healthState = 'DOWN';
+            result.isUp = false;
+            resolve(result);
+        }
     });
 };
 

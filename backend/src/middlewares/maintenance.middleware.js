@@ -1,3 +1,5 @@
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 import Config from '../models/Config.js';
 
 /**
@@ -7,7 +9,7 @@ import Config from '../models/Config.js';
  */
 export const maintenanceMode = async (req, res, next) => {
     try {
-        // [M2 SECURITY FIX] Use req.path with exact matching.
+        // [M2 SECURITY FIX] Use req.path with exact matching and trailing slash normalization.
         // IMPORTANT: This middleware is mounted as app.use('/api/', maintenanceMode) in server.js,
         // so Express strips the '/api/' prefix from req.path. For a request to /api/auth/login,
         // req.path = '/auth/login' (NOT '/api/auth/login').
@@ -15,10 +17,14 @@ export const maintenanceMode = async (req, res, next) => {
             '/auth/login',
             '/admin/auth/login',
             '/auth/me',
+            '/auth/forgot-password',
+            '/auth/reset-password',
             '/stats/config',
         ];
 
-        if (bypassRoutes.includes(req.path)) {
+        const normalizedPath = (req.path || '').replace(/\/+$/, '') || '/';
+
+        if (bypassRoutes.includes(normalizedPath)) {
             return next();
         }
 
@@ -29,17 +35,29 @@ export const maintenanceMode = async (req, res, next) => {
 
         if (config?.value?.maintenanceMode) {
             // 3. Allow admins to bypass maintenance mode
-            // Note: This relies on the auth middleware running before this, 
-            // BUT if we apply this globally in server.js, auth hasn't run yet.
-            // We'll check for the admin role if req.user exists, 
-            // or allow if the path is an admin path (isolation).
-
             if (req.user && req.user.role === 'admin') {
                 return next();
             }
 
+            // If token provided, authenticate admin early to allow bypass on non-admin routes
+            if (req.headers.authorization?.startsWith('Bearer ')) {
+                try {
+                    const token = req.headers.authorization.split(' ')[1];
+                    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                    if (decoded?.id) {
+                        const user = await User.findById(decoded.id).select('role isBanned');
+                        if (user && !user.isBanned && user.role === 'admin') {
+                            req.user = user;
+                            return next();
+                        }
+                    }
+                } catch {
+                    // Ignore token errors here, downstream handlers will reject appropriately
+                }
+            }
+
             // If it's an admin route, we let it through (admin.routes.js has its own protection)
-            if (req.originalUrl.startsWith('/api/admin')) {
+            if (req.originalUrl?.startsWith('/api/admin')) {
                 return next();
             }
 

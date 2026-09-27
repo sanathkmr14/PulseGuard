@@ -11,14 +11,30 @@ export const checkSsl = async (monitor, result, options = {}) => {
     // Fallback parseUrl if not provided in options
     const parseUrl = providedParseUrl || ((url, defaultPort) => {
         let u = (url || '').trim();
-        let hostname = u.replace(/^https?:\/\//, '').replace(/^ssl:\/\//, '').replace(/^tcp:\/\//, '').replace(/\/.*$/, '');
-        let port = defaultPort || 443;
-        if (hostname.includes(':')) {
-            const parts = hostname.split(':');
-            hostname = parts[0];
-            port = parseInt(parts[1], 10) || defaultPort || 443;
+        if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'https://' + u;
+        try {
+            const parsed = new URL(u);
+            const host = parsed.hostname.replace(/^\[|\]$/g, '');
+            return { hostname: host, port: parseInt(parsed.port, 10) || defaultPort || 443 };
+        } catch {
+            let hostname = (url || '').trim().replace(/^https?:\/\//, '').replace(/^ssl:\/\//, '').replace(/^tcp:\/\//, '').replace(/\/.*$/, '');
+            let port = defaultPort || 443;
+            if (hostname.startsWith('[') && hostname.includes(']')) {
+                const closeIdx = hostname.indexOf(']');
+                const ipPart = hostname.slice(1, closeIdx);
+                const rest = hostname.slice(closeIdx + 1);
+                if (rest.startsWith(':')) {
+                    port = parseInt(rest.slice(1), 10) || defaultPort || 443;
+                }
+                return { hostname: ipPart, port };
+            }
+            if (hostname.includes(':') && (hostname.match(/:/g) || []).length === 1) {
+                const parts = hostname.split(':');
+                hostname = parts[0];
+                port = parseInt(parts[1], 10) || defaultPort || 443;
+            }
+            return { hostname, port };
         }
-        return { hostname, port };
     });
 
     return new Promise((resolve) => {
@@ -88,8 +104,10 @@ export const checkSsl = async (monitor, result, options = {}) => {
                 let daysUntilExpiry = null;
                 if (cert.valid_to) {
                     const expiryDate = new Date(cert.valid_to);
-                    const now = new Date();
-                    daysUntilExpiry = Math.floor((expiryDate - now) / (1000 * 60 * 60 * 24));
+                    if (!isNaN(expiryDate.getTime())) {
+                        const now = new Date();
+                        daysUntilExpiry = Math.floor((expiryDate - now) / (1000 * 60 * 60 * 24));
+                    }
                 }
                 result.meta.daysUntilExpiry = daysUntilExpiry;
 
@@ -142,7 +160,12 @@ export const checkSsl = async (monitor, result, options = {}) => {
                         return false;
                     });
                 }
-                const isSelfSigned = cert.issuer?.CN === cert.subject?.CN;
+                const isSelfSigned = Boolean(
+                    tlsSocket.authorizationError === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+                    tlsSocket.authorizationError === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+                    (cert.issuer?.CN && cert.subject?.CN && cert.issuer.CN === cert.subject.CN) ||
+                    (cert.fingerprint && cert.issuerCertificate?.fingerprint && cert.fingerprint === cert.issuerCertificate.fingerprint)
+                );
 
                 const signatureAlgorithm = cert.sigalg || cert.signatureAlgorithm || 'Unknown (Not exposed by Node.js)';
                 if (signatureAlgorithm !== 'Unknown (Not exposed by Node.js)') {

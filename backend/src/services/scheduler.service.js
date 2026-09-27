@@ -309,6 +309,7 @@ class SchedulerService {
                     if (this.isMaster) {
                         console.log(`ℹ️ [Node: ${this.nodeId}] Standby Mode: Master status transferred to another instance (Lock owned by: ${currentLockValue})`);
                         this.isMaster = false;
+                        this.hasInitialSync = false; // Allow re-sync and restart sentinel upon re-promotion
                         if (this.sentinelInterval) {
                             clearInterval(this.sentinelInterval);
                             this.sentinelInterval = null;

@@ -217,8 +217,10 @@ const AdminIncidents = () => {
                                             )}
                                         </td>
                                         <td className="px-3.5 py-2.5 sm:py-3 text-xs text-slate-300 font-mono">
-                                            {incident.duration ? (
-                                                `${Math.round(incident.duration / 1000 / 60)}m`
+                                            {incident.status === 'resolved' || typeof incident.duration === 'number' ? (
+                                                (incident.duration || 0) >= 60000
+                                                    ? `${Math.round((incident.duration || 0) / 60000)}m`
+                                                    : `${Math.round((incident.duration || 0) / 1000)}s`
                                             ) : (
                                                 <span className="text-amber-400 animate-pulse">Active</span>
                                             )}

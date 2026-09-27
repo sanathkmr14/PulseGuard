@@ -2,6 +2,12 @@ import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 
+const safeFormat = (val, fmt) => {
+    if (!val) return '';
+    const d = val instanceof Date ? val : new Date(val);
+    return isNaN(d.getTime()) ? '' : format(d, fmt);
+};
+
 const ResponseTimeChart = ({ data }) => {
     if (!data || data.length === 0) {
         return (
@@ -12,7 +18,7 @@ const ResponseTimeChart = ({ data }) => {
     }
 
     const chartData = data.map(point => ({
-        time: new Date(point.timestamp),
+        time: point.timestamp ? new Date(point.timestamp) : new Date(),
         value: typeof point.responseTime === 'number' ? point.responseTime : 0
     }));
 
@@ -20,7 +26,7 @@ const ResponseTimeChart = ({ data }) => {
         if (active && payload && payload.length) {
             return (
                 <div className="bg-[#1a1b26] p-3 border border-gray-700 rounded-lg shadow-xl">
-                    <p className="text-gray-400 text-xs mb-1">{format(new Date(label), 'MMM d, HH:mm')}</p>
+                    <p className="text-gray-400 text-xs mb-1">{safeFormat(label, 'MMM d, HH:mm')}</p>
                     <p className="text-emerald-400 font-bold text-sm">
                         {payload[0].value} ms
                     </p>
@@ -51,7 +57,7 @@ const ResponseTimeChart = ({ data }) => {
                             fontSize={12}
                             tickLine={false}
                             axisLine={false}
-                            tickFormatter={(time) => format(time, 'HH:mm')}
+                            tickFormatter={(time) => safeFormat(time, 'HH:mm')}
                             minTickGap={50}
                         />
                         <YAxis

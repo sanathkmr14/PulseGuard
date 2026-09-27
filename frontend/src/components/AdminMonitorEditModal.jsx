@@ -45,8 +45,19 @@ const AdminMonitorEditModal = ({ isOpen, onClose, monitor, onSuccess }) => {
         setError(null);
         try {
             const payload = { ...formData };
-            if (payload.port === '' || payload.port === null) delete payload.port;
-            else payload.port = Number(payload.port);
+            if (['TCP', 'UDP', 'SMTP'].includes(payload.type)) {
+                const portNum = Number(payload.port);
+                if (payload.port === '' || payload.port === null || payload.port === undefined || isNaN(portNum) || portNum < 1 || portNum > 65535) {
+                    setError(`Port is required and must be between 1 and 65535 for ${payload.type} monitors`);
+                    setSaving(false);
+                    return;
+                }
+                payload.port = portNum;
+            } else if (payload.port === '' || payload.port === null || payload.port === undefined) {
+                delete payload.port;
+            } else {
+                payload.port = Number(payload.port);
+            }
             if (payload.alertThreshold !== undefined && payload.alertThreshold !== '') payload.alertThreshold = Number(payload.alertThreshold);
             if (typeof payload.headers === 'string') {
                 const h = payload.headers.trim();

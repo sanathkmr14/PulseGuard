@@ -44,7 +44,7 @@ api.interceptors.response.use(
     (error) => {
         // Handle auth errors - redirect to login if unauthorized or forbidden (banned)
         const url = error.config?.url || '';
-        const isAuthCheckOrDelete = url.includes('/auth/login') || url.includes('/auth/delete');
+        const isAuthCheckOrDelete = url.includes('/auth/login') || url.includes('/auth/me') || url.includes('/auth/delete') || url.includes('/stats/config');
         if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthCheckOrDelete) {
             localStorage.removeItem('token');
             if (window.location.pathname !== '/login') {
@@ -61,6 +61,10 @@ adminInstance.interceptors.response.use(
     (error) => {
         if (error.response?.status === 401) {
             localStorage.removeItem('adminToken');
+            localStorage.removeItem('adminUserData');
+            if (window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
+                window.location.href = '/admin/login';
+            }
         }
         return Promise.reject(error);
     }

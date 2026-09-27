@@ -252,8 +252,17 @@ const Incidents = () => {
         };
     };
 
-    const formatDuration = (ms, startTime) => {
-        const actualMs = ms || (startTime ? Math.max(0, Date.now() - new Date(startTime).getTime()) : 0);
+    const formatDuration = (ms, startTime, endTime) => {
+        let actualMs;
+        if (typeof ms === 'number' && !isNaN(ms)) {
+            actualMs = Math.max(0, ms);
+        } else if (startTime) {
+            const start = new Date(startTime).getTime();
+            const end = endTime ? new Date(endTime).getTime() : Date.now();
+            actualMs = Math.max(0, end - start);
+        } else {
+            actualMs = 0;
+        }
         if (!actualMs) return '0s';
         const seconds = Math.floor(actualMs / 1000);
         const minutes = Math.floor(seconds / 60);
@@ -476,7 +485,7 @@ const Incidents = () => {
                                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${schema.badge}`}>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${schema.dot} ${isOngoing ? 'animate-pulse' : ''}`} />
                                                 <span>{incident.status}</span>
-                                                <span className="font-mono opacity-80 font-semibold">({formatDuration(incident.duration, incident.startTime)})</span>
+                                                <span className="font-mono opacity-80 font-semibold">({formatDuration(incident.duration, incident.startTime, incident.endTime)})</span>
                                             </span>
                                         </div>
                                     </div>
@@ -538,11 +547,11 @@ const Incidents = () => {
                                                                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                                                                 : 'bg-red-500/10 border-red-500/20 text-red-400'
                                                         }`}
-                                                        title={`${v.location}: ${v.isUp ? 'UP' : 'DOWN'} (${v.responseTime}ms)`}
+                                                        title={`${v.location || 'Unknown'}: ${v.isUp ? 'UP' : 'DOWN'} (${v.responseTime ?? 0}ms)`}
                                                     >
                                                         <span className={`w-1 h-1 rounded-full ${v.isUp ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                                                        <span>{v.location.split(',')[0]}</span>
-                                                        <span className="text-gray-500">{v.responseTime}ms</span>
+                                                        <span>{(v.location || 'Global').split(',')[0]}</span>
+                                                        <span className="text-gray-500">{v.responseTime ?? 0}ms</span>
                                                     </span>
                                                 ))}
                                             </div>

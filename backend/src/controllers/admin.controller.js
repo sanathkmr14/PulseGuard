@@ -297,7 +297,7 @@ export const getUserDetails = async (req, res) => {
         }
         const [user, monitors] = await Promise.all([
             User.findById(req.params.id).select('-password'),
-            Monitor.find({ user: req.params.id }).sort('-createdAt')
+            Monitor.find({ user: req.params.id }).sort('-createdAt').limit(100)
         ]);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -476,7 +476,17 @@ export const getIncidents = async (req, res) => {
         // 5. Facet for Pagination
         pipeline.push({
             $facet: {
-                data: [{ $skip: skip }, { $limit: limitNum }],
+                data: [
+                    { $skip: skip },
+                    { $limit: limitNum },
+                    {
+                        $project: {
+                            'monitor.user.password': 0,
+                            'monitor.user.passwordResetToken': 0,
+                            'monitor.user.passwordResetExpires': 0
+                        }
+                    }
+                ],
                 total: [{ $count: 'count' }]
             }
         });

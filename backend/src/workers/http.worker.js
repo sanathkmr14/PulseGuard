@@ -28,6 +28,7 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized, monitor = {}) 
 
     return new Promise((resolve, reject) => {
         const protocol = parsedUrl.protocol === 'https:' ? https : http;
+        const cleanHostname = (parsedUrl.hostname || '').replace(/^\[|\]$/g, '');
 
         const options = {
             method: 'GET',
@@ -37,7 +38,7 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized, monitor = {}) 
             timeout: timeout,
             family: family, // Use the family from the secure resolver
             headers: {
-                'Host': parsedUrl.hostname, // 🛡️ Maintain original Host header
+                'Host': parsedUrl.host || parsedUrl.hostname, // 🛡️ Maintain original Host header (including port if non-standard)
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
@@ -47,7 +48,7 @@ const makeSingleRequest = async (url, timeout, allowUnauthorized, monitor = {}) 
             },
             rejectUnauthorized: allowUnauthorized === true ? false : true,
             // 🛡️ SNI: Omit for IP addresses to eliminate RFC 6066 DEP0123 warning
-            servername: net.isIP(parsedUrl.hostname) ? undefined : parsedUrl.hostname
+            servername: net.isIP(cleanHostname) ? undefined : cleanHostname
         };
 
         // Merge custom monitor headers if provided

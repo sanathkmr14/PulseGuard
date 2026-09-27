@@ -397,7 +397,7 @@ const AdminUserDetail = () => {
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
                         <div className="w-11 h-11 rounded-xl bg-blue-600 border border-blue-500/30 flex items-center justify-center text-lg font-bold text-white shadow-md shadow-blue-500/20 shrink-0">
-                            {user.name.charAt(0).toUpperCase()}
+                            {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div>
                             <div className="flex items-center gap-2.5">
@@ -651,8 +651,8 @@ const AdminUserDetail = () => {
                                                         <div className="text-left md:text-right shrink-0">
                                                             <p className="text-[10px] text-slate-500 uppercase font-semibold mb-0.5">Duration</p>
                                                             <p className="text-slate-300 font-mono text-xs">
-                                                                {inc.duration
-                                                                    ? `${Math.round(inc.duration / 1000)}s`
+                                                                {inc.status === 'resolved' || inc.endTime || typeof inc.duration === 'number'
+                                                                    ? `${Math.round((inc.duration || 0) / 1000)}s`
                                                                     : <span className="text-amber-400 animate-pulse">Ongoing</span>
                                                                 }
                                                             </p>

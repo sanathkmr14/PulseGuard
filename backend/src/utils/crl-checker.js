@@ -5,9 +5,29 @@ import redisCache from '../config/redis-cache.js';
 
 // In-memory L1 cache to avoid downloading/decoding CRLs repeatedly within short timeframes
 const l1Cache = new Map();
+const MAX_L1_CACHE_ENTRIES = 50; // Cap in-memory entries to prevent buffer accumulation
 const CRL_CACHE_TTL_SECONDS = 3600; // 1 hour
 const MAX_CRL_DOWNLOAD_BYTES = 512 * 1024; // 512 KB max download size (skips commercial mega-CRLs)
 const MAX_CRL_REDIS_BYTES = 64 * 1024; // 64 KB max Redis storage size (never bloats Redis Cloud)
+
+/**
+ * Safely store entry in L1 cache, evicting expired or oldest items when reaching capacity
+ */
+const setL1Cache = (url, entry) => {
+    const now = Date.now();
+    if (l1Cache.size >= MAX_L1_CACHE_ENTRIES) {
+        for (const [key, val] of l1Cache.entries()) {
+            if (val.expiresAt <= now) {
+                l1Cache.delete(key);
+            }
+        }
+    }
+    if (l1Cache.size >= MAX_L1_CACHE_ENTRIES) {
+        const oldestKey = l1Cache.keys().next().value;
+        if (oldestKey) l1Cache.delete(oldestKey);
+    }
+    l1Cache.set(url, entry);
+};
 
 /**
  * Extract CRL Distribution Point URI from raw X.509 certificate buffer
@@ -47,7 +67,7 @@ const fetchCrlBuffer = async (url, timeoutMs = 5000) => {
             const cachedHex = await redisCache.get(redisKey);
             if (cachedHex) {
                 const buf = Buffer.from(cachedHex, 'hex');
-                l1Cache.set(url, { buffer: buf, expiresAt: now + (CRL_CACHE_TTL_SECONDS * 1000) });
+                setL1Cache(url, { buffer: buf, expiresAt: now + (CRL_CACHE_TTL_SECONDS * 1000) });
                 return buf;
             }
         }
@@ -108,7 +128,7 @@ const fetchCrlBuffer = async (url, timeoutMs = 5000) => {
     });
 
     // Populate L1 cache (in-process memory)
-    l1Cache.set(url, { buffer, expiresAt: now + (CRL_CACHE_TTL_SECONDS * 1000) });
+    setL1Cache(url, { buffer, expiresAt: now + (CRL_CACHE_TTL_SECONDS * 1000) });
 
     // Populate Redis L2 cache ONLY if buffer is tiny (<= 64KB)
     if (buffer.length <= MAX_CRL_REDIS_BYTES) {

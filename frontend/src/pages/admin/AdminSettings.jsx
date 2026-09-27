@@ -10,6 +10,7 @@ const AdminSettings = () => {
     const [saving, setSaving] = useState(false);
 
     const [showSuccess, setShowSuccess] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
         const fetchSettings = async () => {
@@ -32,6 +33,7 @@ const AdminSettings = () => {
     const handleSave = async (e) => {
         e.preventDefault();
         setSaving(true);
+        setErrorMessage('');
         try {
             const res = await adminAPI.updateSettings({
                 globalAlert,
@@ -44,7 +46,8 @@ const AdminSettings = () => {
             }
         } catch (error) {
             console.error('Error updating settings:', error);
-            // Optionally could add error state here too
+            setErrorMessage(error.response?.data?.message || 'Failed to update system settings');
+            setTimeout(() => setErrorMessage(''), 5000);
         } finally {
             setSaving(false);
         }
@@ -56,8 +59,9 @@ const AdminSettings = () => {
 
     return (
         <div className="max-w-3xl space-y-4 sm:space-y-5 animate-fade-in relative">
-            {/* Modern Bottom-Center Success Toast */}
+            {/* Modern Bottom-Center Success & Error Toasts */}
             <Toast message={showSuccess ? 'System settings updated successfully' : ''} type="success" onClose={() => setShowSuccess(false)} />
+            <Toast message={errorMessage} type="error" onClose={() => setErrorMessage('')} />
 
             <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-white mb-0.5">System Configuration</h1>

@@ -265,17 +265,12 @@ export const resetPassword = async (req, res) => {
 export const checkEmail = async (req, res) => {
     try {
         const email = String(req.query.email || '').trim().toLowerCase();
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email is required' });
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ success: false, message: 'Valid email is required' });
         }
 
-        // Only reveal existence for emails the authenticated user already owns/manages.
-        // Do not query the global user collection for arbitrary emails.
-        const user = await User.findById(req.user._id).select('contactEmails email');
-        const ownEmails = [user.email.toLowerCase(), ...(user.contactEmails || [])];
-
-        // Allow checking: own email, or emails already in their contact list
-        // For adding new contact emails, verify the target is registered WITHOUT revealing existence to others
+        // Allow authenticated users to verify whether a team member email is registered before adding to alert contacts.
+        // Protected by JWT auth and authLimiter to prevent automated enumeration.
         const targetUser = await User.findOne({ email }).select('_id');
         res.json({ success: true, exists: !!targetUser });
     } catch (error) {

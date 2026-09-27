@@ -64,7 +64,7 @@ function parsePingStats(output, isWindows) {
     if (stats.transmitted > 0 && stats.received === 0) {
         stats.packetLoss = 100;
     } else if (stats.transmitted > 0) {
-        stats.packetLoss = ((stats.transmitted - stats.received) / stats.transmitted) * 100;
+        stats.packetLoss = Math.max(0, Math.min(100, ((stats.transmitted - stats.received) / stats.transmitted) * 100));
     }
 
     return stats;

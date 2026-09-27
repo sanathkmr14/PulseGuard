@@ -65,10 +65,21 @@ export const checkUdp = async (monitor, result, options = {}) => {
         if (!/^[a-zA-Z]+:\/\//.test(u)) u = 'udp://' + u;
         try {
             const parsed = new URL(u);
-            return { hostname: parsed.hostname, port: parsed.port || defaultPort };
+            return { hostname: parsed.hostname.replace(/^\[|\]$/g, ''), port: parsed.port || defaultPort };
         } catch {
-            const parts = (urlStr || '').replace(/^[a-zA-Z]+:\/\//, '').split('/')[0].split(':');
-            return { hostname: parts[0], port: parts[1] || defaultPort };
+            let clean = (urlStr || '').trim().replace(/^[a-zA-Z]+:\/\//, '').split('/')[0];
+            if (clean.startsWith('[') && clean.includes(']')) {
+                const closeIdx = clean.indexOf(']');
+                const ipPart = clean.slice(1, closeIdx);
+                const rest = clean.slice(closeIdx + 1);
+                const portPart = rest.startsWith(':') ? rest.slice(1) : defaultPort;
+                return { hostname: ipPart, port: portPart };
+            }
+            if (clean.includes(':') && (clean.match(/:/g) || []).length === 1) {
+                const parts = clean.split(':');
+                return { hostname: parts[0], port: parts[1] || defaultPort };
+            }
+            return { hostname: clean, port: defaultPort };
         }
     });
 
@@ -195,6 +206,9 @@ export const checkUdp = async (monitor, result, options = {}) => {
                 return;
             }
 
+            // Release socket immediately so resources and port are not held open during DNS lookup
+            cleanup();
+
             // DNS fallback for non-53 ports: retry DNS lookup when UDP probe times out
             try {
                 const { address } = await dnsLookup();
@@ -291,81 +305,90 @@ export const checkUdp = async (monitor, result, options = {}) => {
             if (hasResponded) return;
             hasResponded = true;
 
-            const latency = Date.now() - startTime;
-
-            const isPortUnreachable = err.code === 'ECONNREFUSED' ||
-                err.message?.includes('port unreachable');
-
-            if (isPortUnreachable) {
-                console.log(`📡 UDP [${hostname}:${port}] ❌ ICMP Port Unreachable - Port is closed`);
-
-                const classification = classifyUdpResponse({
-                    received: false,
-                    portUnreachable: true,
-                    timeout: false,
-                    latency,
-                    strictMode
-                });
-
-                result.healthState = classification.status.toUpperCase();
-                result.isUp = classification.status === STATUS.UP || classification.status === STATUS.DEGRADED;
-                result.errorType = classification.errorType;
-                result.errorMessage = classification.reason;
-                result.responseTime = latency;
-                if (!result.meta) result.meta = {};
-                result.meta.hostname = hostname;
-                result.meta.port = port;
-                result.meta.ip = ipAddress;
-                result.meta.probeMessage = probeMessage.toString();
-                result.meta.strictMode = strictMode;
-                result.errorDetails = err.message;
-
-                cleanup();
-                console.log(`📡 UDP [${hostname}:${port}] ❌ ${result.healthState} - Port Unreachable | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
-                resolve(result);
-                return;
-            }
-
-            console.log(`📡 UDP [${hostname}:${port}] ⚠️ UDP Error: ${err.message} - Using error classification`);
-
-            const errorType = detectErrorType ? detectErrorType(err, 'UDP', null) : 'UDP_ERROR';
-            const hsr = determineHealthStateFromError ? determineHealthStateFromError(errorType, null, 'UDP', latency, monitor) : { healthState: 'DOWN', reason: err.message };
-
             try {
-                const { address } = await dnsLookup();
+                const latency = Date.now() - startTime;
 
-                result.healthState = hsr.healthState.toUpperCase();
-                result.isUp = hsr.healthState === 'UP' || hsr.healthState === 'DEGRADED';
-                result.errorType = errorType;
-                result.errorMessage = `UDP error (${err.message}) but DNS resolved. ${hsr.reason}`;
-                result.responseTime = latency;
-                if (!result.meta) result.meta = {};
-                result.meta.hostname = hostname;
-                result.meta.port = port;
-                result.meta.ip = address;
-                result.meta.strictMode = strictMode;
-                result.meta.probeMessage = probeMessage.toString();
-                result.meta.fallbackUsed = 'dns';
-                result.warning = `UDP ${errorType} - host is reachable via DNS`;
+                const isPortUnreachable = err.code === 'ECONNREFUSED' ||
+                    err.message?.includes('port unreachable');
 
+                if (isPortUnreachable) {
+                    console.log(`📡 UDP [${hostname}:${port}] ❌ ICMP Port Unreachable - Port is closed`);
+
+                    const classification = classifyUdpResponse({
+                        received: false,
+                        portUnreachable: true,
+                        timeout: false,
+                        latency,
+                        strictMode
+                    });
+
+                    result.healthState = classification.status.toUpperCase();
+                    result.isUp = classification.status === STATUS.UP || classification.status === STATUS.DEGRADED;
+                    result.errorType = classification.errorType;
+                    result.errorMessage = classification.reason;
+                    result.responseTime = latency;
+                    if (!result.meta) result.meta = {};
+                    result.meta.hostname = hostname;
+                    result.meta.port = port;
+                    result.meta.ip = ipAddress;
+                    result.meta.probeMessage = probeMessage.toString();
+                    result.meta.strictMode = strictMode;
+                    result.errorDetails = err.message;
+
+                    cleanup();
+                    console.log(`📡 UDP [${hostname}:${port}] ❌ ${result.healthState} - Port Unreachable | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
+                    resolve(result);
+                    return;
+                }
+
+                console.log(`📡 UDP [${hostname}:${port}] ⚠️ UDP Error: ${err.message} - Using error classification`);
+
+                const errorType = detectErrorType ? detectErrorType(err, 'UDP', null) : 'UDP_ERROR';
+                const hsr = determineHealthStateFromError ? determineHealthStateFromError(errorType, null, 'UDP', latency, monitor) : { healthState: 'DOWN', reason: err.message };
+
+                try {
+                    const { address } = await dnsLookup();
+
+                    result.healthState = hsr.healthState.toUpperCase();
+                    result.isUp = hsr.healthState === 'UP' || hsr.healthState === 'DEGRADED';
+                    result.errorType = errorType;
+                    result.errorMessage = `UDP error (${err.message}) but DNS resolved. ${hsr.reason}`;
+                    result.responseTime = latency;
+                    if (!result.meta) result.meta = {};
+                    result.meta.hostname = hostname;
+                    result.meta.port = port;
+                    result.meta.ip = address;
+                    result.meta.strictMode = strictMode;
+                    result.meta.probeMessage = probeMessage.toString();
+                    result.meta.fallbackUsed = 'dns';
+                    result.warning = `UDP ${errorType} - host is reachable via DNS`;
+
+                    cleanup();
+                    console.log(`📡 UDP [${hostname}:${port}] ${result.isUp ? '✅' : '❌'} ${result.healthState} - DNS Fallback | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
+                    resolve(result);
+                } catch (dnsErr) {
+                    result.healthState = hsr.healthState.toUpperCase();
+                    result.isUp = hsr.healthState === 'UP' || hsr.healthState === 'DEGRADED';
+                    result.errorType = errorType;
+                    result.errorMessage = hsr.reason;
+                    result.responseTime = latency;
+                    if (!result.meta) result.meta = {};
+                    result.meta.hostname = hostname;
+                    result.meta.port = port;
+                    result.meta.strictMode = strictMode;
+                    result.meta.probeMessage = probeMessage.toString();
+                    result.errorDetails = err.message;
+
+                    cleanup();
+                    console.log(`📡 UDP [${hostname}:${port}] ${result.isUp ? '✅' : '❌'} ${result.healthState} - DNS Fallback Failed | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
+                    resolve(result);
+                }
+            } catch (handlerErr) {
                 cleanup();
-                console.log(`📡 UDP [${hostname}:${port}] ${result.isUp ? '✅' : '❌'} ${result.healthState} - DNS Fallback | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
-                resolve(result);
-            } catch (dnsErr) {
-                result.healthState = hsr.healthState.toUpperCase();
-                result.isUp = hsr.healthState === 'UP' || hsr.healthState === 'DEGRADED';
-                result.errorType = errorType;
-                result.errorMessage = hsr.reason;
-                result.responseTime = latency;
-                if (!result.meta) result.meta = {};
-                result.meta.hostname = hostname;
-                result.meta.port = port;
-                result.meta.strictMode = strictMode;
-                result.meta.probeMessage = probeMessage.toString();
-                result.errorDetails = err.message;
-
-                cleanup();
-                console.log(`📡 UDP [${hostname}:${port}] ${result.isUp ? '✅' : '❌'} ${result.healthState} - DNS Fallback Failed | ResponseTime: ${latency}ms | ErrorType: ${result.errorType}`);
+                result.healthState = 'DOWN';
+                result.isUp = false;
+                result.errorType = 'UDP_ERROR';
+                result.errorMessage = handlerErr.message || 'UDP check failed';
                 resolve(result);
             }
         });

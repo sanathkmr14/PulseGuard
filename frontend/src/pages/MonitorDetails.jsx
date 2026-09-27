@@ -1078,14 +1078,14 @@ const MonitorDetails = () => {
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                             <h2 className="text-sm font-semibold text-white font-heading">Response Time (24h)</h2>
                         </div>
-                        {responseData?.avgResponseTime && (
+                        {Boolean(responseData?.avgResponseTime) && (
                             <span className="text-xs font-mono text-gray-400">
                                 24h Avg: <strong className="text-blue-400 font-semibold">{Math.round(responseData.avgResponseTime)}ms</strong>
                             </span>
                         )}
                     </div>
                     <ResponsiveContainer width="100%" height={240}>
-                        <AreaChart data={responseData.trend} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                        <AreaChart data={responseData?.trend || []} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -1115,8 +1115,11 @@ const MonitorDetails = () => {
                                     fontSize: '12px',
                                     boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
                                 }}
-                                formatter={(value) => [`${Math.round(value)}ms`, 'Avg Latency']}
-                                labelFormatter={(label) => new Date(label).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                formatter={(value) => [typeof value === 'number' && !isNaN(value) ? `${Math.round(value)}ms` : 'N/A', 'Avg Latency']}
+                                labelFormatter={(label) => {
+                                    const d = new Date(label);
+                                    return isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                }}
                             />
                             <Area type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAvg)" />
                         </AreaChart>

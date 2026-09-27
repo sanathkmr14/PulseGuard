@@ -89,8 +89,16 @@ io.use(async (socket, next) => {
         if (!token) return next(new Error('Authentication failed: Missing token'));
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id).select('+passwordChangedAt');
         if (!user) return next(new Error('Authentication failed: Invalid user'));
+
+        if (user.isBanned) {
+            return next(new Error('Authentication failed: Account banned'));
+        }
+
+        if (user.changedPasswordAfter && user.changedPasswordAfter(decoded.iat)) {
+            return next(new Error('Authentication failed: Password recently changed'));
+        }
 
         socket.user = user;
         next();
