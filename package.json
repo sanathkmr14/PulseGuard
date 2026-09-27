@@ -14,7 +14,7 @@
     "test:e2e": "cd backend && node tests/integration/alert-service-e2e.js",
     "test:protocol": "cd backend && node tests/unit/monitor.comprehensive.test.js",
     "test:all": "npm test",
-    "sync:atlas": "cd backend && node scripts/sync-to-atlas.js",
+    "sync:atlas": "cd backend && npm run sync:atlas",
     "install:backend": "cd backend && npm install",
     "install:frontend": "cd frontend && npm install",
     "install:all": "npm run install:backend && npm run install:frontend"
