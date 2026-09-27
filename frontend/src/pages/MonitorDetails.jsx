@@ -484,7 +484,7 @@ const MonitorDetails = () => {
     );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full max-w-full min-w-0">
             {/* Modern Bottom-Center Floating Toast Notification */}
             <Toast notification={notification} onClose={() => setNotification({ type: '', message: '' })} />
 
@@ -844,19 +844,23 @@ const MonitorDetails = () => {
 
                 if (isSsrf) {
                     return (
-                        <div className="glass-panel border-amber-500/30 bg-amber-500/5 rounded-xl p-5 relative overflow-hidden shadow-xl mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-amber-500/20 rounded-lg text-amber-400 shrink-0">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="glass-panel border-amber-500/30 bg-amber-500/5 rounded-xl p-3.5 sm:p-5 relative overflow-hidden shadow-xl mb-6">
+                            <div className="flex items-start gap-2.5 sm:gap-3">
+                                <div className="p-2 sm:p-2.5 bg-amber-500/20 rounded-lg text-amber-400 shrink-0 mt-0.5">
+                                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                     </svg>
                                 </div>
-                                <div>
-                                    <h2 className="text-base font-semibold text-white font-heading flex items-center gap-2">
-                                        SSRF Protection Guard Active
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-medium">Security Policy</span>
-                                    </h2>
-                                    <p className="text-xs text-gray-300 mt-1">
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap mb-1">
+                                        <h2 className="text-sm sm:text-base font-semibold text-white font-heading truncate">
+                                            SSRF Protection Guard Active
+                                        </h2>
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-medium shrink-0 whitespace-nowrap">
+                                            Security Policy
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] sm:text-xs text-gray-300 leading-relaxed">
                                         Requests to private, loopback, or internal network ranges are blocked by security policy to prevent Server-Side Request Forgery. External global verification is bypassed for local/private addresses.
                                     </p>
                                 </div>
@@ -913,9 +917,9 @@ const MonitorDetails = () => {
 
                     // Show pending state if unhealthy and check is actively running
                     return (
-                        <div className="glass-panel border-blue-500/20 rounded-xl p-5 relative overflow-hidden shadow-xl mb-6">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0">
+                        <div className="glass-panel border-blue-500/20 rounded-xl p-3.5 sm:p-5 relative overflow-hidden shadow-xl mb-6">
+                            <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 mb-3 sm:mb-4">
+                                <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shrink-0 mt-0.5 sm:mt-0">
                                     {isRecent ? (
                                         <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -927,11 +931,11 @@ const MonitorDetails = () => {
                                         </svg>
                                     )}
                                 </div>
-                                <div>
-                                    <h2 className="text-base font-semibold text-white font-heading">
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="text-sm sm:text-base font-semibold text-white font-heading truncate">
                                         {isRecent ? 'Global Verification In Progress' : 'Global Verification Analysis'}
                                     </h2>
-                                    <p className="text-xs text-gray-400">
+                                    <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                                         {isRecent
                                             ? (monitor.status === 'down'
                                                 ? 'Verifying status from global regions to confirm failure...'
@@ -961,29 +965,29 @@ const MonitorDetails = () => {
                 const isFromCheck = forensicsSource.timestamp !== undefined;
 
                 return (
-                    <div className="glass-panel border-red-500/20 rounded-xl p-5 relative overflow-hidden shadow-xl mb-6">
+                    <div className="glass-panel border-red-500/20 rounded-xl p-3.5 sm:p-5 relative overflow-hidden shadow-xl mb-6">
                         <div className="absolute top-0 right-0 p-3 opacity-10">
                             <svg className="w-20 h-20 text-red-500" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
                             </svg>
                         </div>
                         <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-red-500/20 rounded-lg text-red-400">
+                            <div className="flex items-center justify-between mb-3 sm:mb-4">
+                                <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+                                    <div className="p-2 bg-red-500/20 rounded-lg text-red-400 shrink-0 mt-0.5 sm:mt-0">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                     </div>
-                                    <div>
-                                        <h2 className="text-base font-semibold text-white font-heading">Global Verification</h2>
-                                        <p className="text-xs text-gray-400">
+                                    <div className="min-w-0 flex-1">
+                                        <h2 className="text-sm sm:text-base font-semibold text-white font-heading truncate">Global Verification</h2>
+                                        <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                                             {isFromCheck ? `Forensics for check at ${new Date(forensicsSource.timestamp).toLocaleString()}` : 'Real-time incident confirmation'}
                                         </p>
                                     </div>
                                 </div>
                                 {selectedCheckId && (
-                                    <button onClick={() => setSelectedCheckId(null)} className="text-xs text-blue-400 hover:text-blue-300">
+                                    <button onClick={() => setSelectedCheckId(null)} className="text-xs text-blue-400 hover:text-blue-300 shrink-0 ml-2">
                                         Reset to latest
                                     </button>
                                 )}
@@ -1017,7 +1021,7 @@ const MonitorDetails = () => {
             })()}
 
             {/* Configuration Overview */}
-            <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-4 sm:p-5 shadow-sm">
+            <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-sm font-semibold text-white font-heading">Configuration Details</h2>
                     <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold uppercase rounded-md border border-blue-500/20 font-mono">
@@ -1072,7 +1076,7 @@ const MonitorDetails = () => {
 
             {/* Chart */}
             {responseData?.trend?.length > 0 && (
-                <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-4 sm:p-5 shadow-sm">
+                <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl p-3.5 sm:p-5 shadow-sm overflow-hidden w-full max-w-full">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-4">
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
@@ -1084,52 +1088,54 @@ const MonitorDetails = () => {
                             </span>
                         )}
                     </div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <AreaChart data={responseData?.trend || []} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                            <defs>
-                                <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1f1f2e" vertical={false} />
-                            <XAxis
-                                dataKey="timestamp"
-                                stroke="#4b5563"
-                                minTickGap={45}
-                                tick={{ fontSize: 11, fill: '#9ca3af' }}
-                                tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            />
-                            <YAxis
-                                stroke="#4b5563"
-                                width={48}
-                                tick={{ fontSize: 11, fill: '#9ca3af' }}
-                                tickFormatter={v => `${v}ms`}
-                            />
-                            <Tooltip
-                                contentStyle={{
-                                    background: '#12121a',
-                                    border: '1px solid #374151',
-                                    borderRadius: '8px',
-                                    color: '#fff',
-                                    fontSize: '12px',
-                                    boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
-                                }}
-                                formatter={(value) => [typeof value === 'number' && !isNaN(value) ? `${Math.round(value)}ms` : 'N/A', 'Avg Latency']}
-                                labelFormatter={(label) => {
-                                    const d = new Date(label);
-                                    return isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                                }}
-                            />
-                            <Area type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAvg)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    <div className="w-full h-[240px] min-w-0 overflow-hidden">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <AreaChart data={responseData?.trend || []} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1f1f2e" vertical={false} />
+                                <XAxis
+                                    dataKey="timestamp"
+                                    stroke="#4b5563"
+                                    minTickGap={45}
+                                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                                    tickFormatter={v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                />
+                                <YAxis
+                                    stroke="#4b5563"
+                                    width={48}
+                                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                                    tickFormatter={v => `${v}ms`}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        background: '#12121a',
+                                        border: '1px solid #374151',
+                                        borderRadius: '8px',
+                                        color: '#fff',
+                                        fontSize: '12px',
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
+                                    }}
+                                    formatter={(value) => [typeof value === 'number' && !isNaN(value) ? `${Math.round(value)}ms` : 'N/A', 'Avg Latency']}
+                                    labelFormatter={(label) => {
+                                        const d = new Date(label);
+                                        return isNaN(d.getTime()) ? '' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                    }}
+                                />
+                                <Area type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAvg)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             )}
 
             {/* Checks Table & Mobile Feed */}
-            <div className="glass-panel border-gray-800/50 rounded-xl overflow-hidden mb-20 shadow-xl">
-                <div className="px-4 py-3 border-b border-gray-800/30 flex items-center justify-between">
+            <div className="glass-panel border-gray-800/50 rounded-xl overflow-hidden mb-20 shadow-xl w-full max-w-full">
+                <div className="px-3.5 sm:px-4 py-2.5 sm:py-3 border-b border-gray-800/30 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <h2 className="text-sm font-semibold text-white font-heading">Recent Checks</h2>
                         {checksPagination.total > 0 && (
@@ -1159,11 +1165,11 @@ const MonitorDetails = () => {
                         </div>
                     ) : (
                         checks.map(c => (
-                            <div key={c._id} className="p-3 hover:bg-gray-800/20 transition-colors space-y-2">
+                            <div key={c._id} className="p-3 hover:bg-gray-800/20 transition-colors space-y-1.5">
                                 <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                         <StatusBadge status={c.status} size="sm" />
-                                        <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                        <span className={`text-[10px] sm:text-[11px] font-mono font-bold px-1.5 py-0.5 rounded truncate ${
                                             c.status === 'up' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                             c.status === 'degraded' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                                             'bg-red-500/10 text-red-400 border border-red-500/20'
@@ -1171,28 +1177,34 @@ const MonitorDetails = () => {
                                             {c.statusCode ? `HTTP ${c.statusCode}` : (c.errorType || 'N/A')}
                                         </span>
                                     </div>
-                                    <span className="text-xs font-mono font-semibold text-white bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700/50 shrink-0">
-                                        {c.responseTime ? `${c.responseTime}ms` : '—'}
+                                    <span className="text-[11px] sm:text-xs font-mono font-semibold text-gray-200 shrink-0">
+                                        {c.responseTime ? `${c.responseTime}ms` : <span className="text-gray-500 font-normal">—</span>}
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between gap-2 text-[11px] text-gray-400">
-                                    <span className="font-mono text-gray-400 truncate">
+                                    <span className="font-mono text-gray-500 text-[10px] sm:text-[11px] shrink-0">
                                         {new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}, {new Date(c.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                     </span>
-                                    <div className="truncate max-w-[50%] text-right font-medium shrink-0">
+                                    <div className="min-w-0 flex-1 text-right truncate pl-2 font-medium">
                                         {c.status === 'up' && (!c.errorType || c.errorType === 'SUCCESS' || c.errorType.includes('SUCCESS')) ? (
                                             <span className="text-emerald-400">✓ Healthy</span>
                                         ) : c.status === 'degraded' ? (
-                                            <span className="text-amber-400 truncate">{c.errorMessage || c.degradationReasons?.[0] || 'Slow'}</span>
+                                            <span className="text-amber-400 truncate" title={c.errorMessage || c.degradationReasons?.[0]}>
+                                                {c.errorMessage || c.degradationReasons?.[0] || 'Slow'}
+                                            </span>
                                         ) : (
-                                            <span className="text-red-400 truncate">
+                                            <span className="text-red-400 truncate" title={c.errorMessage || c.errorType}>
                                                 {(() => {
                                                     const msg = c.errorMessage || (c.degradationReasons && c.degradationReasons[0]);
-                                                    if (c.statusCode) return msg || c.errorType || 'Failed';
-                                                    if (isDuplicateError(msg, c.errorType)) {
-                                                        return c.errorType === 'TIMEOUT' ? 'No Response' : 'Failed';
+                                                    if (c.errorType === 'SSRF_BLOCKED' || (typeof msg === 'string' && msg.includes('SSRF_PROTECTION'))) {
+                                                        return 'Private / internal IP blocked';
                                                     }
-                                                    return msg || c.errorType || 'Failed';
+                                                    if (c.statusCode) return msg || `HTTP ${c.statusCode}`;
+                                                    const cleanMsg = typeof msg === 'string' ? msg.replace(/^[A-Z0-9_-]+:\s*/, '').trim() : msg;
+                                                    if (isDuplicateError(cleanMsg, c.errorType)) {
+                                                        return c.errorType === 'TIMEOUT' ? 'No Response' : (c.errorType || 'Failed');
+                                                    }
+                                                    return cleanMsg || c.errorType || 'Failed';
                                                 })()}
                                             </span>
                                         )}
@@ -1204,7 +1216,7 @@ const MonitorDetails = () => {
                 </div>
 
                 {/* Desktop View: Full Table (md and above) */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto w-full">
                     <table className="w-full min-w-[600px]">
                         <thead className="bg-[#0a0a0f]">
                             <tr>

@@ -127,7 +127,7 @@ const DashboardLayout = () => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
+        <div className="min-h-screen bg-[#0a0a0f] flex flex-col w-full max-w-full overflow-x-hidden">
             {/* System Banner */}
             {(systemConfig?.globalAlert || systemConfig?.maintenanceMode) && (
                 <div className="bg-blue-600/10 backdrop-blur-md border-b border-blue-500/20 text-white px-4 py-3 relative z-[60] animate-fade-in-down shadow-lg shadow-blue-500/10">
@@ -343,7 +343,7 @@ const DashboardLayout = () => {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
+            <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 animate-fade-in min-w-0">
                 <Outlet />
             </main>
         </div>
