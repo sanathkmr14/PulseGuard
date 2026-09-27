@@ -6,51 +6,51 @@ import Toast from '../components/Toast';
 // Professional SVG Icons for Alert Channels
 const Icons = {
     email: (
-        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
     ),
     slack: (
-        <svg className="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
+        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
             <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
         </svg>
     ),
     sms: (
-        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
         </svg>
     ),
     webhook: (
-        <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
+        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
         </svg>
     )
 };
 
 const NotificationCard = ({ icon, iconBg, title, description, enabled, onToggle, children }) => (
-    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-5 sm:p-6 transition-all duration-200 hover:border-gray-700/80">
-        <div className="flex items-start gap-4 mb-4">
-            <div className={`w-11 h-11 rounded-xl ${iconBg} flex items-center justify-center shrink-0 border border-white/5`}>
+    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 md:p-6 transition-all duration-200 hover:border-gray-700/80">
+        <div className={`flex items-start gap-3 sm:gap-4 ${enabled && children ? 'mb-3 sm:mb-4' : 'mb-0'}`}>
+            <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl ${iconBg} flex items-center justify-center shrink-0 border border-white/5`}>
                 {icon}
             </div>
             <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                    <h3 className="text-sm sm:text-base font-bold text-white font-heading">{title}</h3>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h3 className="text-xs sm:text-base font-bold text-white font-heading">{title}</h3>
                     {enabled && (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                        <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
                             Active
                         </span>
                     )}
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+                <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 leading-relaxed">{description}</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5 sm:mt-1">
                 <input type="checkbox" checked={enabled} onChange={onToggle} className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-800 peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 border border-gray-700"></div>
+                <div className="w-9 h-5 sm:w-11 sm:h-6 bg-gray-800 peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer peer-checked:after:translate-x-4 sm:peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all peer-checked:bg-blue-600 border border-gray-700"></div>
             </label>
         </div>
         {enabled && children && (
-            <div className="pt-4 border-t border-gray-800/50">
+            <div className="pt-3 sm:pt-4 border-t border-gray-800/50">
                 {children}
             </div>
         )}
@@ -152,17 +152,17 @@ const Settings = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
 
             <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white font-heading">Settings & Alerts</h1>
-                <p className="text-gray-400 text-xs sm:text-sm mt-1 whitespace-nowrap truncate">
+                <h1 className="text-xl sm:text-3xl font-bold text-white font-heading">Settings & Alerts</h1>
+                <p className="text-gray-400 text-xs sm:text-sm mt-0.5 sm:mt-1 whitespace-nowrap truncate">
                     <span className="hidden sm:inline">Configure multi-channel notifications to receive instant downtime and recovery alerts</span>
                     <span className="sm:hidden">Configure multi-channel downtime & recovery alerts</span>
                 </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                 {/* Email Channel */}
                 <NotificationCard
                     icon={Icons.email}
@@ -172,42 +172,42 @@ const Settings = () => {
                     enabled={formData.notificationPreferences.email}
                     onToggle={(e) => updatePref('email', e.target.checked)}
                 >
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 sm:space-y-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Additional Alert Recipients</label>
+                            <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-1.5">Additional Alert Recipients</label>
                             <div className="flex gap-2">
                                 <input
                                     type="email"
                                     placeholder="alert-recipient@example.com"
                                     value={newContactEmail}
                                     onChange={(e) => { setNewContactEmail(e.target.value); setContactEmailMessage(''); }}
-                                    className="flex-1 px-3.5 py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                    className="flex-1 px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                                 />
                                 <button
                                     type="button"
                                     onClick={addContactEmail}
-                                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-sm shadow-blue-500/20 transition-all cursor-pointer shrink-0"
+                                    className="px-3 py-2 sm:px-4 sm:py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg sm:rounded-xl shadow-sm shadow-blue-500/20 transition-all cursor-pointer shrink-0"
                                 >
                                     Add Email
                                 </button>
                             </div>
                             {contactEmailMessage && (
-                                <p className={`mt-2 text-xs font-medium ${contactEmailMessage.includes('success') || contactEmailMessage.includes('added') ? 'text-emerald-400' : 'text-red-400'}`}>
+                                <p className={`mt-1.5 sm:mt-2 text-xs font-medium ${contactEmailMessage.includes('success') || contactEmailMessage.includes('added') ? 'text-emerald-400' : 'text-red-400'}`}>
                                     {contactEmailMessage}
                                 </p>
                             )}
                         </div>
 
                         {formData.contactEmails?.length > 0 && (
-                            <div className="space-y-2 pt-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 block">Configured Forwarding Emails</span>
+                            <div className="space-y-1.5 sm:space-y-2 pt-1 sm:pt-2">
+                                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-500 block">Configured Forwarding Emails</span>
                                 {formData.contactEmails.map(email => (
-                                    <div key={email} className="flex items-center justify-between p-2.5 bg-[#0a0a0f] border border-gray-800 rounded-xl">
+                                    <div key={email} className="flex items-center justify-between p-2 sm:p-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl gap-2">
                                         <span className="text-gray-200 text-xs font-mono truncate">{email}</span>
                                         <button
                                             type="button"
                                             onClick={() => removeContactEmail(email)}
-                                            className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-semibold rounded-lg border border-red-500/20 transition-colors cursor-pointer"
+                                            className="px-2 sm:px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] sm:text-[11px] font-semibold rounded-md sm:rounded-lg border border-red-500/20 transition-colors cursor-pointer shrink-0"
                                         >
                                             Remove
                                         </button>
@@ -228,15 +228,15 @@ const Settings = () => {
                     onToggle={(e) => updatePref('slack', e.target.checked)}
                 >
                     <div>
-                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Slack Incoming Webhook URL</label>
+                        <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-1.5">Slack Incoming Webhook URL</label>
                         <input
                             type="url"
                             placeholder="https://hooks.slack.com/services/..."
                             value={formData.slackWebhook}
                             onChange={(e) => setFormData({ ...formData, slackWebhook: e.target.value })}
-                            className="w-full px-3.5 py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
+                            className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
                         />
-                        <p className="mt-1.5 text-[11px] text-gray-500">Create an incoming webhook in your Slack App and paste the URL above.</p>
+                        <p className="mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] text-gray-500">Create an incoming webhook in your Slack App and paste the URL above.</p>
                     </div>
                 </NotificationCard>
 
@@ -250,15 +250,15 @@ const Settings = () => {
                     onToggle={(e) => updatePref('sms', e.target.checked)}
                 >
                     <div>
-                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">Mobile Phone Number</label>
+                        <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-1.5">Mobile Phone Number</label>
                         <input
                             type="tel"
                             placeholder="+1234567890"
                             value={formData.phoneNumber}
                             onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                            className="w-full px-3.5 py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
+                            className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
                         />
-                        <p className="mt-1.5 text-[11px] text-gray-500">Enter your full mobile number including international country code (e.g. +1, +44, +91).</p>
+                        <p className="mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] text-gray-500">Enter your full mobile number including international country code (e.g. +1, +44, +91).</p>
                     </div>
                 </NotificationCard>
 
@@ -272,27 +272,26 @@ const Settings = () => {
                     onToggle={(e) => updatePref('webhook', e.target.checked)}
                 >
                     <div>
-                        <label className="block text-xs font-semibold text-gray-400 mb-1.5">HTTP Webhook Endpoint</label>
+                        <label className="block text-[11px] sm:text-xs font-semibold text-gray-400 mb-1 sm:mb-1.5">HTTP Webhook Endpoint</label>
                         <input
                             type="url"
                             placeholder="https://api.yourdomain.com/webhooks/pulseguard"
                             value={formData.webhookUrl}
                             onChange={(e) => setFormData({ ...formData, webhookUrl: e.target.value })}
-                            className="w-full px-3.5 py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
+                            className="w-full px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#0a0a0f] border border-gray-800 rounded-lg sm:rounded-xl text-white text-xs sm:text-sm placeholder-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
                         />
-                        <p className="mt-1.5 text-[11px] text-gray-500">PulseGuard will dispatch automated HTTP POST requests with incident event data.</p>
+                        <p className="mt-1 sm:mt-1.5 text-[10px] sm:text-[11px] text-gray-500">PulseGuard will dispatch automated HTTP POST requests with incident event data.</p>
                     </div>
                 </NotificationCard>
 
                 {/* Bottom Center Modern Toast Notification */}
                 <Toast message={message} onClose={() => setMessage('')} />
 
-
-                <div className="flex items-center justify-end pt-2">
+                <div className="flex items-center justify-end pt-1 sm:pt-2">
                     <button
                         type="submit"
                         disabled={saving}
-                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 hover:scale-[1.02] transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                     >
                         {saving ? (
                             <span className="flex items-center gap-1.5">
