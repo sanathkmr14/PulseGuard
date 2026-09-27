@@ -210,7 +210,7 @@ export const forgotPassword = async (req, res) => {
         // SECURITY: Always return same generic response to prevent email enumeration
         // Do not reveal whether email exists in the system
         if (!user) {
-            return res.json({ success: true, message: 'If a matching account exists, reset instructions have been sent' });
+            return res.json({ success: true, message: 'Reset link sent! Please check your email' });
         }
 
         const resetToken = crypto.randomBytes(32).toString('hex');
@@ -221,10 +221,10 @@ export const forgotPassword = async (req, res) => {
         const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
         await notificationService.sendEmail(user.email, 'Reset your PulseGuard password', notificationService.getPasswordResetEmailHTML(user.name, resetUrl));
 
-        res.json({ success: true, message: 'If a matching account exists, reset instructions have been sent' });
+        res.json({ success: true, message: 'Reset link sent! Please check your email' });
     } catch (error) {
         // SECURITY: Return same generic message even on error
-        res.json({ success: true, message: 'If a matching account exists, reset instructions have been sent' });
+        res.json({ success: true, message: 'Reset link sent! Please check your email' });
     }
 };
 

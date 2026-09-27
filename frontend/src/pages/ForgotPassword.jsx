@@ -17,20 +17,35 @@ const ForgotPassword = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [navigate]);
 
+    // Auto-close status message after 4 seconds
+    useEffect(() => {
+        if (status) {
+            const timer = setTimeout(() => {
+                setStatus(null);
+            }, 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [status]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus(null);
         if (!email) {
-            setStatus({ type: 'error', message: 'Please enter your email address.' });
+            setStatus({ type: 'error', message: 'Please enter your email address' });
             return;
         }
         setLoading(true);
         try {
             const response = await authAPI.forgotPassword({ email });
             const ok = response.data && response.data.success !== false;
-            setStatus({ type: ok ? 'success' : 'error', message: response.data.message });
+            const rawMsg = response.data?.message;
+            const msg = (!rawMsg || rawMsg.includes('matching account exists'))
+                ? 'Reset link sent! Please check your email'
+                : rawMsg;
+            setStatus({ type: ok ? 'success' : 'error', message: msg });
+            if (ok) setEmail('');
         } catch (error) {
-            setStatus({ type: 'error', message: error.response?.data?.message || 'Unable to send reset instructions.' });
+            setStatus({ type: 'error', message: error.response?.data?.message || 'Unable to send reset instructions' });
         } finally {
             setLoading(false);
         }
@@ -64,19 +79,31 @@ const ForgotPassword = () => {
                 <div className="bg-[#12121a] border border-gray-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 relative">
 
                     {status && (
-                        <div className={`mb-3 sm:mb-4 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                        <div className={`mb-3 sm:mb-4 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-medium flex items-center justify-between gap-2 animate-in fade-in duration-200 ${
                             status.type === 'success' 
                                 ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' 
                                 : 'bg-red-500/10 border border-red-500/25 text-red-400'
                         }`}>
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {status.type === 'success' ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                )}
-                            </svg>
-                            <span>{status.message}</span>
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {status.type === 'success' ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    )}
+                                </svg>
+                                <span className="whitespace-nowrap truncate text-[11px] sm:text-xs">{status.message}</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setStatus(null)}
+                                className="text-gray-400 hover:text-white p-0.5 rounded cursor-pointer shrink-0 transition-colors"
+                                aria-label="Close"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                     )}
 

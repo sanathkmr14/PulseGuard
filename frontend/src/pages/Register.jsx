@@ -19,6 +19,14 @@ const Register = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [navigate]);
 
+    // Auto-dismiss error after 4 seconds
+    useEffect(() => {
+        if (error) {
+            const timer = setTimeout(() => setError(''), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [error]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -57,11 +65,23 @@ const Register = () => {
                 {/* Card */}
                 <div className="bg-[#12121a] border border-gray-800/50 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8">
                     {error && (
-                        <div className="mb-3 sm:mb-4 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-red-500/10 border border-red-500/25 rounded-lg text-red-400 text-xs font-medium flex items-center gap-2">
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <span>{error}</span>
+                        <div className="mb-3 sm:mb-4 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-red-500/10 border border-red-500/25 rounded-lg text-red-400 text-xs font-medium flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <span className="whitespace-nowrap truncate text-[11px] sm:text-xs">{error}</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setError('')}
+                                className="text-gray-400 hover:text-white p-0.5 rounded cursor-pointer shrink-0 transition-colors"
+                                aria-label="Dismiss error"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                     )}
 
