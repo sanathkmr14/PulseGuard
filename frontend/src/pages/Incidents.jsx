@@ -399,10 +399,10 @@ const Incidents = () => {
 
             {/* Content Area */}
             {incidents.length === 0 ? (
-                <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-10 sm:p-14 text-center flex flex-col items-center justify-center shadow-sm">
+                <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-6 sm:p-14 text-center flex flex-col items-center justify-center shadow-sm w-full max-w-full">
                     {/* Glowing Emerald Radar Shield */}
-                    <div className="relative mb-5">
-                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
+                    <div className="relative mb-4 sm:mb-5">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
                             {Icons.shieldCheck}
                         </div>
                         <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
@@ -411,23 +411,23 @@ const Incidents = () => {
                         </span>
                     </div>
 
-                    <h2 className="text-lg sm:text-xl font-bold text-white mb-1.5 font-heading">
+                    <h2 className="text-base sm:text-xl font-bold text-white mb-1.5 font-heading">
                         {filter === 'ongoing'
                             ? 'Zero Ongoing Outages'
                             : filter === 'resolved'
                             ? 'No Resolved Incidents Yet'
                             : 'All Systems Operating Normally'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-gray-400 mx-auto leading-relaxed whitespace-nowrap">
+                    <p className="text-xs sm:text-sm text-gray-400 max-w-md mx-auto leading-relaxed">
                         {filter === 'ongoing'
                             ? 'Every monitored service is passing health checks with zero active disruptions.'
                             : 'No downtime incidents recorded for your monitors. Your endpoints are running reliably within SLA.'}
                     </p>
 
-                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                    <div className="mt-5 sm:mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
                         <Link
                             to="/app/monitors"
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-all flex items-center gap-1.5"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
                         >
                             <span>View Monitored Fleet</span>
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -436,7 +436,7 @@ const Incidents = () => {
                         </Link>
                         <Link
                             to="/app/dashboard"
-                            className="px-4 py-2 bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-medium rounded-lg border border-gray-700/60 transition-colors"
+                            className="px-4 py-2 bg-gray-800/80 hover:bg-gray-800 text-gray-300 hover:text-white text-xs font-medium rounded-lg border border-gray-700/60 transition-colors cursor-pointer"
                         >
                             Dashboard Overview
                         </Link>

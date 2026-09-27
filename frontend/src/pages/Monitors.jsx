@@ -682,14 +682,14 @@ const Monitors = () => {
             {/* Grid */}
             {monitors.length === 0 ? (
                 counts.all === 0 ? (
-                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-10 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm">
-                        <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-3 shadow-lg shadow-blue-500/5">
-                            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-6 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm w-full max-w-full">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-3 shadow-lg shadow-blue-500/5">
+                            <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                             </svg>
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-white mb-1.5 font-heading">No monitors configured yet</h3>
-                        <p className="text-xs text-gray-400 mb-5 whitespace-nowrap">
+                        <p className="text-xs text-gray-400 mb-5 max-w-md mx-auto leading-relaxed">
                             Monitor websites, APIs, SSL & ports with real-time multi-region health checks.
                         </p>
                         <button
@@ -703,14 +703,14 @@ const Monitors = () => {
                         </button>
                     </div>
                 ) : (
-                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-10 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm">
+                    <div className="bg-[#12121a]/90 backdrop-blur-md border border-gray-800/80 rounded-2xl p-6 sm:p-12 text-center flex flex-col items-center justify-center shadow-sm w-full max-w-full">
                         <div className="w-12 h-12 rounded-2xl bg-gray-800/50 border border-gray-700/50 text-gray-400 flex items-center justify-center mb-3">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
                         <h3 className="text-base font-bold text-white mb-1 font-heading">No {filter} monitors</h3>
-                        <p className="text-xs text-gray-400 mb-4">
+                        <p className="text-xs text-gray-400 mb-4 max-w-sm mx-auto leading-relaxed">
                             There are currently no monitors matching &quot;{filter}&quot;.
                         </p>
                         <button

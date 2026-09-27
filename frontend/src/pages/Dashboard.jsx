@@ -395,11 +395,11 @@ const Dashboard = () => {
                                         <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
                                             System Outage Detected
                                         </h2>
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap">
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap shrink-0">
                                             {stats?.downMonitors} {stats?.downMonitors === 1 ? 'Service Down' : 'Services Down'}
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
                                         Active incidents require immediate attention.
                                     </p>
                                 </div>
@@ -426,11 +426,11 @@ const Dashboard = () => {
                                         <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
                                             Performance Degradation
                                         </h2>
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 whitespace-nowrap">
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 whitespace-nowrap shrink-0">
                                             {stats?.degradedMonitors} Degraded
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
                                         Elevated latency or SSL expiry alerts detected.
                                     </p>
                                 </div>
@@ -457,11 +457,11 @@ const Dashboard = () => {
                                         <h2 className="text-xs sm:text-sm font-bold text-white font-heading">
                                             Ready to Monitor
                                         </h2>
-                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 whitespace-nowrap">
+                                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 shrink-0">
                                             0 Active
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                    <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
                                         Add your first service to begin automated uptime telemetry.
                                     </p>
                                 </div>
@@ -497,7 +497,7 @@ const Dashboard = () => {
                                         100% Healthy
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5 truncate whitespace-nowrap">
+                                <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">
                                     All {stats?.totalMonitors ?? monitors.length} monitored service{(stats?.totalMonitors ?? monitors.length) === 1 ? '' : 's'} responding normally.
                                 </p>
                             </div>
@@ -602,12 +602,15 @@ const Dashboard = () => {
                         </div>
 
                         {monitors.length === 0 ? (
-                            <div className="p-8 text-center">
+                            <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center">
                                 <div className="flex justify-center mb-2 text-gray-500">{Icons.search}</div>
-                                <h3 className="text-sm font-semibold text-white mb-1">No monitors yet</h3>
-                                <p className="text-xs text-gray-500 mb-3">Add your first endpoint to start tracking uptime</p>
-                                <Link to="/app/monitors?action=new" className="inline-block px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-colors">
-                                    Create Monitor
+                                <h3 className="text-sm font-semibold text-white mb-1 font-heading">No monitors yet</h3>
+                                <p className="text-xs text-gray-400 mb-3.5 max-w-xs mx-auto leading-relaxed">Add your first endpoint to start tracking uptime</p>
+                                <Link to="/app/monitors?action=new" className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg shadow-sm shadow-blue-500/20 transition-colors">
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span>Create Monitor</span>
                                 </Link>
                             </div>
                         ) : (
@@ -835,7 +838,7 @@ const Dashboard = () => {
 
                                 {/* Incidents List or Empty State */}
                                 {incidents.length === 0 ? (
-                                    <div className="py-8 px-4 text-center">
+                                    <div className="py-6 sm:py-8 px-4 text-center">
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2.5 ${
                                             incidentsFilter === 'ongoing'
                                                 ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
@@ -851,10 +854,10 @@ const Dashboard = () => {
                                                 </svg>
                                             )}
                                         </div>
-                                        <h3 className="text-xs font-semibold text-white mb-0.5">
+                                        <h3 className="text-xs font-semibold text-white mb-0.5 font-heading">
                                             {incidentsFilter === 'ongoing' ? 'All Systems Operational' : `No ${incidentsFilter === 'resolved' ? 'Resolved' : ''} Incidents`}
                                         </h3>
-                                        <p className="text-[11px] text-gray-400 max-w-xs mx-auto">
+                                        <p className="text-[11px] text-gray-400 max-w-xs mx-auto leading-relaxed">
                                             {incidentsFilter === 'ongoing'
                                                 ? 'Zero active outages or performance degradations detected.'
                                                 : `There are currently no ${incidentsFilter} incidents recorded.`}
