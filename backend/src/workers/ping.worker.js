@@ -284,7 +284,10 @@ export const checkPing = async (monitor, result, options = {}) => {
         // 🌐 Cloud ICMP Fallback: In containerized or cloud environments (e.g. Render, GCP, AWS)
         // raw ICMP echo packets are frequently dropped by VPC security groups or blocked by unprivileged containers.
         // If system ping fails on a public, non-SSRF target, verify reachability via global ping probes.
-        try {
+        const shouldRunCloudFallback = (process.env.NODE_ENV !== 'test' || options.enableCloudFallback)
+            && (timeoutMs >= 3000);
+        if (shouldRunCloudFallback) {
+            try {
             const provider = new CheckHostProvider();
             const globalNodes = await provider.verify({ type: 'PING', url: safeTarget || hostname });
             const upNodes = (globalNodes || []).filter(n => n.isUp && n.responseTime > 0);
@@ -309,6 +312,7 @@ export const checkPing = async (monitor, result, options = {}) => {
             }
         } catch (probeErr) {
             console.debug(`Global ping probe fallback skipped for ${hostname}:`, probeErr.message);
+        }
         }
 
         // Determine error type and use classifier

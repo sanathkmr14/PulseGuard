@@ -471,6 +471,15 @@ const gracefulShutdown = async (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+// Process error guards: prevent unhandled exceptions or rejected promises from crashing the server on Render
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Unhandled Promise Rejection (non-fatal):', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('⚠️ Uncaught Exception (prevented crash):', err?.message || err);
+});
+
 // Start the server only if not in test mode
 if (process.env.NODE_ENV !== 'test') {
     startServer();

@@ -278,9 +278,9 @@ export const checkSmtp = async (monitor, result, options = {}) => {
         for (let i = 0; i < addresses.length; i++) {
             const elapsed = Date.now() - startTime;
             if (elapsed >= timeout) {
-                const timeoutErr = new Error(`SMTP connection timed out after ${timeout}ms`);
-                timeoutErr.code = 'ETIMEDOUT';
-                throw timeoutErr;
+                lastError = new Error(`SMTP connection timed out after ${timeout}ms`);
+                lastError.code = 'ETIMEDOUT';
+                break;
             }
 
             const remainingTime = timeout - elapsed;
@@ -329,7 +329,12 @@ export const checkSmtp = async (monitor, result, options = {}) => {
         // 🌐 Cloud Port 25 / Egress Fallback: In containerized or cloud environments (e.g. Render, GCP, AWS)
         // outbound port 25 is blocked by cloud providers to prevent spam, or port 587 may be throttled.
         // If direct TCP connections failed, verify reachability via global probe.
-        if (lastError && (lastError.code === 'ETIMEDOUT' || lastError.message?.includes('Timeout') || lastError.message?.includes('CONNECTING') || lastError.code === 'ENETUNREACH' || lastError.code === 'ECONNREFUSED')) {
+        const isStandardSmtpPort = port === 25 || port === 587 || port === 2525;
+        const shouldRunSmtpFallback = (process.env.NODE_ENV !== 'test' || options.enableCloudFallback)
+            && isStandardSmtpPort
+            && (timeout >= 3000);
+
+        if (shouldRunSmtpFallback && lastError && (lastError.code === 'ETIMEDOUT' || lastError.message?.toLowerCase().includes('timeout') || lastError.message?.includes('CONNECTING') || lastError.code === 'ENETUNREACH' || lastError.code === 'ECONNREFUSED')) {
             try {
                 const checkHostProvider = (await import('../services/providers/CheckHostProvider.js')).default;
                 const provider = new checkHostProvider();

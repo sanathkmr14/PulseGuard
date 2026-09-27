@@ -4,18 +4,16 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext();
 
-// Fallback logic: Use VITE_SOCKET_URL if provided, else strip /api from VITE_API_URL if possible, else default
+// Fallback logic: Use VITE_SOCKET_URL if non-localhost, else in production use Render backend, else localhost
 const getSocketUrl = () => {
-    if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-    if (import.meta.env.VITE_API_URL) {
-        // Strip /api or /api/ from the end of the URL for socket connection
-        return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
-    }
-    // In production (e.g. Vercel deployment), connect to Render backend
+    // In production or when hosted on Vercel / non-localhost domain:
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        if (import.meta.env.VITE_SOCKET_URL && !import.meta.env.VITE_SOCKET_URL.includes('localhost')) {
+            return import.meta.env.VITE_SOCKET_URL;
+        }
         return 'https://pulseguard-80lq.onrender.com';
     }
-    return 'http://localhost:5011';
+    return import.meta.env.VITE_SOCKET_URL || 'http://localhost:5011';
 };
 
 const SOCKET_URL = getSocketUrl();

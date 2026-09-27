@@ -245,7 +245,8 @@ class HealthStateService {
             baselineAnalysis,
             windowAnalysis,
             stateHistory,
-            monitor
+            monitor,
+            recentChecks
         );
 
         // 6. Use the enhanced health evaluator for final determination
@@ -254,6 +255,7 @@ class HealthStateService {
         // Combine original decision with enhanced evaluation
         const finalResult = {
             status: enhancedEvaluation.status,
+            rawStatus: stateDecision.rawStatus || stateDecision.status,
             reasons: enhancedEvaluation.reasons,
             confidence: enhancedEvaluation.confidence,
             analysis: {
@@ -669,7 +671,7 @@ class HealthStateService {
     /**
      * Determine state with hysteresis to prevent flapping
      */
-    async determineStateWithHysteresis(currentCheck, baseline, window, stateHistory, monitor) {
+    async determineStateWithHysteresis(currentCheck, baseline, window, stateHistory, monitor, recentChecks = []) {
         const previousState = stateHistory.currentState || 'unknown';
         const timeInPreviousState = Date.now() - (stateHistory.lastStateChange || Date.now());
         const rawConsecutiveSameState = stateHistory.rawConsecutiveCount || 0;
@@ -750,7 +752,22 @@ class HealthStateService {
 
         // Apply hysteresis for state transitions
         const confirmedThreshold = monitor.alertThreshold || this.config.consecutiveChecksForDegradation;
-        const currentRawConsecutive = (targetState === previousRawState) ? rawConsecutiveSameState + 1 : 1;
+
+        // Calculate consecutive count from recent check history in DB as reliable ground truth
+        let dbConsecutive = 0;
+        if (recentChecks && Array.isArray(recentChecks)) {
+            for (const c of recentChecks) {
+                const s = (c.status || (c.isUp ? 'up' : 'down')).toLowerCase();
+                if (s === targetState) {
+                    dbConsecutive++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        const redisConsecutive = (targetState === previousRawState) ? rawConsecutiveSameState + 1 : 1;
+        const currentRawConsecutive = Math.max(redisConsecutive, dbConsecutive + 1);
 
         const hysteresisResult = await this.applyHysteresis(
             targetState,

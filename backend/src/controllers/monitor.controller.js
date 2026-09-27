@@ -181,7 +181,7 @@ export const createMonitor = async (req, res) => {
             .limit(1);
 
         // Emit real-time monitor_created event
-        if (req.app.get('io')) {
+        if (req.app?.get?.('io')) {
             try {
                 req.app.get('io').to(`user_${req.user._id}`).emit('monitor_created', { monitor });
             } catch (socketErr) {
@@ -490,7 +490,7 @@ export const deleteMonitor = async (req, res) => {
         await enhancedAlertService.clearAlertSuppression(monitor._id);
 
         // Emit real-time monitor_deleted event
-        if (req.app.get('io')) {
+        if (req.app?.get?.('io')) {
             try {
                 req.app.get('io').to(`user_${monitor.user}`).emit('monitor_deleted', { monitorId: monitor._id });
             } catch (socketErr) {

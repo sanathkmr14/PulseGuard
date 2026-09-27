@@ -1,7 +1,12 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load environment variables from .env file
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Database Mode resolution: supports explicit DB_MODE ('local' | 'atlas') or standard MONGODB_URI
 const dbMode = (process.env.DB_MODE || '').toLowerCase();
